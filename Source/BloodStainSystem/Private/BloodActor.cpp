@@ -81,7 +81,7 @@ void ABloodActor::OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* Othe
 	}
 }
 
-void ABloodActor::Interact_Implementation()
+void ABloodActor::Interact()
 {
 	if (UWorld* World = GetWorld())
 	{

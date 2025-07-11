@@ -48,9 +48,8 @@ public:
 	void Initialize(const FString& InReplayFileName);
 	
 	// 상호작용 로직 (예: E 키를 눌렀을 때 호출)
-	UFUNCTION(Category = Interaction, BlueprintNativeEvent, BlueprintCallable)
+	UFUNCTION(Category = Interaction, BlueprintCallable)
 	void Interact();
-	void Interact_Implementation();
 
 public:
 	UPROPERTY()

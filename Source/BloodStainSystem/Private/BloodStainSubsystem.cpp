@@ -77,7 +77,7 @@ void UBloodStainSubsystem::StopRecording(AActor* TargetActor)
 	}
 
 	// 2) ActiveRecorders에서 컴포넌트 찾기
-	URecordComponent** RecorderPtr = ActiveRecorders.Find(TargetActor);
+	TObjectPtr<URecordComponent>* RecorderPtr = ActiveRecorders.Find(TargetActor);
 	if (!RecorderPtr || !*RecorderPtr)
 	{
 		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording failed: No active recorder for %s"),
@@ -156,7 +156,7 @@ void UBloodStainSubsystem::StopReplay(AActor* TargetActor)
 		return;
 	}
 
-	UPlayComponent** ReplayPtr = ActiveReplayers.Find(TargetActor);
+	TObjectPtr<UPlayComponent>* ReplayPtr = ActiveReplayers.Find(TargetActor);
 	if (!ReplayPtr || !*ReplayPtr)
 	{
 		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopReplay failed: No active replayer for %s"),

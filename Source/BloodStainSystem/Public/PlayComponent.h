@@ -8,6 +8,16 @@
 #include "Components/ActorComponent.h"
 #include "PlayComponent.generated.h"
 
+class UAnimSequence;
+class UWorld;
+class USkeletalMeshComponent;
+class UGameInstance;
+class USkeletalMesh;
+class USkeleton;
+class UStaticMeshComponent;
+class UMeshComponent;
+class UMaterialInterface;
+
 struct FIntervalTreeNode
 {
 	int32 Center;
@@ -55,7 +65,7 @@ protected:
 	// FBloodStainReplayOptions ReplayOptions;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "BloodStain")
-	TMap<FString, UAnimSequence*> AnimSequences;
+	TMap<FString, TObjectPtr<UAnimSequence>> AnimSequences;
 	
 	/** 재생 시작 시점 */
 	float PlaybackStartTime = 0.f;
@@ -64,7 +74,7 @@ protected:
 	int32 CurrentFrame = 0;
 
 	UPROPERTY()
-	TMap<FString, USceneComponent*> ReconstructedComponents;
+	TMap<FString, TObjectPtr<USceneComponent>> ReconstructedComponents;
 
 private:
 	

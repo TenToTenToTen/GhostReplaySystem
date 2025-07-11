@@ -6,7 +6,10 @@
 #include "BloodStainSystem.h"
 #include "GhostData.h"
 #include "Camera/CameraComponent.h"
-
+#include "Components/SkeletalMeshComponent.h"
+#include "Engine/StaticMesh.h"
+#include "Materials/MaterialInterface.h"
+#include "Engine/SkeletalMesh.h"
 //DECLARE_STATS_GROUP(TEXT("BloodStain"), STATGROUP_BloodStain, STATCAT_Advanced);
 //DECLARE_CYCLE_STAT(TEXT("RecordTickComponent"), STAT_RecordCompTick, STATGROUP_BloodStain);
 //DECLARE_CYCLE_STAT(TEXT("SaveQueueFrames"), STAT_FrameQueueSave, STATGROUP_BloodStain);
@@ -49,7 +52,7 @@ void URecordComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 		}
 		
 		// InitialComponentStructure에 있는 컴포넌트들만 월드 트랜스폼을 기록
-		for (USceneComponent*& SceneComp : RecordComponents)
+		for (TObjectPtr<USceneComponent>& SceneComp : RecordComponents)
 		{
 			FString ComponentName = FString::Printf(TEXT("%s_%u"), *SceneComp->GetName(), SceneComp->GetUniqueID());
 			if (USkeletalMeshComponent* SkelComp = Cast<USkeletalMeshComponent>(SceneComp))
@@ -116,9 +119,21 @@ void URecordComponent::CollectMeshComponents()
     	// GetComponents의 순서가 보장되는지 불분명함. 기준이 어떤지 정확히 파악하고 수정이 필요할 수 있음.
     	for (UMeshComponent* MeshComp : OwnerMeshComponents)
     	{
-    		if (Cast<USkeletalMeshComponent>(MeshComp) || Cast<UStaticMeshComponent>(MeshComp))
+    		if (Cast<UCameraProxyMeshComponent>(MeshComp))
     		{
-    			GhostSaveData.SpawnPointComponentName = FString::Printf(TEXT("%s_%u"), *MeshComp->GetName(), MeshComp->GetUniqueID());
+    			continue;
+    		}
+    		if (USkeletalMeshComponent* SkeletalMeshComp = Cast<USkeletalMeshComponent>(MeshComp))
+    		{
+    			if (SkeletalMeshComp->GetSkeletalMeshAsset())
+    			{
+    				GhostSaveData.SpawnPointComponentName = FString::Printf(TEXT("%s_%u"), *SkeletalMeshComp->GetName(), SkeletalMeshComp->GetUniqueID());
+    				break;
+    			}
+    		}
+    		if (UStaticMeshComponent* StaticMeshComp = Cast<UStaticMeshComponent>(MeshComp))
+    		{
+    			GhostSaveData.SpawnPointComponentName = FString::Printf(TEXT("%s_%u"), *StaticMeshComp->GetName(), StaticMeshComp->GetUniqueID());
     			break;
     		}
     	}
@@ -129,15 +144,24 @@ void URecordComponent::CollectMeshComponents()
                 continue;
             }
 
-            if (Cast<UStaticMeshComponent>(MeshComp) || Cast<USkeletalMeshComponent>(MeshComp))
-            {
-                FComponentRecord Record;
-            	if (CreateRecordFromMeshComponent(MeshComp, Record))
-            	{
-		            GhostSaveData.InitialComponentStructure.Add(Record);
-		            RecordComponents.Add(MeshComp);
-            	}
-            }
+        	if (USkeletalMeshComponent* SkeletalMeshComp = Cast<USkeletalMeshComponent>(MeshComp))
+        	{
+        		FComponentRecord Record;
+        		if (CreateRecordFromMeshComponent(SkeletalMeshComp, Record))
+        		{
+        			GhostSaveData.InitialComponentStructure.Add(Record);
+        			RecordComponents.Add(SkeletalMeshComp);
+        		}
+        	}
+        	if (UStaticMeshComponent* StaticMeshComp = Cast<UStaticMeshComponent>(MeshComp))
+        	{
+        		FComponentRecord Record;
+        		if (CreateRecordFromMeshComponent(StaticMeshComp, Record))
+        		{
+        			GhostSaveData.InitialComponentStructure.Add(Record);
+        			RecordComponents.Add(StaticMeshComp);
+        		}
+        	}
         }
 
         // 2. Owner 액터에 부착된 모든 액터 (하위의 하위까지 재귀적으로)의 메시 컴포넌트 수집

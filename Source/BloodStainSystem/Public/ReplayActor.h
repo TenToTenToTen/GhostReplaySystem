@@ -16,7 +16,7 @@ public:
 	AReplayActor();
 
 	UPROPERTY()
-	USceneComponent* SceneRoot;
+	TObjectPtr<USceneComponent> SceneRoot;
 	
 protected:
 	// Called when the game starts or when spawned

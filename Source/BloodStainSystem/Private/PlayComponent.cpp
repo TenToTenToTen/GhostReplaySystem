@@ -7,7 +7,19 @@
 #include "ReplayActor.h"
 #include "Animation/AnimSequence.h"
 #include "EntitySystem/MovieSceneEntitySystemRunner.h"
-#include "Stats/Stats2.h"     
+#include "Stats/Stats2.h"
+#include "Engine/World.h"
+#include "Engine/SkeletalMesh.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Engine/GameInstance.h"
+#include "Engine/SkeletalMesh.h"
+#include "UObject/UObjectGlobals.h"
+#include "UObject/Package.h"
+#include "Components/MeshComponent.h"
+#include "Materials/MaterialInterface.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
+#include "Animation/Skeleton.h"
 
 // 스탯 그룹, 스탯 한번만 정의
 //DECLARE_STATS_GROUP(TEXT("BloodStain"), STATGROUP_BloodStain, STATCAT_Advanced);
@@ -268,6 +280,7 @@ void UPlayComponent::ConvertFrameToAnimSequence()
         AnimSeq->SetSkeleton(Skeleton);
         AnimSeq->SetPreviewMesh(Mesh);
 
+#if WITH_EDITOR
         IAnimationDataController& Controller = AnimSeq->GetController();
         Controller.InitializeModel();
         Controller.OpenBracket(FText::FromString(FString::Printf(TEXT("Generate_%s"), *CompName)));
@@ -330,10 +343,9 @@ void UPlayComponent::ConvertFrameToAnimSequence()
             Controller.AddBoneCurve(BoneName);
             Controller.SetBoneTrackKeys(BoneName, PosKeys, RotKeys, ScaleKeys);
         }
-
         Controller.NotifyPopulated();
         Controller.CloseBracket();
-
+#endif
         // Store the generated sequence
         AnimSequences.Add(CompName, AnimSeq);
     }
@@ -361,7 +373,7 @@ void UPlayComponent::ApplyComponentChanges(const FRecordFrame& Frame)
 			continue;
 		}
 
-		if (USceneComponent* NewComponent = CreateComponentFromRecord(Record))
+		if (TObjectPtr<USceneComponent> NewComponent = CreateComponentFromRecord(Record))
 		{
 			ReconstructedComponents.Add(Name, NewComponent);
 			UE_LOG(LogBloodStain, Log, TEXT("ApplyComponentChanges: Component Added - %s"), *Record.ComponentName);
@@ -376,9 +388,9 @@ void UPlayComponent::ApplyComponentChanges(const FRecordFrame& Frame)
 	for (const FString& ComponentName : Frame.RemovedComponentNames)
 	{
 		// 맵에서 제거할 컴포넌트를 찾습니다.
-		if (USceneComponent** CompPtr = ReconstructedComponents.Find(ComponentName))
+		if (TObjectPtr<USceneComponent>* CompPtr = ReconstructedComponents.Find(ComponentName))
 		{
-			if (USceneComponent* CompToDestroy = *CompPtr)
+			if (TObjectPtr<USceneComponent>CompToDestroy = *CompPtr)
 			{
 				// 컴포넌트가 유효하면 파괴합니다.
 				if (IsValid(CompToDestroy))
@@ -408,7 +420,7 @@ USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecor
 	}
 
 	// 1. FComponentRecord로부터 컴포넌트 클래스를 로드합니다.
-	UClass* ComponentClass = FindObject<UClass>(ANY_PACKAGE, *Record.ComponentClassPath);
+	UClass* ComponentClass = FindObject<UClass>(nullptr, *Record.ComponentClassPath);
 	if (!ComponentClass ||
 		!(ComponentClass->IsChildOf(UStaticMeshComponent::StaticClass()) || ComponentClass->IsChildOf(USkeletalMeshComponent::StaticClass())))
 	{

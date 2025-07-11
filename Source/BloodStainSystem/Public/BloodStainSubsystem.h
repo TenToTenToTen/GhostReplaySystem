@@ -9,6 +9,8 @@
 #include "BloodStainFileOptions.h" 
 #include "BloodStainSubsystem.generated.h"
 
+class UPlayComponent;
+class URecordComponent;
 struct FBloodStainRecordOptions;
 struct FBloodStainReplayOptions;
 
@@ -102,11 +104,11 @@ protected:
 private:
 	/** 현재 녹화 중인 RecordComponent들 */
 	UPROPERTY()
-	TMap<AActor*, class URecordComponent*> ActiveRecorders;
+	TMap<TObjectPtr<AActor>, TObjectPtr<URecordComponent>> ActiveRecorders;
 	
 	/** 현재 재생 중인 ReplayComponent들 */
 	UPROPERTY()
-	TMap<AActor*, class UPlayComponent*> ActiveReplayers;
+	TMap<TObjectPtr<AActor>, TObjectPtr<UPlayComponent>> ActiveReplayers;
 
 	/** 에디터나 시작 시 불러올 리플레이 파일 목록 */
 	UPROPERTY(VisibleAnywhere, Category="BloodStain|Cache")
@@ -122,5 +124,5 @@ private:
 	
 
 	UPROPERTY()
-	UMaterialInterface* GhostMaterial;
+	TObjectPtr<UMaterialInterface> GhostMaterial;
 };

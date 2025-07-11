@@ -9,6 +9,7 @@
 #include "Containers/CircularQueue.h"
 #include "RecordComponent.generated.h"
 
+class UMeshComponent;
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class BLOODSTAINSYSTEM_API URecordComponent : public UActorComponent
@@ -53,7 +54,7 @@ protected:
 	float StartTime;
 	FRecordSavedData GhostSaveData;
 	UPROPERTY()
-	TArray<USceneComponent*> RecordComponents;
+	TArray<TObjectPtr<USceneComponent>> RecordComponents;
 	
 	
 
