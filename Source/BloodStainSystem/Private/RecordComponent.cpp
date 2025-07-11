@@ -10,8 +10,6 @@
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInterface.h"
 #include "Engine/SkeletalMesh.h"
-#include "TransformQuantizer.h"
-
 //DECLARE_STATS_GROUP(TEXT("BloodStain"), STATGROUP_BloodStain, STATCAT_Advanced);
 //DECLARE_CYCLE_STAT(TEXT("RecordTickComponent"), STAT_RecordCompTick, STATGROUP_BloodStain);
 //DECLARE_CYCLE_STAT(TEXT("SaveQueueFrames"), STAT_FrameQueueSave, STATGROUP_BloodStain);
@@ -20,11 +18,6 @@ URecordComponent::URecordComponent()
 	: CurrentFrameIndex(0)
 {
 	PrimaryComponentTick.bCanEverTick = true;
-}
-
-URecordComponent::~URecordComponent()
-{
-	
 }
 
 // Called when the game starts
@@ -38,6 +31,12 @@ void URecordComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 {
 	//SCOPE_CYCLE_COUNTER(STAT_RecordCompTick);
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	// 자동 탈부착 기계 빼고 싶으면 빼세요.
+	if (RecordOptions.bTrackAttachmentChanges)
+	{
+		HandleAttachedActorChanges();
+	}
 	
 	TimeSinceLastRecord += DeltaTime;
 	if (TimeSinceLastRecord >= RecordOptions.SamplingInterval)
@@ -121,7 +120,7 @@ void URecordComponent::CollectMeshComponents()
 
         // 1. Owner 액터 자체의 메시 컴포넌트 수집
         TArray<UMeshComponent*> OwnerMeshComponents;
-        Owner->GetComponents<UMeshComponent>(OwnerMeshComponents, true);
+        Owner->GetComponents<UMeshComponent>(OwnerMeshComponents);
 
     	// GetComponents의 순서가 보장되는지 불분명함. 기준이 어떤지 정확히 파악하고 수정이 필요할 수 있음.
     	for (UMeshComponent* MeshComp : OwnerMeshComponents)
@@ -174,8 +173,9 @@ void URecordComponent::CollectMeshComponents()
         // 2. Owner 액터에 부착된 모든 액터 (하위의 하위까지 재귀적으로)의 메시 컴포넌트 수집
         TArray<AActor*> AllAttachedActors;
         // 세 번째 인자를 true로 설정하여 재귀적으로 모든 하위 액터를 가져옵니다.
-        Owner->GetAttachedActors(AllAttachedActors, true, true); 
-
+        Owner->GetAttachedActors(AllAttachedActors, true, true);
+    	PreviousAttachedActors = AllAttachedActors;
+    	
         for (AActor* AttachedActor : AllAttachedActors)
         {
             TArray<UMeshComponent*> AttachedActorMeshComponents;
@@ -372,7 +372,7 @@ void URecordComponent::OnComponentAttached(UMeshComponent* NewComponent)
 
 void URecordComponent::OnComponentDetached(UMeshComponent* DetachedComponent)
 {
-	if (!DetachedComponent || !IsValid(DetachedComponent)) return;
+	if (!DetachedComponent) return;
 
 	// 1. 기록할 컴포넌트 목록에서 제거하여 더 이상 트랜스폼을 기록하지 않음
 	RecordComponents.Remove(DetachedComponent);
@@ -439,5 +439,58 @@ bool URecordComponent::CreateRecordFromMeshComponent(UMeshComponent* InMeshCompo
 	}
 	UE_LOG(LogBloodStain, Warning, TEXT("CreateRecordFromMeshComponent: Failed to create record from mesh component %s."), *InMeshComponent->GetName());
 	return false;
+}
+
+void URecordComponent::HandleAttachedActorChanges()
+{
+	// 이전 틱과 Attached된 액터 비교하고 컴포넌트 탈부착
+	TArray<AActor*> CurrentAttachedActors;
+	AActor* Owner = GetOwner();
+	Owner->GetAttachedActors(CurrentAttachedActors, true, true);
+	if (PreviousAttachedActors != CurrentAttachedActors)
+	{
+		TSet<AActor*> PreviousSet(PreviousAttachedActors);
+		TSet<AActor*> CurrentSet(CurrentAttachedActors);
+
+		TSet<AActor*> AddedActorsSet = CurrentSet.Difference(PreviousSet);
+		TArray<AActor*> AddedActors(AddedActorsSet.Array());
+
+		if (AddedActors.Num() > 0)
+		{
+			// TODO: 새로 추가된 액터(AddedActors)에 대한 처리 로직
+			// 예: 녹화 대상에 추가, 초기 정보 기록 등
+			for (AActor* AttachedActor : AddedActors)
+			{
+				TArray<UMeshComponent*> MeshComps;
+				AttachedActor->GetComponents<UMeshComponent>(MeshComps);
+				for (UMeshComponent* MeshComp : MeshComps)
+				{
+					OnComponentAttached(MeshComp);
+				}
+			}
+			UE_LOG(LogTemp, Warning, TEXT("%d a actor(s) have been added."), AddedActors.Num());
+		}
+
+		TSet<AActor*> RemovedActorsSet = PreviousSet.Difference(CurrentSet);
+		TArray<AActor*> RemovedActors(RemovedActorsSet.Array());
+
+		if (RemovedActors.Num() > 0)
+		{
+			for (AActor* DetachedActor : RemovedActors)
+			{
+				TArray<UMeshComponent*> MeshComps;
+				DetachedActor->GetComponents<UMeshComponent>(MeshComps);
+				for (UMeshComponent* MeshComp : MeshComps)
+				{
+					OnComponentDetached(MeshComp);
+				}
+			}
+			// TODO: 사라진 액터(RemovedActors)에 대한 처리 로직
+			// 예: 녹화 대상에서 제거, 소멸 정보 기록 등
+			UE_LOG(LogTemp, Warning, TEXT("%d a actor(s) have been removed."), RemovedActors.Num());
+		}
+
+		PreviousAttachedActors = CurrentAttachedActors;
+	}
 }
 

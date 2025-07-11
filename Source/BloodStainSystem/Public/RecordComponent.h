@@ -19,7 +19,6 @@ class BLOODSTAINSYSTEM_API URecordComponent : public UActorComponent
 public:	
 	// Sets default values for this component's properties
 	URecordComponent();
-	~URecordComponent();
 	
 protected:
 	// Called when the game starts
@@ -85,4 +84,10 @@ private:
 	
 	/** Current Frame Index */
 	int32 CurrentFrameIndex = 0;
+
+	/** Previous Attached Actors */
+	TArray<TObjectPtr<AActor>> PreviousAttachedActors;
+
+	/** Checks for newly attached or detached actors since the last frame and updates the recording state accordingly. */
+	void HandleAttachedActorChanges();
 };
