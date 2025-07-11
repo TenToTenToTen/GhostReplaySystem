@@ -7,7 +7,6 @@
 #include "Components/ActorComponent.h"
 #include "OptionTypes.h"
 #include "Containers/CircularQueue.h"
-#include "ITransformQuantizer.h"
 #include "RecordComponent.generated.h"
 
 class UMeshComponent;
@@ -86,7 +85,4 @@ private:
 	
 	/** Current Frame Index */
 	int32 CurrentFrameIndex = 0;
-
-private:
-	TUniquePtr<ITransformQuantizer> TransformQuantizer;
 };
