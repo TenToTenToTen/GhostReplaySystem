@@ -10,6 +10,7 @@
 #include "RecordComponent.h"
 #include "ReplayActor.h"
 #include "Kismet/KismetMathLibrary.h"
+#include "SaveRecordingTask.h"  
 
 void UBloodStainSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -87,18 +88,22 @@ void UBloodStainSubsystem::StopRecording(AActor* TargetActor)
 
 	URecordComponent* Recorder = *RecorderPtr;
 	Recorder->SaveQueuedFrames(); // Move Data from FrameQueue to GhostSaveData
+	FRecordSavedData SavedData = Recorder->GetGhostSaveData();
 
 	// 1. 기본 식별자 (플레이어 이름, 맵 이름 등)
 	const FString MapName = GetWorld()->GetMapName().Replace(TEXT("/Game/Maps/"), TEXT(""));
 	const FString PlayerIdentifier = TargetActor->GetFName().ToString();
-
-	// 2. 고유성 보장 (타임스탬프)
 	const FString UniqueTimestamp = FDateTime::Now().ToString(TEXT("%Y%m%d-%H%M%S%s")); // %s는 밀리초까지 포함
+	const FString FileName = FString::Printf(TEXT("%s-%s-%s.sav"), *MapName, *PlayerIdentifier, *UniqueTimestamp);
 	
-	if (!FBloodStainFileUtils::SaveToFile(Recorder->GetGhostSaveData(), FString::Printf(TEXT("%s-%s-%s.sav"), *MapName, *PlayerIdentifier, *UniqueTimestamp), FileSaveOptions))
-	{
-		UE_LOG(LogBloodStain, Log, TEXT("[BloodStain] SaveToFile failed"));
-	}
+	// if (!FBloodStainFileUtils::SaveToFile(Recorder->GetGhostSaveData(), FileName, FileSaveOptions))
+	// {
+	// 	UE_LOG(LogBloodStain, Log, TEXT("[BloodStain] SaveToFile failed"));
+	// }
+	
+	(new FAutoDeleteAsyncTask<FSaveRecordingTask>(
+		 MoveTemp(SavedData), FileName,FileSaveOptions
+	))->StartBackgroundTask();
 	
 	// 3) 언레지스터
 	Recorder->UnregisterComponent();

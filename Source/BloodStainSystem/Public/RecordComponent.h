@@ -7,6 +7,7 @@
 #include "Components/ActorComponent.h"
 #include "OptionTypes.h"
 #include "Containers/CircularQueue.h"
+#include "ITransformQuantizer.h"
 #include "RecordComponent.generated.h"
 
 class UMeshComponent;
@@ -19,6 +20,7 @@ class BLOODSTAINSYSTEM_API URecordComponent : public UActorComponent
 public:	
 	// Sets default values for this component's properties
 	URecordComponent();
+	~URecordComponent();
 	
 protected:
 	// Called when the game starts
@@ -84,4 +86,7 @@ private:
 	
 	/** Current Frame Index */
 	int32 CurrentFrameIndex = 0;
+
+private:
+	TUniquePtr<ITransformQuantizer> TransformQuantizer;
 };

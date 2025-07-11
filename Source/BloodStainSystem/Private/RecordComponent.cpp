@@ -10,6 +10,8 @@
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInterface.h"
 #include "Engine/SkeletalMesh.h"
+#include "TransformQuantizer.h"
+
 //DECLARE_STATS_GROUP(TEXT("BloodStain"), STATGROUP_BloodStain, STATCAT_Advanced);
 //DECLARE_CYCLE_STAT(TEXT("RecordTickComponent"), STAT_RecordCompTick, STATGROUP_BloodStain);
 //DECLARE_CYCLE_STAT(TEXT("SaveQueueFrames"), STAT_FrameQueueSave, STATGROUP_BloodStain);
@@ -18,6 +20,11 @@ URecordComponent::URecordComponent()
 	: CurrentFrameIndex(0)
 {
 	PrimaryComponentTick.bCanEverTick = true;
+}
+
+URecordComponent::~URecordComponent()
+{
+	
 }
 
 // Called when the game starts
