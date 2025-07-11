@@ -57,8 +57,8 @@ void URecordComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 			FString ComponentName = FString::Printf(TEXT("%s_%u"), *SceneComp->GetName(), SceneComp->GetUniqueID());
 			if (USkeletalMeshComponent* SkelComp = Cast<USkeletalMeshComponent>(SceneComp))
 			{
-				FBoneComponentSpace ComponentBaseTransforms(SkelComp->GetComponentSpaceTransforms());
-				NewFrame.SkeletalMeshBoneTransforms.Add(ComponentName, ComponentBaseTransforms);
+				FBoneComponentSpace LocalBaseTransforms(SkelComp->GetBoneSpaceTransforms());
+				NewFrame.SkeletalMeshBoneTransforms.Add(ComponentName, LocalBaseTransforms);
 			}
 			NewFrame.ComponentTransforms.Add(ComponentName, SceneComp->GetComponentTransform()); // 월드 트랜스폼 저장
 		}

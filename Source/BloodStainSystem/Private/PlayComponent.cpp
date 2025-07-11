@@ -11,6 +11,7 @@
 #include "Engine/World.h"
 #include "Engine/SkeletalMesh.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Components/PoseableMeshComponent.h"
 #include "Engine/GameInstance.h"
 #include "Engine/SkeletalMesh.h"
 #include "UObject/UObjectGlobals.h"
@@ -122,6 +123,7 @@ void UPlayComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
 		? FMath::Clamp((Elapsed - Prev.TimeStamp) / (Next.TimeStamp - Prev.TimeStamp), 0.0f, 1.0f)
 		: 1.0f;
 	ApplyComponentTransforms(Prev, Next, Alpha);
+	ApplySkeletalBoneTransforms(Prev, Next, Alpha);
 }
 
 void UPlayComponent::Initialize(const FRecordSavedData& InReplayData)
@@ -170,29 +172,29 @@ void UPlayComponent::Initialize(const FRecordSavedData& InReplayData)
 	// }
 	
 
-    // Generate animation sequences if not already present
-    if (AnimSequences.Num() == 0)
-    {
-        ConvertFrameToAnimSequence();
-    }
-
-    // Play animations on skeletal components
-    for (auto& Pair : ReconstructedComponents)
-    {
-        const FString& CompName = Pair.Key;
-        if (USkeletalMeshComponent* SkelComp = Cast<USkeletalMeshComponent>(Pair.Value))
-        {
-            if (UAnimSequence* Seq = AnimSequences.FindRef(CompName))
-            {
-	            SkelComp->PlayAnimation(Seq, ReplayData.RecordOptions.bIsLooping);
-	            SkelComp->SetPlayRate(ReplayData.RecordOptions.PlaybackRate);
-            	if (ReplayData.RecordOptions.PlaybackRate < 0)
-            	{
-            		SkelComp->SetPosition(Seq->GetPlayLength(), false);
-            	}
-            }
-        }
-    }
+    // // Generate animation sequences if not already present
+    // if (AnimSequences.Num() == 0)
+    // {
+    //     ConvertFrameToAnimSequence();
+    // }
+    //
+    // // Play animations on skeletal components
+    // for (auto& Pair : ReconstructedComponents)
+    // {
+    //     const FString& CompName = Pair.Key;
+    //     if (USkeletalMeshComponent* SkelComp = Cast<USkeletalMeshComponent>(Pair.Value))
+    //     {
+    //         if (UAnimSequence* Seq = AnimSequences.FindRef(CompName))
+    //         {
+	   //          SkelComp->PlayAnimation(Seq, ReplayData.RecordOptions.bIsLooping);
+	   //          SkelComp->SetPlayRate(ReplayData.RecordOptions.PlaybackRate);
+    //         	if (ReplayData.RecordOptions.PlaybackRate < 0)
+    //         	{
+    //         		SkelComp->SetPosition(Seq->GetPlayLength(), false);
+    //         	}
+    //         }
+    //     }
+    // }
 }
 
 void UPlayComponent::FinishReplay()
@@ -236,6 +238,43 @@ void UPlayComponent::ApplyComponentTransforms(const FRecordFrame& Prev, const FR
 			else
 			{
 				TargetComponent->SetWorldTransform(NextT);
+			}
+		}
+	}
+}
+
+void UPlayComponent::ApplySkeletalBoneTransforms(const FRecordFrame& Prev, const FRecordFrame& Next, float Alpha) const
+{
+	
+	for (const auto& Pair : ReconstructedComponents)
+	{
+		if (UPoseableMeshComponent* PoseableComp = Cast<UPoseableMeshComponent>(Pair.Value))
+		{
+			const FString& ComponentName = Pair.Key;
+			
+			const FBoneComponentSpace* PrevBones = Prev.SkeletalMeshBoneTransforms.Find(ComponentName);
+			const FBoneComponentSpace* NextBones = Next.SkeletalMeshBoneTransforms.Find(ComponentName);
+
+			if (PrevBones && NextBones)
+			{
+				const int32 NumBones = FMath::Min(PrevBones->BoneTransforms.Num(), NextBones->BoneTransforms.Num());
+                
+				// 모든 뼈대에 대해 보간 및 적용
+				for (int32 BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex)
+				{
+					const FTransform& PrevT = PrevBones->BoneTransforms[BoneIndex];
+					const FTransform& NextT = NextBones->BoneTransforms[BoneIndex];
+
+					// 트랜스폼 보간 (컴포넌트 스페이스 기준)
+					FTransform InterpT;
+					InterpT.SetLocation(FMath::Lerp(PrevT.GetLocation(), NextT.GetLocation(), Alpha));
+					InterpT.SetRotation(FQuat::Slerp(PrevT.GetRotation(), NextT.GetRotation(), Alpha));
+					InterpT.SetScale3D(FMath::Lerp(PrevT.GetScale3D(), NextT.GetScale3D(), Alpha));
+
+					// 포저블 메시에 직접 적용합니다.
+					PoseableComp->BoneSpaceTransforms[BoneIndex] = InterpT;
+				}
+				PoseableComp->MarkRefreshTransformDirty();
 			}
 		}
 	}
@@ -429,12 +468,21 @@ USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecor
 	}
 
 	// 2. Owner 액터에 새 컴포넌트를 생성합니다.
-	USceneComponent* NewComponent = NewObject<USceneComponent>(Owner, ComponentClass, FName(*Record.ComponentName));
-	if (!NewComponent)
+	USceneComponent* NewComponent = nullptr;
+	
+	if (ComponentClass->IsChildOf(USkeletalMeshComponent::StaticClass()))
 	{
-		UE_LOG(LogBloodStain, Warning, TEXT("Failed to create New Component"));
+		NewComponent = NewObject<UPoseableMeshComponent>(Owner, UPoseableMeshComponent::StaticClass(), FName(*Record.ComponentName));
+	}
+	else if (ComponentClass->IsChildOf(UStaticMeshComponent::StaticClass()))
+	{
+		NewComponent = NewObject<UStaticMeshComponent>(Owner, ComponentClass, FName(*Record.ComponentName));
+	}
+	else
+	{
 		return nullptr;
 	}
+	if (!NewComponent) return nullptr;
 
 	// 3-1. 컴포넌트 타입에 맞춰 에셋(스태틱/스켈레탈 메시)을 로드하고 설정합니다.
 	if (!Record.AssetPath.IsEmpty())
@@ -445,9 +493,10 @@ USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecor
 			StaticMeshComp->SetStaticMesh(Cast<UStaticMesh>(AssetRef.TryLoad()));
 			StaticMeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		}
-		else if (USkeletalMeshComponent* SkeletalMeshComp = Cast<USkeletalMeshComponent>(NewComponent))
+		else if (UPoseableMeshComponent* PoseableMeshComp = Cast<UPoseableMeshComponent>(NewComponent))
 		{
-			SkeletalMeshComp->SetSkeletalMesh(Cast<USkeletalMesh>(AssetRef.TryLoad()));
+			PoseableMeshComp->SetSkeletalMesh(Cast<USkeletalMesh>(AssetRef.TryLoad()));
+			PoseableMeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		}
 	}
 
