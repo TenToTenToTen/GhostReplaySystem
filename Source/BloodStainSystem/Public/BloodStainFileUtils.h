@@ -37,7 +37,7 @@ struct FBloodStainFileUtils
 	 * @param OutLoadedDataMap 파일 이름(확장자 제외)을 키로, 로드된 데이터를 값으로 하는 맵
 	 * @return 성공적으로 로드한 파일의 개수를 반환
 	 */
-	static int32 LoadAllFiles(TMap<FString, FRecordSaveData>& OutLoadedDataMap);
+	static int32 LoadAllFiles(TMap<FString, FRecordSaveData>& OutLoadedDataMap, const FString& LevelName);
 
 private:
 	static FString GetFullFilePath(const FString& FileName);

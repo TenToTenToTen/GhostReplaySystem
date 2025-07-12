@@ -89,7 +89,7 @@ public:
 	void RemoveBloodStain(ABloodActor* StainActor);
 
 	UFUNCTION(BlueprintCallable, Category="BloodStain")
-	void SpawnAllBloodStain();
+	void SpawnAllBloodStainInLevel();
 
 public:
 	/* Notify Attached / Detached Component Events */

@@ -178,10 +178,10 @@ struct FRecordActorSaveData
 };
 
 USTRUCT(BlueprintType)
-struct FRecordSaveData
+struct FRecordHeaderData
 {
 	GENERATED_BODY()
-
+	
 	UPROPERTY()
 	FName GroupName;
 	
@@ -191,7 +191,24 @@ struct FRecordSaveData
 	
 	UPROPERTY()
 	FBloodStainRecordOptions RecordOptions;
+		
+	friend FArchive& operator<<(FArchive& Ar, FRecordHeaderData& Data)
+	{
+		Ar << Data.GroupName;
+		Ar << Data.SpawnPointTransform;
+		Ar << Data.RecordOptions;
+		return Ar;
+	}
+};
 
+USTRUCT(BlueprintType)
+struct FRecordSaveData
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FRecordHeaderData Header;
+	
 	UPROPERTY()
 	TArray<FRecordActorSaveData> RecordActorDataArray;
 	
@@ -207,9 +224,7 @@ struct FRecordSaveData
 	
 	friend FArchive& operator<<(FArchive& Ar, FRecordSaveData& Data)
 	{
-		Ar << Data.GroupName;
-		Ar << Data.SpawnPointTransform;
-		Ar << Data.RecordOptions;
+		Ar << Data.Header;
 		Ar << Data.RecordActorDataArray;
 		return Ar;
 	}

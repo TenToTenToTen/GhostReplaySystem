@@ -12,6 +12,7 @@
 #include "ReplayTerminatedActorManager.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "SaveRecordingTask.h"  
+#include "Kismet/GameplayStatics.h"
 
 FName UBloodStainSubsystem::DefaultGroupName = TEXT("BloodStainReplay");
 
@@ -173,7 +174,7 @@ void UBloodStainSubsystem::StopRecording(FName GroupName)
 	}
 	
 	// Default Identifier
-	const FString MapName = GetWorld()->GetMapName().Replace(TEXT("/Game/Maps/"), TEXT(""));
+	const FString MapName = UGameplayStatics::GetCurrentLevelName(GetWorld());
 	const FString GroupNameString = GroupName.ToString();
 
 	// Provide Unique (TimeStamp)
@@ -196,7 +197,7 @@ void UBloodStainSubsystem::StopRecording(FName GroupName)
 	
 	FRecordSaveData RecordSaveData = ConvertToSaveData(RecordSaveDataArray, GroupName);
 	
-	const FString FileName = FString::Printf(TEXT("%s-%s-%s.sav"), *MapName, *GroupNameString, *UniqueTimestamp);
+	const FString FileName = FString::Printf(TEXT("/%s/%s-%s.sav"), *MapName, *GroupNameString, *UniqueTimestamp);
 	
 	if (!FBloodStainFileUtils::SaveToFile(RecordSaveData, FileName, FileSaveOptions))
 	{
@@ -267,9 +268,9 @@ bool UBloodStainSubsystem::StartReplay(ABloodActor* BloodStainActor, const FReco
 		return false;
 	}
 		
-	if (BloodStainPlaybackGroups.Contains(RecordSaveData.GroupName))
+	if (BloodStainPlaybackGroups.Contains(RecordSaveData.Header.GroupName))
 	{
-		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] Already replaying %s"), *RecordSaveData.GroupName.ToString());
+		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] Already replaying %s"), *RecordSaveData.Header.GroupName.ToString());
 		return false;
 	}
 	
@@ -278,7 +279,7 @@ bool UBloodStainSubsystem::StartReplay(ABloodActor* BloodStainActor, const FReco
 	for (const FRecordActorSaveData& RecordActorData : RecordSaveData.RecordActorDataArray)
 	{
 		// TODO SpawnPoint 각 Actor별로 분리
-		FTransform StartTransform = Data.SpawnPointTransform;
+		FTransform StartTransform = Data.Header.SpawnPointTransform;
 		AActor* GhostActor = GetWorld()->SpawnActor(AReplayActor::StaticClass(), &StartTransform);
 	
 		UPlayComponent* Replayer = NewObject<UPlayComponent>(
@@ -292,12 +293,12 @@ bool UBloodStainSubsystem::StartReplay(ABloodActor* BloodStainActor, const FReco
 		GhostActor->AddInstanceComponent(Replayer);
 		Replayer->RegisterComponent();
 	
-		Replayer->Initialize(RecordSaveData.GroupName, RecordActorData, RecordSaveData.RecordOptions);
+		Replayer->Initialize(RecordSaveData.Header.GroupName, RecordActorData, RecordSaveData.Header.RecordOptions);
 
 		BloodStainPlaybackGroup.ActiveReplayers.Add(GhostActor, Replayer);
 	}
 	
-	BloodStainPlaybackGroups.Add(RecordSaveData.GroupName, BloodStainPlaybackGroup);
+	BloodStainPlaybackGroups.Add(RecordSaveData.Header.GroupName, BloodStainPlaybackGroup);
 	// OnReplayStarted.Broadcast(TargetActor, Replayer);
 	return true;
 }
@@ -446,10 +447,12 @@ void UBloodStainSubsystem::RemoveBloodStain(ABloodActor* StainActor)
 	StainActor->Destroy();
 }
 
-void UBloodStainSubsystem::SpawnAllBloodStain()
+void UBloodStainSubsystem::SpawnAllBloodStainInLevel()
 {
-	const int32 LoadedCount = FBloodStainFileUtils::LoadAllFiles(CachedRecordings);
+	const int32 LoadedCount = FBloodStainFileUtils::LoadAllFiles(CachedRecordings, UGameplayStatics::GetCurrentLevelName(GetWorld()));
 
+	// TODO - Spawn BloodStain
+	
 	if (LoadedCount > 0)
 	{
 		UE_LOG(LogBloodStain, Log, TEXT("Subsystem successfully loaded %d recordings into cache."), LoadedCount);
@@ -461,7 +464,7 @@ void UBloodStainSubsystem::SpawnAllBloodStain()
 		{
 			const FString& FileName = Pair.Key;
 			const FRecordSaveData& Data = Pair.Value;
-			FVector StartLocation = Data.SpawnPointTransform.GetLocation();
+			FVector StartLocation = Data.Header.SpawnPointTransform.GetLocation();
 			FVector EndLocation = StartLocation;
 			EndLocation.Z -= LineTraceLength;
 			FHitResult HitResult;
@@ -488,6 +491,7 @@ void UBloodStainSubsystem::SpawnAllBloodStain()
 		UE_LOG(LogBloodStain, Log, TEXT("No recordings were found or loaded."));
 	}
 }
+
 
 void UBloodStainSubsystem::NotifyComponentAttached(AActor* TargetActor, UMeshComponent* NewComponent)
 {
@@ -520,9 +524,9 @@ void UBloodStainSubsystem::NotifyComponentDetached(AActor* TargetActor, UMeshCom
 FRecordSaveData UBloodStainSubsystem::ConvertToSaveData(TArray<FRecordActorSaveData>& RecordActorDataArray, const FName& GroupName)
 {
 	FRecordSaveData RecordSaveData;
-	RecordSaveData.RecordOptions = BloodStainRecordGroups[GroupName].RecordOptions;
-	RecordSaveData.SpawnPointTransform = BloodStainRecordGroups[GroupName].SpawnPointTransform;
-	RecordSaveData.GroupName = GroupName;
+	RecordSaveData.Header.RecordOptions = BloodStainRecordGroups[GroupName].RecordOptions;
+	RecordSaveData.Header.SpawnPointTransform = BloodStainRecordGroups[GroupName].SpawnPointTransform;
+	RecordSaveData.Header.GroupName = GroupName;
 	RecordSaveData.RecordActorDataArray = MoveTemp(RecordActorDataArray);
 	return RecordSaveData;
 }

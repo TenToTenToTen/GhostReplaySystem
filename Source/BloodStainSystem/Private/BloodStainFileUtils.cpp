@@ -198,7 +198,7 @@ bool FBloodStainFileUtils::LoadFromFile(FRecordSaveData& OutData, const FString&
 	return true;
 }
 
-int32 FBloodStainFileUtils::LoadAllFiles(TMap<FString, FRecordSaveData>& OutLoadedDataMap)
+int32 FBloodStainFileUtils::LoadAllFiles(TMap<FString, FRecordSaveData>& OutLoadedDataMap, const FString& LevelName)
 {
 	// 1. 기존 맵 데이터를 초기화합니다.
 	OutLoadedDataMap.Empty();
@@ -207,7 +207,7 @@ int32 FBloodStainFileUtils::LoadAllFiles(TMap<FString, FRecordSaveData>& OutLoad
 	IFileManager& FileManager = IFileManager::Get();
 
 	// 3. 검색할 디렉토리와 파일 패턴을 지정합니다.
-	const FString SearchDirectory = BloodStainFileUtils_Internal::GetSaveDirectory();
+	const FString SearchDirectory = BloodStainFileUtils_Internal::GetSaveDirectory() / LevelName;
 	const FString FilePattern = FString(TEXT("*")) + BloodStainFileUtils_Internal::FILE_EXTENSION; // "*.bin"
 
 	// 4. 파일 시스템에서 파일들을 찾습니다. (결과는 파일 이름 + 확장자)
@@ -225,7 +225,7 @@ int32 FBloodStainFileUtils::LoadAllFiles(TMap<FString, FRecordSaveData>& OutLoad
 
 		// 기존에 만든 LoadFromFile 함수를 재활용합니다.
 		FRecordSaveData LoadedData;
-		if (FBloodStainFileUtils::LoadFromFile(LoadedData, BaseFileName))
+		if (LoadFromFile(LoadedData, LevelName / BaseFileName))
 		{
 			// 로드에 성공하면, 맵에 추가합니다.
 			OutLoadedDataMap.Add(BaseFileName, LoadedData);
