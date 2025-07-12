@@ -42,9 +42,11 @@ public:
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-	void Initialize(const FRecordActorSaveData& InReplayData, const FBloodStainRecordOptions& InReplayOptions);
+	void Initialize(const FName& InGroupName, const FRecordActorSaveData& InReplayData, const FBloodStainRecordOptions& InReplayOptions);
 	void ApplySkeletalBoneTransforms(const FRecordFrame& Prev, const FRecordFrame& Next, float Alpha) const;
 	void FinishReplay();
+	
+	const FName& GetGroupName() const;
 
 protected:
 
@@ -55,7 +57,6 @@ protected:
 
 	/** 현재 프레임에 추가 / 삭제되는 컴포넌트 변경사항을 적용합니다 */
 	void ApplyComponentChanges(const FRecordFrame& Frame);
-
 private:
 	/** FComponentRecord 데이터로부터 메시 컴포넌트를 생성, 등록, 부착하는 헬퍼 함수 */
 	USceneComponent* CreateComponentFromRecord(const FComponentRecord& Record);
@@ -63,6 +64,7 @@ private:
 protected:
 	FRecordActorSaveData ReplayData;
 	FBloodStainRecordOptions ReplayOptions;
+	FName GroupName;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "BloodStain")
 	TMap<FString, TObjectPtr<UAnimSequence>> AnimSequences;

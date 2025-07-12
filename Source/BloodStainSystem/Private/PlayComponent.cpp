@@ -126,10 +126,11 @@ void UPlayComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
 	ApplySkeletalBoneTransforms(Prev, Next, Alpha);
 }
 
-void UPlayComponent::Initialize(const FRecordActorSaveData& InReplayData, const FBloodStainRecordOptions& InReplayOptions)
+void UPlayComponent::Initialize(const FName& InGroupName, const FRecordActorSaveData& InReplayData, const FBloodStainRecordOptions& InReplayOptions)
 {
     ReplayData = InReplayData;
-    // ReplayOptions = InReplayOptions;
+	GroupName = InGroupName;
+    ReplayOptions = InReplayOptions;
 
     PlaybackStartTime = GetWorld()->GetTimeSeconds();
     CurrentFrame      = ReplayOptions.PlaybackRate > 0 ? 0 : ReplayData.RecordedFrames.Num() - 2;
@@ -209,7 +210,7 @@ void UPlayComponent::FinishReplay()
 				// Owner는 AReplayActor
 				if (AReplayActor* RA = Cast<AReplayActor>(GetOwner()))
 				{
-					Sub->StopReplay(RA);
+					Sub->StopReplayPlayComponent(RA);
 				}
 			}
 		}
@@ -442,6 +443,11 @@ void UPlayComponent::ApplyComponentChanges(const FRecordFrame& Frame)
 			UE_LOG(LogBloodStain, Log, TEXT("Replay: Component Removed - %s"), *ComponentName);
 		}
 	}
+}
+
+const FName& UPlayComponent::GetGroupName() const
+{
+	return GroupName;
 }
 
 /**

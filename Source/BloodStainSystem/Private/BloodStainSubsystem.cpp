@@ -127,13 +127,13 @@ void UBloodStainSubsystem::StopRecording(FName GroupName)
 
 	for (const auto& [Actor, RecordComponent] : BloodStainRecordGroup.ActiveRecorders)
 	{
-		if (!IsValid(Actor))
+		if (!Actor)
 		{
 			UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording Warning: Actor is not Valid"));
 			continue;
 		}
 
-		if (!IsValid(RecordComponent))
+		if (!RecordComponent)
 		{
 			UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording Warning: RecordComponent is not Valid for Actor: %s"), *Actor->GetName());
 			continue;
@@ -252,73 +252,124 @@ void UBloodStainSubsystem::StopRecordComponent(URecordComponent* RecordComponent
 	RecordComponent->DestroyComponent();
 }
 
-bool UBloodStainSubsystem::StartReplay(AActor* BloodStainActor, const FRecordSaveData& Data)
+bool UBloodStainSubsystem::StartReplay(ABloodActor* BloodStainActor, const FRecordSaveData& Data)
 {
 	if (!BloodStainActor)
 	{
 		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StartReplay failed: Actor is null"));
 		return false;
 	}
-	
-	// TODO - Start Replay
 
-	// if (ActiveReplayers.Contains(TargetActor))
-	//  {
-	//  	UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] Already replaying %s"), *TargetActor->GetName());
-	//  	return false;
-	//  }
-	//
-	// 	FTransform StartTransform = Data.SpawnPointTransform;
-	//  AActor* GhostActor = GetWorld()->SpawnActor(AReplayActor::StaticClass(), &StartTransform);
-	//
-	//  UPlayComponent* Replayer = NewObject<UPlayComponent>(
-	//  	GhostActor, UPlayComponent::StaticClass(), NAME_None, RF_Transient);
-	//  if (!Replayer)
-	//  {
-	//  	UE_LOG(LogTemp, Error, TEXT("[BloodStain] Cannot create ReplayComponent on %s"), *GhostActor->GetName());
-	//  	return false;
-	//  }
-	//
-	//  GhostActor->AddInstanceComponent(Replayer);
-	//  Replayer->RegisterComponent();
-	//
-	//  Replayer->Initialize(Data);
-	//
-	//  ActiveReplayers.Add(GhostActor, Replayer);
-	//  // OnReplayStarted.Broadcast(TargetActor, Replayer);
+	FRecordSaveData RecordSaveData;
+	if (!LoadRecordingData(BloodStainActor->ReplayFileName, RecordSaveData))
+	{
+		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] Cannot Load Recording Data %s"), *BloodStainActor->ReplayFileName);
+		return false;
+	}
+		
+	if (BloodStainPlaybackGroups.Contains(RecordSaveData.GroupName))
+	{
+		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] Already replaying %s"), *RecordSaveData.GroupName.ToString());
+		return false;
+	}
+	
+	FBloodStainPlaybackGroup BloodStainPlaybackGroup;
+
+	for (const FRecordActorSaveData& RecordActorData : RecordSaveData.RecordActorDataArray)
+	{
+		// TODO SpawnPoint 각 Actor별로 분리
+		FTransform StartTransform = Data.SpawnPointTransform;
+		AActor* GhostActor = GetWorld()->SpawnActor(AReplayActor::StaticClass(), &StartTransform);
+	
+		UPlayComponent* Replayer = NewObject<UPlayComponent>(
+			GhostActor, UPlayComponent::StaticClass(), NAME_None, RF_Transient);
+		if (!Replayer)
+		{
+			UE_LOG(LogTemp, Error, TEXT("[BloodStain] Cannot create ReplayComponent on %s"), *GhostActor->GetName());
+			return false;
+		}
+	
+		GhostActor->AddInstanceComponent(Replayer);
+		Replayer->RegisterComponent();
+	
+		Replayer->Initialize(RecordSaveData.GroupName, RecordActorData, RecordSaveData.RecordOptions);
+
+		BloodStainPlaybackGroup.ActiveReplayers.Add(GhostActor, Replayer);
+	}
+	
+	BloodStainPlaybackGroups.Add(RecordSaveData.GroupName, BloodStainPlaybackGroup);
+	// OnReplayStarted.Broadcast(TargetActor, Replayer);
 	return true;
 }
 
-void UBloodStainSubsystem::StopReplay(AActor* TargetActor)
+void UBloodStainSubsystem::StopReplay(FName GroupName)
 {
-	if (!TargetActor)
+	if (!BloodStainPlaybackGroups.Contains(GroupName))
+	{
+		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopReplay failed: Group [%s] is not exist"), *GroupName.ToString());
+		return;
+	}
+
+	FBloodStainPlaybackGroup& BloodStainPlaybackGroup = BloodStainPlaybackGroups[GroupName];
+
+	for (const auto& [GhostActor, PlayComponent] : BloodStainPlaybackGroup.ActiveReplayers)
+	{
+		// StopReplayPlayComponent 으로 하면 재귀 발생함.
+		GhostActor->Destroy();
+	}
+	
+	BloodStainPlaybackGroup.ActiveReplayers.Empty();
+
+	BloodStainPlaybackGroups.Remove(GroupName);	
+}
+
+void UBloodStainSubsystem::StopReplayPlayComponent(AActor* GhostActor)
+{
+	if (!GhostActor)
 	{
 		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopReplay failed: TargetActor is null."));
 		return;
 	}
 
-	// TODO - Stop Replay
+	UPlayComponent* PlayComponent = GhostActor->GetComponentByClass<UPlayComponent>();
+	if (!PlayComponent)
+	{
+		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopReplay failed: PlayComponent is null."));
+		return;
+	}
 
-	// UPlayComponent** ReplayPtr = ActiveReplayers.Find(TargetActor);
-	// if (!ReplayPtr || !*ReplayPtr)
-	// {
-	// 	UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopReplay failed: No active replayer for %s"),
-	// 		   *TargetActor->GetName());
-	// 	return;
-	// }
-	//
-	// UPlayComponent* ReplayComp = *ReplayPtr;
-	// ReplayComp->SetComponentTickEnabled(false);
-	// ReplayComp->UnregisterComponent();
-	// TargetActor->RemoveInstanceComponent(ReplayComp);
-	// ReplayComp->DestroyComponent();
-	//
-	// ActiveReplayers.Remove(TargetActor);
+	const FName& GroupName = PlayComponent->GetGroupName();
+	if (!BloodStainPlaybackGroups.Contains(GroupName))
+	{
+		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopReplay failed: Group [%s] is not exist"), *GroupName.ToString());
+		return;
+	}
 
-	// TargetActor->Destroy();
+	FBloodStainPlaybackGroup& BloodStainPlaybackGroup = BloodStainPlaybackGroups[GroupName];
+	if (!BloodStainPlaybackGroup.ActiveReplayers.Contains(GhostActor))
+	{
+		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopReplay failed: Group [%s] is not contains Actor [%s]"), *GroupName.ToString(), *GhostActor->GetActorLabel());
+		return;
+	}
 	
-	// OnReplayStopped.Broadcast(TargetActor, Replayer);
-	// UE_LOG(LogBloodStain, Log, TEXT("[BloodStain] StopReplay for %s"), *TargetActor->GetName());
+	
+	UPlayComponent* ReplayComp = BloodStainPlaybackGroup.ActiveReplayers[GhostActor];
+	ReplayComp->SetComponentTickEnabled(false);
+	ReplayComp->UnregisterComponent();
+	GhostActor->RemoveInstanceComponent(ReplayComp);
+	ReplayComp->DestroyComponent();
+	
+	BloodStainPlaybackGroup.ActiveReplayers.Remove(GhostActor);
+
+	GhostActor->Destroy();
+	
+	// OnReplayStopped.Broadcast(GhostActor, Replayer);
+	UE_LOG(LogBloodStain, Log, TEXT("[BloodStain] StopReplay for %s"), *GhostActor->GetName());
+
+	if (BloodStainPlaybackGroup.ActiveReplayers.Num() == 0)
+	{
+		StopReplay(GroupName);
+	}
 }
 
 bool UBloodStainSubsystem::LoadRecordingData(const FString& FileName, FRecordSaveData& OutData)
@@ -345,7 +396,7 @@ bool UBloodStainSubsystem::LoadRecordingData(const FString& FileName, FRecordSav
 }
 
 
-bool UBloodStainSubsystem::StartReplayFromFile(AActor* BloodStainActor, const FString& FileName)
+bool UBloodStainSubsystem::StartReplayFromFile(ABloodActor* BloodStainActor, const FString& FileName)
 {
 	FRecordSaveData Data;
 	if (!LoadRecordingData(FileName, Data))
@@ -399,42 +450,40 @@ void UBloodStainSubsystem::SpawnAllBloodStain()
 {
 	const int32 LoadedCount = FBloodStainFileUtils::LoadAllFiles(CachedRecordings);
 
-	// TODO - Spawn BloodStain
+	if (LoadedCount > 0)
+	{
+		UE_LOG(LogBloodStain, Log, TEXT("Subsystem successfully loaded %d recordings into cache."), LoadedCount);
+		
+		AvailableRecordings.Empty();
+		CachedRecordings.GetKeys(AvailableRecordings);
+		
+		for (const TPair<FString, FRecordSaveData>& Pair : CachedRecordings)
+		{
+			const FString& FileName = Pair.Key;
+			const FRecordSaveData& Data = Pair.Value;
+			FVector StartLocation = Data.SpawnPointTransform.GetLocation();
+			FVector EndLocation = StartLocation;
+			EndLocation.Z -= LineTraceLength;
+			FHitResult HitResult;
+			FCollisionResponseParams ResponseParams;
+			//충돌 대상에서 Pawn 제외
+			ResponseParams.CollisionResponse.SetResponse(ECC_Pawn, ECR_Ignore);
+			bool bHit = GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_WorldStatic, FCollisionQueryParams::DefaultQueryParam, ResponseParams);
+			if (bHit)
+			{
+				FVector Location = HitResult.Location;
+				FRotator Rotation;
+				Rotation = UKismetMathLibrary::MakeRotFromZ(HitResult.Normal);
 	
-	// if (LoadedCount > 0)
-	// {
-	// 	UE_LOG(LogBloodStain, Log, TEXT("Subsystem successfully loaded %d recordings into cache."), LoadedCount);
-	// 	
-	// 	AvailableRecordings.Empty();
-	// 	CachedRecordings.GetKeys(AvailableRecordings);
-	// 	
-	// 	for (const TPair<FString, FRecordSaveData>& Pair : CachedRecordings)
-	// 	{
-	// 		const FString& FileName = Pair.Key;
-	// 		const FRecordSaveData& Data = Pair.Value;
-	// 		FVector StartLocation = Data.SpawnPointTransform.GetLocation();
-	// 		FVector EndLocation = StartLocation;
-	// 		EndLocation.Z -= LineTraceLength;
-	// 		FHitResult HitResult;
-	// 		FCollisionResponseParams ResponseParams;
-	// 		//충돌 대상에서 Pawn 제외
-	// 		ResponseParams.CollisionResponse.SetResponse(ECC_Pawn, ECR_Ignore);
-	// 		bool bHit = GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_WorldStatic, FCollisionQueryParams::DefaultQueryParam, ResponseParams);
-	// 		if (bHit)
-	// 		{
-	// 			FVector Location = HitResult.Location;
-	// 			FRotator Rotation;
-	// 			Rotation = UKismetMathLibrary::MakeRotFromZ(HitResult.Normal);
-	//
-	// 			SpawnBloodStain(Location, Rotation, FileName);
-	// 		}
-	// 		else
-	// 		{
-	// 			UE_LOG(LogBloodStain, Warning, TEXT("Failed to LineTrace to Floor."));
-	// 		}
-	// 	}
-	// }
-	// else
+				SpawnBloodStain(Location, Rotation, FileName);
+			}
+			else
+			{
+				UE_LOG(LogBloodStain, Warning, TEXT("Failed to LineTrace to Floor."));
+			}
+		}
+	}
+	else
 	{
 		UE_LOG(LogBloodStain, Log, TEXT("No recordings were found or loaded."));
 	}
@@ -473,6 +522,7 @@ FRecordSaveData UBloodStainSubsystem::ConvertToSaveData(TArray<FRecordActorSaveD
 	FRecordSaveData RecordSaveData;
 	RecordSaveData.RecordOptions = BloodStainRecordGroups[GroupName].RecordOptions;
 	RecordSaveData.SpawnPointTransform = BloodStainRecordGroups[GroupName].SpawnPointTransform;
+	RecordSaveData.GroupName = GroupName;
 	RecordSaveData.RecordActorDataArray = MoveTemp(RecordActorDataArray);
 	return RecordSaveData;
 }

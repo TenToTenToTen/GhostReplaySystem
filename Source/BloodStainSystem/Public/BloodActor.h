@@ -7,6 +7,7 @@
 #include "Engine/DecalActor.h"
 #include "BloodActor.generated.h"
 
+struct FRecordSaveData;
 class USphereComponent;
 class UPrimitiveComponent;
 class UUserWidget;

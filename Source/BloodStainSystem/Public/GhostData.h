@@ -169,9 +169,10 @@ struct FRecordActorSaveData
 	
 	friend FArchive& operator<<(FArchive& Ar, FRecordActorSaveData& Data)
 	{
+		Ar << Data.ComponentName;
 		Ar << Data.InitialComponentStructure;
-		Ar << Data.RecordedFrames;
 		Ar << Data.ComponentIntervals;
+		Ar << Data.RecordedFrames;
 		return Ar;
 	}
 };
@@ -180,6 +181,9 @@ USTRUCT(BlueprintType)
 struct FRecordSaveData
 {
 	GENERATED_BODY()
+
+	UPROPERTY()
+	FName GroupName;
 	
 	/** BloodStain Spawn Transform */
 	UPROPERTY()
@@ -191,10 +195,22 @@ struct FRecordSaveData
 	UPROPERTY()
 	TArray<FRecordActorSaveData> RecordActorDataArray;
 	
+	bool IsValid() const
+	{
+		if (RecordActorDataArray.Num() == 0)
+		{
+			return false;
+		}
+		
+		return true;		
+	}
+	
 	friend FArchive& operator<<(FArchive& Ar, FRecordSaveData& Data)
 	{
+		Ar << Data.GroupName;
 		Ar << Data.SpawnPointTransform;
 		Ar << Data.RecordOptions;
+		Ar << Data.RecordActorDataArray;
 		return Ar;
 	}
 };

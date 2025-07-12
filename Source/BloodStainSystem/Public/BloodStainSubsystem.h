@@ -55,11 +55,15 @@ public:
 	
 	/** 재생 시작 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
-	bool StartReplay(AActor* BloodStainActor, const FRecordSaveData& Data);
+	bool StartReplay(ABloodActor* BloodStainActor, const FRecordSaveData& Data);
 
 	/** 재생 중단 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
-	void StopReplay(AActor* TargetActor);
+	void StopReplay(FName GroupName);
+	
+	/** 재생 중단 특정 Component */
+	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
+	void StopReplayPlayComponent(AActor* GhostActor);
 
 	// 순수 파일 로드 (UI나 Blueprint에서 직접 호출해도 OK)
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
@@ -67,7 +71,7 @@ public:
 	
 	// 3) 파일 바로 리플레이 시작 (1) + (2) 조합)
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
-	bool StartReplayFromFile(AActor* BloodStainActor, const FString& FileName);
+	bool StartReplayFromFile(ABloodActor* BloodStainActor, const FString& FileName);
 
 	
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
