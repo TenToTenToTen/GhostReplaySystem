@@ -417,6 +417,68 @@ bool URecordComponent::ShouldRecord()
  * @param OutRecord 생성된 레코드 정보를 담을 구조체
  * @return 성공적으로 레코드를 생성했으면 true를 반환합니다.
  */
+void URecordComponent::FillMaterialData(UMeshComponent* MeshComp, FComponentRecord& OutRecord)
+{
+		TArray<UMaterialInterface*> Materials;
+		MeshComp->GetUsedMaterials(Materials);
+		for (int32 MatIndex = 0; MatIndex < Materials.Num(); ++MatIndex)
+		{
+			UMaterialInterface* Mat = Materials[MatIndex];
+			if (Mat)
+			{
+				UMaterialInstanceDynamic* DynMaterial = Cast<UMaterialInstanceDynamic>(Mat);
+				
+				if (DynMaterial)
+				{
+					// MID인 경우 -> 부모를 가져와서 경로 저장, 이후 파라미터로 복구
+					UMaterialInterface* ParentMaterial = DynMaterial->Parent;
+					OutRecord.MaterialPaths.Add(ParentMaterial ? ParentMaterial->GetPathName() : TEXT(""));
+
+					// MID 동적 파라미터 저장
+					FMaterialParameters MatParams;
+					
+					TArray<FMaterialParameterInfo> VectorParamInfos;
+					TArray<FGuid> VectorParamGuids;
+					DynMaterial->GetAllVectorParameterInfo(VectorParamInfos, VectorParamGuids);
+					for (const FMaterialParameterInfo& ParamInfo : VectorParamInfos)
+					{
+						FLinearColor Value;
+						if (DynMaterial->GetVectorParameterValue(ParamInfo, Value))
+						{
+							MatParams.VectorParams.Add(ParamInfo.Name, Value);
+						}
+					}
+
+					TArray<FMaterialParameterInfo> ScalarParamInfos;
+					TArray<FGuid> ScalarParamGuids;
+					DynMaterial->GetAllScalarParameterInfo(ScalarParamInfos, ScalarParamGuids);
+					for (const FMaterialParameterInfo& ParamInfo : ScalarParamInfos)
+					{
+						float Value;
+						if (DynMaterial->GetScalarParameterValue(ParamInfo, Value))
+						{
+							MatParams.ScalarParams.Add(ParamInfo.Name, Value);
+						}
+					}
+
+					if (MatParams.VectorParams.Num() > 0 || MatParams.ScalarParams.Num() > 0)
+					{
+						OutRecord.MaterialParameters.Add(MatIndex, MatParams);
+					}
+				}
+				else
+				{
+					//  MID가 아닌 경우 디스크에 저장된 에셋 사용
+					OutRecord.MaterialPaths.Add(Mat->GetPathName());
+				}
+			}
+			else
+			{
+				OutRecord.MaterialPaths.Add(TEXT(""));
+			}
+		}
+}
+
 bool URecordComponent::CreateRecordFromMeshComponent(UMeshComponent* InMeshComponent, FComponentRecord& OutRecord)
 {
 	if (!InMeshComponent || !IsValid(InMeshComponent))
@@ -433,12 +495,7 @@ bool URecordComponent::CreateRecordFromMeshComponent(UMeshComponent* InMeshCompo
 		if (UStaticMesh* StaticMesh = StaticMeshComp->GetStaticMesh())
 		{
 			OutRecord.AssetPath = StaticMesh->GetPathName();
-			TArray<UMaterialInterface*> Materials;
-			StaticMeshComp->GetUsedMaterials(Materials);
-			for (UMaterialInterface* Mat : Materials)
-			{
-				OutRecord.MaterialPaths.Add(Mat ? Mat->GetPathName() : TEXT(""));
-			}
+			FillMaterialData(StaticMeshComp, OutRecord);
 			return true;
 		}
 	}
@@ -447,16 +504,11 @@ bool URecordComponent::CreateRecordFromMeshComponent(UMeshComponent* InMeshCompo
 		if (USkeletalMesh* SkeletalMesh = SkeletalMeshComp->GetSkeletalMeshAsset())
 		{
 			OutRecord.AssetPath = SkeletalMesh->GetPathName();
-			TArray<UMaterialInterface*> Materials;
-			SkeletalMeshComp->GetUsedMaterials(Materials);
-			for (UMaterialInterface* Mat : Materials)
-			{
-				OutRecord.MaterialPaths.Add(Mat ? Mat->GetPathName() : TEXT(""));
-			}
-			UE_LOG(LogBloodStain, Log, TEXT("CreateRecordFromMeshComponent: Created record for SkeletalMeshComponent %s with asset %s."), *InMeshComponent->GetName(), *OutRecord.AssetPath);
+			FillMaterialData(SkeletalMeshComp, OutRecord);
 			return true;
 		}
 	}
+
 	UE_LOG(LogBloodStain, Warning, TEXT("CreateRecordFromMeshComponent: Failed to create record from mesh component %s."), *InMeshComponent->GetName());
 	return false;
 }

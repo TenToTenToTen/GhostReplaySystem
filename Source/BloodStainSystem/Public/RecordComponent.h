@@ -71,7 +71,7 @@ protected:
 private:
 	/** Create FComponentRecord Data from meshcomponent */
 	bool CreateRecordFromMeshComponent(UMeshComponent* InMeshComponent, FComponentRecord& OutRecord);
-	
+	void FillMaterialData(UMeshComponent* MeshComp, FComponentRecord& OutRecord);
 	/** Records All frames up to MaxFrames */
 	TUniquePtr<TCircularQueue<FRecordFrame>> FrameQueuePtr;
 	int32 MaxRecordFrames;

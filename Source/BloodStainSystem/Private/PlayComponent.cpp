@@ -19,6 +19,7 @@
 #include "Components/MeshComponent.h"
 #include "Materials/MaterialInterface.h"
 #include "Components/StaticMeshComponent.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Engine/StaticMesh.h"
 #include "Animation/Skeleton.h"
 
@@ -490,7 +491,13 @@ USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecor
 	}
 	if (!NewComponent) return nullptr;
 
-	// 3-1. 컴포넌트 타입에 맞춰 에셋(스태틱/스켈레탈 메시)을 로드하고 설정합니다.
+	UMeshComponent* NewMeshComponent = Cast<UMeshComponent>(NewComponent);
+	if (!NewMeshComponent)
+	{
+		NewComponent->DestroyComponent();
+		return nullptr;
+	}
+	
 	if (!Record.AssetPath.IsEmpty())
 	{
 		FSoftObjectPath AssetRef(Record.AssetPath);
@@ -518,38 +525,52 @@ USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecor
 		}
 	}
 	// 3-2. 머티리얼을 순서대로 적용합니다.
-	for (int32 i = 0; i < Record.MaterialPaths.Num(); ++i)
+	for (int32 MatIndex = 0; MatIndex < Record.MaterialPaths.Num(); ++MatIndex)
 	{
-		if ((ReplayOptions.bUseGhostMaterial || Record.MaterialPaths[i].IsEmpty()) && DefaultMaterial)
+		// 옵션에 따라 고스트 머티리얼을 강제 적용하는 경우 (기존 로직)
+		if ((ReplayOptions.bUseGhostMaterial || Record.MaterialPaths[MatIndex].IsEmpty()) && DefaultMaterial)
 		{
-				if (UMeshComponent* MeshComp = Cast<UMeshComponent>(NewComponent))
-				{
-					MeshComp->SetMaterial(i, DefaultMaterial);
-				}
-				else
-				{
-					UE_LOG(LogBloodStain, Warning, TEXT("Component %s is not a mesh component."),
-						   *Record.ComponentName);
-				}
+			NewMeshComponent->SetMaterial(MatIndex, DefaultMaterial);
+			continue; // 다음 머티리얼 슬롯으로 넘어감
 		}
-		else
+
+		// 원본 머티리얼 경로가 비어있지 않은 경우
+		if (!Record.MaterialPaths[MatIndex].IsEmpty())
 		{
-			if (!Record.MaterialPaths[i].IsEmpty())
+			// 원본 머티리얼 애셋을 로드합니다.
+			UMaterialInterface* OriginalMaterial = Cast<UMaterialInterface>(StaticLoadObject(UMaterialInterface::StaticClass(), nullptr, *Record.MaterialPaths[MatIndex]));
+			if (!OriginalMaterial)
 			{
-				// StaticLoadObject는 에디터에서 더 안정적이지만, 런타임에서도 사용 가능합니다.
-				UMaterialInterface* Material = Cast<UMaterialInterface>(StaticLoadObject(UMaterialInterface::StaticClass(), nullptr, *Record.MaterialPaths[i]));
-				if (Material)
+				UE_LOG(LogBloodStain, Warning, TEXT("Failed to load material: %s"), *Record.MaterialPaths[MatIndex]);
+				continue;
+			}
+			
+			// 현재 머티리얼 인덱스에 해당하는 저장된 동적 파라미터가 있는지 확인합니다.
+			if (Record.MaterialParameters.Contains(MatIndex))
+			{
+				// 파라미터가 있다면, 원본 머티리얼을 부모로 하는 MID를 생성
+				UMaterialInstanceDynamic* DynMaterial = NewMeshComponent->CreateAndSetMaterialInstanceDynamicFromMaterial(MatIndex, OriginalMaterial);
+
+				if (DynMaterial)
 				{
-					if (UMeshComponent* MeshComp = Cast<UMeshComponent>(NewComponent))
+					// 저장된 파라미터 값들을 가져와서 새로 만든 MID에 하나씩 적용
+					const FMaterialParameters& SavedParams = Record.MaterialParameters[MatIndex];
+					
+					for (const auto& Pair : SavedParams.VectorParams)
 					{
-						MeshComp->SetMaterial(i, Material);
+						DynMaterial->SetVectorParameterValue(Pair.Key, Pair.Value);
 					}
-					else
+					for (const auto& Pair : SavedParams.ScalarParams)
 					{
-						UE_LOG(LogBloodStain, Warning, TEXT("Component %s is not a mesh component."),
-							   *Record.ComponentName);
+						DynMaterial->SetScalarParameterValue(Pair.Key, Pair.Value);
 					}
+					UE_LOG(LogBloodStain, Log, TEXT("Restored dynamic material for component %s at index %d"), *Record.ComponentName, MatIndex);
 				}
+			}
+			else
+			{
+				// 저장된 파라미터가 없다면,  원본 머티리얼을 그대로 적용
+				NewMeshComponent->SetMaterial(MatIndex, OriginalMaterial);
 			}
 		}
 	}

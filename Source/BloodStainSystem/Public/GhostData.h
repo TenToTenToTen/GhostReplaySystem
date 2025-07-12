@@ -33,6 +33,24 @@ struct FBloodStainPlaybackGroup
 	TMap<AActor*, class UPlayComponent*> ActiveReplayers;
 };
 
+USTRUCT()
+struct FMaterialParameters
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TMap<FName, FLinearColor> VectorParams;
+
+	UPROPERTY()
+	TMap<FName, float> ScalarParams;
+	
+	friend FArchive& operator<<(FArchive& Ar, FMaterialParameters& Params)
+	{
+		Ar << Params.VectorParams;
+		Ar << Params.ScalarParams;
+		return Ar;
+	}
+};
 // 각 컴포넌트의 정보를 담을 구조체
 USTRUCT(BlueprintType)
 struct FComponentRecord
@@ -51,12 +69,16 @@ struct FComponentRecord
 	UPROPERTY(BlueprintReadWrite, Category = "BloodStain")
 	TArray<FString> MaterialPaths;
 
+	UPROPERTY()
+	TMap<int32, FMaterialParameters> MaterialParameters;
+	
 	friend FArchive& operator<<(FArchive& Ar, FComponentRecord& ComponentRecord)
 	{
 		Ar << ComponentRecord.ComponentName;
 		Ar << ComponentRecord.ComponentClassPath;
 		Ar << ComponentRecord.AssetPath;
 		Ar << ComponentRecord.MaterialPaths;
+		Ar << ComponentRecord.MaterialParameters;
 		return Ar;
 	}
 };
