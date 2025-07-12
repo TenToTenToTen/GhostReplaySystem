@@ -54,13 +54,13 @@ void UPlayComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
 	
 	const float LastTime = Frames.Last().TimeStamp;
 	// Compute elapsed time since start, scaled by playback rate
-	float Elapsed = (static_cast<float>(GetWorld()->GetTimeSeconds()) - PlaybackStartTime) * ReplayData.RecordOptions.PlaybackRate;
+	float Elapsed = (static_cast<float>(GetWorld()->GetTimeSeconds()) - PlaybackStartTime) * ReplayOptions.PlaybackRate;
 
-	if (ReplayData.RecordOptions.bIsLooping)
+	if (ReplayOptions.bIsLooping)
 	{
 		// Loop playback within [0, LastTime)
 		Elapsed = FMath::Fmod(Elapsed, LastTime);
-		if (Elapsed < 0.0f || (ReplayData.RecordOptions.PlaybackRate < 0 && Elapsed == 0.f))
+		if (Elapsed < 0.0f || (ReplayOptions.PlaybackRate < 0 && Elapsed == 0.f))
 		{
 			Elapsed += LastTime;
 		}
@@ -68,7 +68,7 @@ void UPlayComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
 	else
 	{
 		// If outside of range, finish replay
-		if (ReplayData.RecordOptions.PlaybackRate < 0)
+		if (ReplayOptions.PlaybackRate < 0)
 		{
 			if (Elapsed > 0.f || Elapsed < -LastTime)
 			{
@@ -126,13 +126,13 @@ void UPlayComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
 	ApplySkeletalBoneTransforms(Prev, Next, Alpha);
 }
 
-void UPlayComponent::Initialize(const FRecordSavedData& InReplayData)
+void UPlayComponent::Initialize(const FRecordActorSaveData& InReplayData, const FBloodStainRecordOptions& InReplayOptions)
 {
     ReplayData = InReplayData;
     // ReplayOptions = InReplayOptions;
 
     PlaybackStartTime = GetWorld()->GetTimeSeconds();
-    CurrentFrame      = ReplayData.RecordOptions.PlaybackRate > 0 ? 0 : ReplayData.RecordedFrames.Num() - 2;
+    CurrentFrame      = ReplayOptions.PlaybackRate > 0 ? 0 : ReplayData.RecordedFrames.Num() - 2;
 
 	/* 특정 점에 걸치는 Alive component 쿼리용 Interval Tree 초기화 */
 	TArray<FComponentInterval*> Ptrs;
@@ -172,29 +172,29 @@ void UPlayComponent::Initialize(const FRecordSavedData& InReplayData)
 	// }
 	
 
-    // // Generate animation sequences if not already present
-    // if (AnimSequences.Num() == 0)
-    // {
-    //     ConvertFrameToAnimSequence();
-    // }
-    //
-    // // Play animations on skeletal components
-    // for (auto& Pair : ReconstructedComponents)
-    // {
-    //     const FString& CompName = Pair.Key;
-    //     if (USkeletalMeshComponent* SkelComp = Cast<USkeletalMeshComponent>(Pair.Value))
-    //     {
-    //         if (UAnimSequence* Seq = AnimSequences.FindRef(CompName))
-    //         {
-	   //          SkelComp->PlayAnimation(Seq, ReplayData.RecordOptions.bIsLooping);
-	   //          SkelComp->SetPlayRate(ReplayData.RecordOptions.PlaybackRate);
-    //         	if (ReplayData.RecordOptions.PlaybackRate < 0)
-    //         	{
-    //         		SkelComp->SetPosition(Seq->GetPlayLength(), false);
-    //         	}
-    //         }
-    //     }
-    // }
+    // Generate animation sequences if not already present
+    if (AnimSequences.Num() == 0)
+    {
+        ConvertFrameToAnimSequence();
+    }
+
+    // Play animations on skeletal components
+    for (auto& Pair : ReconstructedComponents)
+    {
+        const FString& CompName = Pair.Key;
+        if (USkeletalMeshComponent* SkelComp = Cast<USkeletalMeshComponent>(Pair.Value))
+        {
+            if (UAnimSequence* Seq = AnimSequences.FindRef(CompName))
+            {
+	            SkelComp->PlayAnimation(Seq, ReplayOptions.bIsLooping);
+	            SkelComp->SetPlayRate(ReplayOptions.PlaybackRate);
+            	if (ReplayOptions.PlaybackRate < 0)
+            	{
+            		SkelComp->SetPosition(Seq->GetPlayLength(), false);
+            	}
+            }
+        }
+    }
 }
 
 void UPlayComponent::FinishReplay()
@@ -324,7 +324,7 @@ void UPlayComponent::ConvertFrameToAnimSequence()
         Controller.InitializeModel();
         Controller.OpenBracket(FText::FromString(FString::Printf(TEXT("Generate_%s"), *CompName)));
 
-    	const float FrameRate = 1.0f / ReplayData.RecordOptions.SamplingInterval;
+    	const float FrameRate = 1.0f / ReplayOptions.SamplingInterval;
         Controller.SetFrameRate(FFrameRate(FrameRate, 1));
         Controller.SetNumberOfFrames(NumFrames);
 
@@ -514,7 +514,7 @@ USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecor
 	// 3-2. 머티리얼을 순서대로 적용합니다.
 	for (int32 i = 0; i < Record.MaterialPaths.Num(); ++i)
 	{
-		if ((ReplayData.RecordOptions.bUseGhostMaterial || Record.MaterialPaths[i].IsEmpty()) && DefaultMaterial)
+		if ((ReplayOptions.bUseGhostMaterial || Record.MaterialPaths[i].IsEmpty()) && DefaultMaterial)
 		{
 				if (UMeshComponent* MeshComp = Cast<UMeshComponent>(NewComponent))
 				{

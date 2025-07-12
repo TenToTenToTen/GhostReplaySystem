@@ -11,11 +11,11 @@
 class BLOODSTAINSYSTEM_API FSaveRecordingTask : public FNonAbandonableTask
 {
 public:
-	FRecordSavedData SavedData;
+	FRecordSaveData SavedData;
 	FString FileName;
 	FBloodStainFileOptions FileOptions;
 	
-	FSaveRecordingTask(FRecordSavedData&& InData, const FString& InFileName, const FBloodStainFileOptions& InOptions)
+	FSaveRecordingTask(FRecordSaveData&& InData, const FString& InFileName, const FBloodStainFileOptions& InOptions)
 		: SavedData(MoveTemp(InData))
 		, FileName(InFileName)
 		, FileOptions(InOptions)

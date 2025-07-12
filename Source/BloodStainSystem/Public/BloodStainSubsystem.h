@@ -11,27 +11,51 @@
 
 class UPlayComponent;
 class URecordComponent;
+class UReplayTerminatedActorManager;
 struct FBloodStainRecordOptions;
-struct FBloodStainReplayOptions;
 
 UCLASS(Config=Game)
 class BLOODSTAINSYSTEM_API UBloodStainSubsystem : public UGameInstanceSubsystem
 {
 	GENERATED_BODY()
 
-	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 public:
-	/** 녹화 시작 */
+	
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+	
+	/**
+	 * @param	TargetActor	Record Target Actor
+	 * @param	Options	 RecordOptions
+	 * @param	GroupName	Record Group Name
+	 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Record")
-	bool StartRecording(AActor* TargetActor, const FBloodStainRecordOptions& Options);
+	bool StartRecording(AActor* TargetActor, const FBloodStainRecordOptions& Options, FName GroupName = NAME_None);
 
-	// /** 녹화 중단 */
+	
+	/**
+	 * @param	TargetActors	Record Target Actors	
+	 * @param	GroupName	Record Group Name
+	 * @param	Options	 RecordOptions
+	 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Record")
-	void StopRecording(AActor* TargetActor);
+	bool StartRecordingWithActors(TArray<AActor*> TargetActors, const FBloodStainRecordOptions& Options, FName GroupName = NAME_None);
+	
+	/**
+	* @param	GroupName	Record Group Name
+	 */
+	UFUNCTION(BlueprintCallable, Category="BloodStain|Record")
+	void StopRecording(FName GroupName = NAME_None);
+	
+	/**
+	 * Recording이 즉각적으로 멈추지 않고 Group의 TimeBuffer 동안 관리된 이후 종료된다.
+	 * RecordComponent는 즉각적으로 삭제된다.
+	 */
+	UFUNCTION(BlueprintCallable, Category="BloodStain|Record")
+	void StopRecordComponent(URecordComponent* RecordComponent);
 	
 	/** 재생 시작 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
-	bool StartReplay(AActor* TargetActor, const FRecordSavedData& Data);
+	bool StartReplay(AActor* BloodStainActor, const FRecordSaveData& Data);
 
 	/** 재생 중단 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
@@ -39,22 +63,18 @@ public:
 
 	// 순수 파일 로드 (UI나 Blueprint에서 직접 호출해도 OK)
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
-	bool LoadRecordingData(const FString& FileName, FRecordSavedData& OutData);
+	bool LoadRecordingData(const FString& FileName, FRecordSaveData& OutData);
 	
 	// 3) 파일 바로 리플레이 시작 (1) + (2) 조합)
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
-	bool StartReplayFromFile(AActor* TargetActor, const FString& FileName);
+	bool StartReplayFromFile(AActor* BloodStainActor, const FString& FileName);
 
-	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
-	void SetDefalutMaterial(UMaterialInterface* InMaterial)
-	{
-		GhostMaterial = InMaterial;
-	}
 	
-	UMaterialInterface* GetDefaultMaterial()
-	{
-		return GhostMaterial;
-	}
+	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
+	void SetDefaultMaterial(UMaterialInterface* InMaterial) { GhostMaterial = InMaterial; }
+	
+	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
+	UMaterialInterface* GetDefaultMaterial() const { return GhostMaterial; }
 
 public:
 	/** 혈흔 액터 생성 + 서브시스템에 등록 */
@@ -84,7 +104,10 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Record")
 	void NotifyComponentDetached(AActor* TargetActor, UMeshComponent* DetachedComponent);
-
+	
+private:
+	FRecordSaveData ConvertToSaveData(TArray<FRecordActorSaveData>& RecordActorDataArray, const FName& GroupName);
+	
 public:
 	/** 파일 저장·로드 옵션 (Quantization, Compression, Checksum 등) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category="File IO")
@@ -102,13 +125,14 @@ protected:
 	TSubclassOf<AActor> BloodStainActorClass;
 	
 private:
-	/** 현재 녹화 중인 RecordComponent들 */
+
+	/** 현재 녹화 중인 Group들 */
 	UPROPERTY()
-	TMap<TObjectPtr<AActor>, TObjectPtr<URecordComponent>> ActiveRecorders;
+	TMap<FName, FBloodStainRecordGroup> BloodStainRecordGroups;	
 	
-	/** 현재 재생 중인 ReplayComponent들 */
+	/** 현재 재생 중인 Group들 */
 	UPROPERTY()
-	TMap<TObjectPtr<AActor>, TObjectPtr<UPlayComponent>> ActiveReplayers;
+	TMap<FName, FBloodStainPlaybackGroup> BloodStainPlaybackGroups;
 
 	/** 에디터나 시작 시 불러올 리플레이 파일 목록 */
 	UPROPERTY(VisibleAnywhere, Category="BloodStain|Cache")
@@ -116,13 +140,17 @@ private:
 	
 	/** 캐싱된 리플레이 데이터 */
 	UPROPERTY()
-	TMap<FString, FRecordSavedData> CachedRecordings;
+	TMap<FString, FRecordSaveData> CachedRecordings;
 
 	/** 현재 월드에 존재하는 혈흔 액터 리스트 */
 	UPROPERTY()
 	TArray<TWeakObjectPtr<ABloodActor>> ActiveBloodStains;
 	
-
 	UPROPERTY()
 	TObjectPtr<UMaterialInterface> GhostMaterial;
+
+	UPROPERTY()
+	TObjectPtr<UReplayTerminatedActorManager> ReplayTerminatedActorManager;
+
+	static FName DefaultGroupName;
 };

@@ -3,8 +3,10 @@
 
 #include "RecordComponent.h"
 
+#include "BloodStainSubsystem.h"
 #include "BloodStainSystem.h"
 #include "GhostData.h"
+#include "ReplayTerminatedActorManager.h"
 #include "Camera/CameraComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/StaticMesh.h"
@@ -82,10 +84,23 @@ void URecordComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 	}
 }
 
-void URecordComponent::Initialize(const FBloodStainRecordOptions& InOptions)
+void URecordComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	Super::EndPlay(EndPlayReason);
+
+	// In General, this is Stable
+	if (EndPlayReason == EEndPlayReason::Type::Destroyed)
+	{
+		GetWorld()->GetGameInstance()->GetSubsystem<UBloodStainSubsystem>()->StopRecordComponent(this);
+	}
+}
+
+void URecordComponent::Initialize(const FName& InGroupName, const FBloodStainRecordOptions& InOptions)
 {
 	// 1) 전체 구조체 복사
 	RecordOptions = InOptions;
+	GroupName = InGroupName;
+	
 	MaxRecordFrames = FMath::CeilToInt(RecordOptions.MaxRecordTime / RecordOptions.SamplingInterval);
 	uint32 CapacityPlusOne = FMath::Max<uint32>(MaxRecordFrames + 1, 2);
 	FrameQueuePtr = MakeUnique<TCircularQueue<FRecordFrame>>(CapacityPlusOne);
@@ -98,7 +113,6 @@ void URecordComponent::Initialize(const FBloodStainRecordOptions& InOptions)
 	}
 	
 	GhostSaveData.InitialComponentStructure.Empty(); // 초기화
-	GhostSaveData.RecordOptions = InOptions;
 	// 현재 액터와 모든 하위 액터에서 메시 컴포넌트를 수집하는 헬퍼 함수
 	CollectMeshComponents();
 
@@ -133,16 +147,17 @@ void URecordComponent::CollectMeshComponents()
     		{
     			if (SkeletalMeshComp->GetSkeletalMeshAsset())
     			{
-    				GhostSaveData.SpawnPointComponentName = FString::Printf(TEXT("%s_%u"), *SkeletalMeshComp->GetName(), SkeletalMeshComp->GetUniqueID());
+	    			GhostSaveData.ComponentName = FName(FString::Printf(TEXT("%s_%u"), *SkeletalMeshComp->GetName(), SkeletalMeshComp->GetUniqueID()));
     				break;
     			}
     		}
-    		if (UStaticMeshComponent* StaticMeshComp = Cast<UStaticMeshComponent>(MeshComp))
+    		else if (UStaticMeshComponent* StaticMeshComp = Cast<UStaticMeshComponent>(MeshComp))
     		{
-    			GhostSaveData.SpawnPointComponentName = FString::Printf(TEXT("%s_%u"), *StaticMeshComp->GetName(), StaticMeshComp->GetUniqueID());
+    			GhostSaveData.ComponentName = FName(FString::Printf(TEXT("%s_%u"), *MeshComp->GetName(), MeshComp->GetUniqueID()));
     			break;
     		}
     	}
+    	
         for (UMeshComponent* MeshComp : OwnerMeshComponents)
         {
             if (Cast<UCameraProxyMeshComponent>(MeshComp))
@@ -203,7 +218,7 @@ void URecordComponent::CollectMeshComponents()
 }
 
 bool URecordComponent::SaveQueuedFrames()
-{
+{	
     FRecordFrame First;
     if (!FrameQueuePtr->Peek(First))
     {
@@ -345,8 +360,8 @@ void URecordComponent::BuildInitialComponentStructure(int32 FirstFrameIndex, int
 }
 
 void URecordComponent::OnComponentAttached(UMeshComponent* NewComponent)
-{
-	if (!NewComponent || !IsValid(NewComponent)) return;
+{	
+	if (!IsValid(NewComponent)) return;
 	if (Cast<UCameraProxyMeshComponent>(NewComponent)) return; // 기존 필터링 유지
 
 	// 1. 기록할 컴포넌트 목록에 즉시 추가하여 다음 틱부터 트랜스폼을 기록
@@ -372,7 +387,7 @@ void URecordComponent::OnComponentAttached(UMeshComponent* NewComponent)
 
 void URecordComponent::OnComponentDetached(UMeshComponent* DetachedComponent)
 {
-	if (!DetachedComponent) return;
+	if (!IsValid(DetachedComponent)) return;
 
 	// 1. 기록할 컴포넌트 목록에서 제거하여 더 이상 트랜스폼을 기록하지 않음
 	RecordComponents.Remove(DetachedComponent);
@@ -389,6 +404,11 @@ void URecordComponent::OnComponentDetached(UMeshComponent* DetachedComponent)
 	}
 	
 	UE_LOG(LogBloodStain, Log, TEXT("Component Detached and pending for record: %s"), *ComponentName);
+}
+
+bool URecordComponent::ShouldRecord()
+{
+	return true;
 }
 
 /**

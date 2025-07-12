@@ -42,7 +42,7 @@ public:
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-	void Initialize(const FRecordSavedData& InReplayData);
+	void Initialize(const FRecordActorSaveData& InReplayData, const FBloodStainRecordOptions& InReplayOptions);
 	void ApplySkeletalBoneTransforms(const FRecordFrame& Prev, const FRecordFrame& Next, float Alpha) const;
 	void FinishReplay();
 
@@ -61,8 +61,8 @@ private:
 	USceneComponent* CreateComponentFromRecord(const FComponentRecord& Record);
 	
 protected:
-	FRecordSavedData ReplayData;
-	// FBloodStainReplayOptions ReplayOptions;
+	FRecordActorSaveData ReplayData;
+	FBloodStainRecordOptions ReplayOptions;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "BloodStain")
 	TMap<FString, TObjectPtr<UAnimSequence>> AnimSequences;

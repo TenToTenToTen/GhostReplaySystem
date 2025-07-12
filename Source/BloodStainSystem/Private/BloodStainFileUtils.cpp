@@ -79,12 +79,12 @@ namespace BloodStainFileUtils_Internal
 // }
 
 bool FBloodStainFileUtils::SaveToFile(
-	const FRecordSavedData&       SaveData,
+	const FRecordSaveData&       SaveData,
 	const FString&                FileName,
 	const FBloodStainFileOptions& Options)
 {
 	// 1) Raw 직렬화 → RawBytes
-	FRecordSavedData LocalCopy = SaveData; 
+	FRecordSaveData LocalCopy = SaveData; 
 	FBufferArchive RawAr;
 	RawAr << LocalCopy;
 
@@ -128,26 +128,29 @@ bool FBloodStainFileUtils::SaveToFile(
 
 
 	{
-		// 🔽 추가 정보 로그 출력
-		const int32 NumFrames = SaveData.RecordedFrames.Num();
-		const float Duration  = NumFrames > 0 
-			? SaveData.RecordedFrames.Last().TimeStamp - SaveData.RecordedFrames[0].TimeStamp 
-			: 0.0f;
-
-		int32 BoneCount = 0;
-		if (NumFrames > 0)
+		for (const FRecordActorSaveData& RecordActorData : SaveData.RecordActorDataArray)
 		{
-			BoneCount = SaveData.RecordedFrames[0].ComponentTransforms.Num();
-		}
+			// 🔽 추가 정보 로그 출력
+			const int32 NumFrames = RecordActorData.RecordedFrames.Num();
+			const float Duration  = NumFrames > 0 
+				? RecordActorData.RecordedFrames.Last().TimeStamp - RecordActorData.RecordedFrames[0].TimeStamp 
+				: 0.0f;
 
-		UE_LOG(LogBloodStain, Log, TEXT("[BS] Saved recording to %s"), *Path);
-		UE_LOG(LogBloodStain, Log, TEXT("[BS] ▶ Duration: %.2f sec | Frames: %d | Sockets: %d"), 
-			Duration, NumFrames, BoneCount);
+			int32 BoneCount = 0;
+			if (NumFrames > 0)
+			{
+				BoneCount = RecordActorData.RecordedFrames[0].ComponentTransforms.Num();
+			}
+
+			UE_LOG(LogBloodStain, Log, TEXT("[BS] Saved recording to %s"), *Path);
+			UE_LOG(LogBloodStain, Log, TEXT("[BS] ▶ Duration: %.2f sec | Frames: %d | Sockets: %d"), 
+				Duration, NumFrames, BoneCount);	
+		}
 	}
 	return bOK;
 }
 
-bool FBloodStainFileUtils::LoadFromFile(FRecordSavedData& OutData, const FString& FileName)
+bool FBloodStainFileUtils::LoadFromFile(FRecordSaveData& OutData, const FString& FileName)
 {
 	// 1) 파일 전체 읽기
 	const FString Path = GetFullFilePath(FileName);
@@ -195,7 +198,7 @@ bool FBloodStainFileUtils::LoadFromFile(FRecordSavedData& OutData, const FString
 	return true;
 }
 
-int32 FBloodStainFileUtils::LoadAllFiles(TMap<FString, FRecordSavedData>& OutLoadedDataMap)
+int32 FBloodStainFileUtils::LoadAllFiles(TMap<FString, FRecordSaveData>& OutLoadedDataMap)
 {
 	// 1. 기존 맵 데이터를 초기화합니다.
 	OutLoadedDataMap.Empty();
@@ -221,7 +224,7 @@ int32 FBloodStainFileUtils::LoadAllFiles(TMap<FString, FRecordSavedData>& OutLoa
 		BaseFileName.RemoveFromEnd(BloodStainFileUtils_Internal::FILE_EXTENSION);
 
 		// 기존에 만든 LoadFromFile 함수를 재활용합니다.
-		FRecordSavedData LoadedData;
+		FRecordSaveData LoadedData;
 		if (FBloodStainFileUtils::LoadFromFile(LoadedData, BaseFileName))
 		{
 			// 로드에 성공하면, 맵에 추가합니다.

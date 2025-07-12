@@ -6,6 +6,33 @@
 #include "OptionTypes.h"
 #include "GhostData.generated.h"
 
+USTRUCT()
+struct FBloodStainRecordGroup
+{
+	GENERATED_BODY()
+
+	// UPROPERTY()
+	// FName ReplayDataName;
+	
+	UPROPERTY()
+	FTransform SpawnPointTransform;
+	
+	UPROPERTY()
+	FBloodStainRecordOptions RecordOptions;
+	
+	UPROPERTY()
+	TMap<AActor*, class URecordComponent*> ActiveRecorders;
+};
+
+USTRUCT()
+struct FBloodStainPlaybackGroup
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TMap<AActor*, class UPlayComponent*> ActiveReplayers;
+};
+
 // 각 컴포넌트의 정보를 담을 구조체
 USTRUCT(BlueprintType)
 struct FComponentRecord
@@ -123,32 +150,51 @@ struct FRecordFrame
 
 
 USTRUCT(BlueprintType)
-struct FRecordSavedData
+struct FRecordActorSaveData
 {
 	GENERATED_BODY()
-	
+
+	UPROPERTY()
+	FName ComponentName;
+
 	UPROPERTY(BlueprintReadWrite, Category = "BloodStain")
 	TArray<FComponentRecord> InitialComponentStructure; // 초기 컴포넌트 구조 (BeginPlay 시점)
-	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "BloodStain")
-	TArray<FRecordFrame> RecordedFrames;
-
-	UPROPERTY()
-	FString SpawnPointComponentName;
-
-	UPROPERTY()
-	FBloodStainRecordOptions RecordOptions;
 
 	UPROPERTY()
 	TArray<FComponentInterval> ComponentIntervals;
 	
-	friend FArchive& operator<<(FArchive& Ar, FRecordSavedData& Data)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "BloodStain")
+	TArray<FRecordFrame> RecordedFrames;
+
+	
+	friend FArchive& operator<<(FArchive& Ar, FRecordActorSaveData& Data)
 	{
 		Ar << Data.InitialComponentStructure;
 		Ar << Data.RecordedFrames;
-		Ar << Data.SpawnPointComponentName;
-		Ar << Data.RecordOptions;
 		Ar << Data.ComponentIntervals;
+		return Ar;
+	}
+};
+
+USTRUCT(BlueprintType)
+struct FRecordSaveData
+{
+	GENERATED_BODY()
+	
+	/** BloodStain Spawn Transform */
+	UPROPERTY()
+	FTransform SpawnPointTransform;
+	
+	UPROPERTY()
+	FBloodStainRecordOptions RecordOptions;
+
+	UPROPERTY()
+	TArray<FRecordActorSaveData> RecordActorDataArray;
+	
+	friend FArchive& operator<<(FArchive& Ar, FRecordSaveData& Data)
+	{
+		Ar << Data.SpawnPointTransform;
+		Ar << Data.RecordOptions;
 		return Ar;
 	}
 };

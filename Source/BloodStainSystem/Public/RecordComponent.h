@@ -14,6 +14,7 @@ class UMeshComponent;
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class BLOODSTAINSYSTEM_API URecordComponent : public UActorComponent
 {
+	friend class UReplayTerminatedActorManager;
 	GENERATED_BODY()
 
 public:	
@@ -27,10 +28,11 @@ protected:
 public:	
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	/** 이 컴포넌트의 모든 설정을 한 번에 초기화 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Record")
-	void Initialize(const FBloodStainRecordOptions& InOptions);
+	void Initialize(const FName& InGroupName, const FBloodStainRecordOptions& InOptions);
 	void CollectMeshComponents();
 	bool SaveQueuedFrames();
 	void BuildInitialComponentStructure(int32 FirstFrameIndex, int32 NumSavedFrames);
@@ -41,18 +43,26 @@ public:
 
 	/* Called when a component detached from the owner */
 	void OnComponentDetached(UMeshComponent* DetachedComponent);
-
-	FRecordSavedData GetGhostSaveData() { return GhostSaveData; }
-	int32 GetCurrentFrameIndex() const { return CurrentFrameIndex;}
 	
+	virtual bool ShouldRecord();
+
+	FRecordActorSaveData GetGhostSaveData() { return GhostSaveData; }
+	int32 GetCurrentFrameIndex() const { return CurrentFrameIndex;}
+
+	FName GetRecordGroupName() const { return GroupName; }
+
 protected:
+
+	UPROPERTY()
+	FName GroupName = NAME_None;
+	
 	/** 녹화 옵션 원본을 그대로 저장 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Record")
 	FBloodStainRecordOptions RecordOptions;
 
 	float TimeSinceLastRecord = 0.0f;
 	float StartTime;
-	FRecordSavedData GhostSaveData;
+	FRecordActorSaveData GhostSaveData;
 	UPROPERTY()
 	TArray<TObjectPtr<USceneComponent>> RecordComponents;
 	
