@@ -3,24 +3,10 @@
 
 #include "BloodStainFileOptions.h"
 
-
-bool FBSFQuantizationOptions::IsEnabled() const
-{
-	return PositionBits < 32 || RotationBits < 32 || ScaleBits < 32;
-}
-
 FArchive& operator<<(FArchive& Ar, FBSFCompressionOptions& Options)
 {
 	Ar << Options.Method;
 	Ar << Options.Level;
-	return Ar;
-}
-
-FArchive& operator<<(FArchive& Ar, FBSFQuantizationOptions& Options)
-{
-	Ar << Options.PositionBits;
-	Ar << Options.RotationBits;
-	Ar << Options.ScaleBits;
 	return Ar;
 }
 

@@ -23,7 +23,7 @@ struct FBSFCompressionOptions
 
 	/** 사용할 압축 메서드 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Compression")
-	EBSFCompressionMethod Method = EBSFCompressionMethod::Zlib;
+	EBSFCompressionMethod Method = EBSFCompressionMethod::None;
 
 	/** 압축 레벨 (0=none, 1~9 high) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Compression", meta=(ClampMin="0",ClampMax="9"))
@@ -32,28 +32,29 @@ struct FBSFCompressionOptions
 	friend FArchive& operator<<(FArchive& Ar, FBSFCompressionOptions& Options);
 };
 
-/** 트랜스폼 데이터 퀀타이즈(비트 단위로 축소) 옵션 */
+// 어떤 양자화 전략을 사용할지 선택하는 열거형
+UENUM(BlueprintType)
+enum class ETransformQuantizationMethod : uint8
+{
+	None,                // 양자화 안함 (FTransform, 48바이트)
+	Standard_High,       // 표준 양자화 (FQuatFixed48 사용, 약 20바이트)
+	Standard_Compact,    // 압축 양자화 (FQuatFixed32 사용, 약 18바이트)
+};
+
+// 양자화 옵션을 담는 구조체
 USTRUCT(BlueprintType)
-struct FBSFQuantizationOptions
+struct FQuantizationOptions
 {
 	GENERATED_BODY()
 
-	/** 위치(translation) 퀀타이즈 비트 수 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Quantization", meta=(ClampMin="8",ClampMax="32"))
-	int32 PositionBits = 16;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Quantization")
+	ETransformQuantizationMethod Method = ETransformQuantizationMethod::Standard_Compact;
 
-	/** 회전(rotation) 퀀타이즈 비트 수 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Quantization", meta=(ClampMin="8",ClampMax="32"))
-	int32 RotationBits = 16;
-
-	/** 스케일(scale) 퀀타이즈 비트 수 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Quantization", meta=(ClampMin="8",ClampMax="32"))
-	int32 ScaleBits = 16;
-
-	/** 하나라도 32비트 미만이면 퀀타이즈를 실시 */
-	bool IsEnabled() const;
-
-	friend FArchive& operator<<(FArchive& Ar, FBSFQuantizationOptions& Options);
+	friend FArchive& operator<<(FArchive& Ar, FQuantizationOptions& Options)
+	{
+		Ar << Options.Method;
+		return Ar;
+	}
 };
 
 /** 파일 저장·로드를 제어하는 최상위 옵션 묶음 */
@@ -68,7 +69,7 @@ struct FBloodStainFileOptions
 
 	/** 본 트랜스폼 퀀타이제이션 옵션 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="File|Quantization")
-	FBSFQuantizationOptions Quantization;
+	FQuantizationOptions Quantization;
 
 	/** 파일 끝 CRC 체크섬을 포함할지 여부 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="File|Integrity")

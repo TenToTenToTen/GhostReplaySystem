@@ -146,20 +146,20 @@ void UPlayComponent::Initialize(const FName& InGroupName, const FRecordActorSave
 	IntervalRoot = BuildIntervalTree(Ptrs);
 	SeekFrame(0);
 
-	int32 eventSum = 0;
-	for (int32 i = 0; i < ReplayData.RecordedFrames.Num(); ++i)
-	{
-		const FRecordFrame& Frame = ReplayData.RecordedFrames[i];
-		if (Frame.AddedComponents.Num() > 0)
-		{
-			eventSum += Frame.AddedComponents.Num();
-			UE_LOG(LogBloodStain, Warning, TEXT("PlayComponent::Initialize(): Frame %d has %d added components"), i, Frame.AddedComponents.Num());
-		}
-	}
-	if (eventSum == 0)
-	{
-		UE_LOG(LogBloodStain, Warning, TEXT("PlayComponent::Initialize(): No added components found in replay data!"));
-	}
+	// int32 eventSum = 0;
+	// for (int32 i = 0; i < ReplayData.RecordedFrames.Num(); ++i)
+	// {
+	// 	const FRecordFrame& Frame = ReplayData.RecordedFrames[i];
+	// 	if (Frame.AddedComponents.Num() > 0)
+	// 	{
+	// 		eventSum += Frame.AddedComponents.Num();
+	// 		UE_LOG(LogBloodStain, Log, TEXT("PlayComponent::Initialize(): Frame %d has %d added components"), i, Frame.AddedComponents.Num());
+	// 	}
+	// }
+	// if (eventSum == 0)
+	// {
+	// 	UE_LOG(LogBloodStain, Log, TEXT("PlayComponent::Initialize(): No added components found in replay data!"));
+	// }
 	
 	// for (const FComponentRecord& Record : ReplayData.InitialComponentStructure)
 	// {

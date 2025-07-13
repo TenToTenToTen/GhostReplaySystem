@@ -32,6 +32,15 @@ struct FQuantizedTransform_High
 		T.SetScale3D(Scale);
 		return T;
 	}
+	
+	friend FArchive& operator<<(FArchive& Ar, FQuantizedTransform_High& Data)
+	{
+		// UE_LOG(LogTemp, Warning, TEXT("Serializing FQuantizedTransform_High"));
+		Ar << Data.Location;
+		Ar << Data.Rotation;
+		Ar << Data.Scale;
+		return Ar;
+	}
 };
 
 // 표준-압축 양자화 트랜스폼 (FQuatFixed32 사용)
@@ -60,5 +69,13 @@ struct FQuantizedTransform_Compact
 		T.SetRotation(FQuat(TempQuat));
 		T.SetScale3D(Scale);
 		return T;
+	}
+
+	friend FArchive& operator<<(FArchive& Ar, FQuantizedTransform_Compact& Data)
+	{
+		Ar << Data.Location;
+		Ar << Data.Rotation;
+		Ar << Data.Scale;
+		return Ar;
 	}
 };
