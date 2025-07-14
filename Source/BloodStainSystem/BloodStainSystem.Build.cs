@@ -17,6 +17,7 @@ public class BloodStainSystem : ModuleRules
 		
 		PrivateIncludePaths.AddRange(
 			new string[] {
+				"Engine",
 				// ... add other private include paths required here ...
 		});
 			

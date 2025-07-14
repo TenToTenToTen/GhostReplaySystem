@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "RecordComponent.h"
 #include "UObject/Object.h"
+#include "Tickable.h"
 #include "ReplayTerminatedActorManager.generated.h"
 
 struct FRecordActorSaveData;

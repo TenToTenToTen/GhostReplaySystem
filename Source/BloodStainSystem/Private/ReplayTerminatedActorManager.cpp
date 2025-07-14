@@ -5,6 +5,7 @@
 
 #include "BloodStainRecordDataUtils.h"
 #include "BloodStainSystem.h"
+#include "Engine/World.h"
 
 void UReplayTerminatedActorManager::Tick(float DeltaTime)
 {

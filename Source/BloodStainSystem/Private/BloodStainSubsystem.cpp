@@ -11,7 +11,8 @@
 #include "ReplayActor.h"
 #include "ReplayTerminatedActorManager.h"
 #include "Kismet/KismetMathLibrary.h"
-#include "SaveRecordingTask.h"  
+#include "SaveRecordingTask.h"
+#include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
 
 FName UBloodStainSubsystem::DefaultGroupName = TEXT("BloodStainReplay");
@@ -353,7 +354,9 @@ void UBloodStainSubsystem::StopReplayPlayComponent(AReplayActor* GhostActor)
 	FBloodStainPlaybackGroup& BloodStainPlaybackGroup = BloodStainPlaybackGroups[PlaybackKey];
 	if (!BloodStainPlaybackGroup.ActiveReplayers.Contains(GhostActor))
 	{
+#if WITH_EDITORONLY_DATA
 		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopReplay failed: Key [%s] is not contains Actor [%s]"), *PlaybackKey.ToString(), *GhostActor->GetActorLabel());
+#endif
 		return;
 	}
 	
