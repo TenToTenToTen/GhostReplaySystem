@@ -253,8 +253,9 @@ void UBloodStainSubsystem::StopRecordComponent(URecordComponent* RecordComponent
 	RecordComponent->DestroyComponent();
 }
 
-bool UBloodStainSubsystem::StartReplay(ABloodActor* BloodStainActor, const FRecordSaveData& Data)
+bool UBloodStainSubsystem::StartReplay(ABloodActor* BloodStainActor, const FRecordSaveData& Data, FGuid& OutGuid)
 {
+	OutGuid = FGuid();
 	if (!BloodStainActor)
 	{
 		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StartReplay failed: Actor is null"));
@@ -300,6 +301,7 @@ bool UBloodStainSubsystem::StartReplay(ABloodActor* BloodStainActor, const FReco
 		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] Cannot Start Replay, Active Replay is zero"));
 		return false;
 	}
+	OutGuid = UniqueID;
 	BloodStainPlaybackGroups.Add(UniqueID, BloodStainPlaybackGroup);
 	// OnReplayStarted.Broadcast(TargetActor, Replayer);
 	return true;
@@ -397,14 +399,14 @@ bool UBloodStainSubsystem::LoadRecordingData(const FString& FileName, FRecordSav
 }
 
 
-bool UBloodStainSubsystem::StartReplayFromFile(ABloodActor* BloodStainActor, const FString& FileName)
+bool UBloodStainSubsystem::StartReplayFromFile(ABloodActor* BloodStainActor, const FString& FileName, FGuid& OutGuid)
 {
 	FRecordSaveData Data;
 	if (!LoadRecordingData(FileName, Data))
 	{
 		return false;
 	}
-	return StartReplay(BloodStainActor, Data);
+	return StartReplay(BloodStainActor, Data, OutGuid);
 }
 
 ABloodActor* UBloodStainSubsystem::SpawnBloodStain(const FVector& Location, const FRotator& Rotation, const FString& FileName)
@@ -519,6 +521,11 @@ void UBloodStainSubsystem::NotifyComponentDetached(AActor* TargetActor, UMeshCom
 	{
 		RecordComponent->OnComponentDetached(DetachedComponent);
 	}
+}
+
+bool UBloodStainSubsystem::IsPlaying(const FGuid& InPlaybackKey) const
+{
+	return BloodStainPlaybackGroups.Contains(InPlaybackKey);
 }
 
 FRecordSaveData UBloodStainSubsystem::ConvertToSaveData(TArray<FRecordActorSaveData>& RecordActorDataArray, const FName& GroupName)

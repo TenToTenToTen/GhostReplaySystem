@@ -55,7 +55,7 @@ public:
 	
 	/** 재생 시작 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
-	bool StartReplay(ABloodActor* BloodStainActor, const FRecordSaveData& Data);
+	bool StartReplay(ABloodActor* BloodStainActor, const FRecordSaveData& Data, FGuid& OutGuid);
 
 	/** 재생 중단 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
@@ -71,7 +71,7 @@ public:
 	
 	// 3) 파일 바로 리플레이 시작 (1) + (2) 조합)
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
-	bool StartReplayFromFile(ABloodActor* BloodStainActor, const FString& FileName);
+	bool StartReplayFromFile(ABloodActor* BloodStainActor, const FString& FileName, FGuid& OutGuid);
 
 	
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
@@ -108,7 +108,9 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Record")
 	void NotifyComponentDetached(AActor* TargetActor, UMeshComponent* DetachedComponent);
-	
+
+	bool IsPlaying(const FGuid& InPlaybackKey) const;
+
 private:
 	FRecordSaveData ConvertToSaveData(TArray<FRecordActorSaveData>& RecordActorDataArray, const FName& GroupName);
 	

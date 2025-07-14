@@ -58,6 +58,15 @@ public:
 	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="BloodStain")
 	FString ReplayFileName;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="BloodStain")
+	bool bAllowMultiplePlayback = true;
+	
+private:
+	/** Last Played Playback Key. Use for Control Playback */
+	UPROPERTY()
+	FGuid PlaybackKey;
+	
 	/** 기본 재생 옵션 (실시간 재생 속도 등) */
 	// UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BloodStain")
 	// FBloodStainReplayOptions ReplayOptions;
