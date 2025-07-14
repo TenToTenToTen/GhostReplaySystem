@@ -9,7 +9,7 @@
 #include "BloodStainFileOptions.h" 
 #include "BloodStainSubsystem.generated.h"
 
-class UPlayComponent;
+class AReplayActor;
 class URecordComponent;
 class UReplayTerminatedActorManager;
 struct FBloodStainRecordOptions;
@@ -59,11 +59,11 @@ public:
 
 	/** 재생 중단 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
-	void StopReplay(FName GroupName);
+	void StopReplay(FGuid PlaybackKey);
 	
 	/** 재생 중단 특정 Component */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
-	void StopReplayPlayComponent(AActor* GhostActor);
+	void StopReplayPlayComponent(AReplayActor* GhostActor);
 
 	// 순수 파일 로드 (UI나 Blueprint에서 직접 호출해도 OK)
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
@@ -131,12 +131,14 @@ protected:
 private:
 
 	/** 현재 녹화 중인 Group들 */
-	UPROPERTY()
+	UPROPERTY(Transient)
 	TMap<FName, FBloodStainRecordGroup> BloodStainRecordGroups;	
 	
-	/** 현재 재생 중인 Group들 */
-	UPROPERTY()
-	TMap<FName, FBloodStainPlaybackGroup> BloodStainPlaybackGroups;
+	/** 현재 재생 중인 Group들
+	 * Key is Temporary Hash Id, PlayComponent::Key
+	 */
+	UPROPERTY(Transient)
+	TMap<FGuid, FBloodStainPlaybackGroup> BloodStainPlaybackGroups;
 
 	/** 에디터나 시작 시 불러올 리플레이 파일 목록 */
 	UPROPERTY(VisibleAnywhere, Category="BloodStain|Cache")

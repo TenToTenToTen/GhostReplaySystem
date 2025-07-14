@@ -127,10 +127,10 @@ void UPlayComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
 	ApplySkeletalBoneTransforms(Prev, Next, Alpha);
 }
 
-void UPlayComponent::Initialize(const FName& InGroupName, const FRecordActorSaveData& InReplayData, const FBloodStainRecordOptions& InReplayOptions)
+void UPlayComponent::Initialize(FGuid InPlaybackKey, const FRecordActorSaveData& InReplayData, const FBloodStainRecordOptions& InReplayOptions)
 {
     ReplayData = InReplayData;
-	GroupName = InGroupName;
+	PlaybackKey = InPlaybackKey;
     ReplayOptions = InReplayOptions;
 
     PlaybackStartTime = GetWorld()->GetTimeSeconds();
@@ -446,9 +446,9 @@ void UPlayComponent::ApplyComponentChanges(const FRecordFrame& Frame)
 	}
 }
 
-const FName& UPlayComponent::GetGroupName() const
+FGuid UPlayComponent::GetPlaybackKey() const
 {
-	return GroupName;
+	return PlaybackKey;
 }
 
 /**

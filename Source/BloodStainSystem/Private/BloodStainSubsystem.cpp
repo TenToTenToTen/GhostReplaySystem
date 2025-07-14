@@ -267,12 +267,8 @@ bool UBloodStainSubsystem::StartReplay(ABloodActor* BloodStainActor, const FReco
 		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] Cannot Load Recording Data %s"), *BloodStainActor->ReplayFileName);
 		return false;
 	}
-		
-	if (BloodStainPlaybackGroups.Contains(RecordSaveData.Header.GroupName))
-	{
-		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] Already replaying %s"), *RecordSaveData.Header.GroupName.ToString());
-		return false;
-	}
+
+	FGuid UniqueID = FGuid::NewGuid();
 	
 	FBloodStainPlaybackGroup BloodStainPlaybackGroup;
 
@@ -280,40 +276,46 @@ bool UBloodStainSubsystem::StartReplay(ABloodActor* BloodStainActor, const FReco
 	{
 		// TODO SpawnPoint 각 Actor별로 분리
 		FTransform StartTransform = Data.Header.SpawnPointTransform;
-		AActor* GhostActor = GetWorld()->SpawnActor(AReplayActor::StaticClass(), &StartTransform);
+		AReplayActor* GhostActor = GetWorld()->SpawnActor<AReplayActor>(AReplayActor::StaticClass(), StartTransform);
 	
 		UPlayComponent* Replayer = NewObject<UPlayComponent>(
 			GhostActor, UPlayComponent::StaticClass(), NAME_None, RF_Transient);
+
 		if (!Replayer)
 		{
 			UE_LOG(LogTemp, Error, TEXT("[BloodStain] Cannot create ReplayComponent on %s"), *GhostActor->GetName());
-			return false;
+			continue;
 		}
-	
+
 		GhostActor->AddInstanceComponent(Replayer);
 		Replayer->RegisterComponent();
 	
-		Replayer->Initialize(RecordSaveData.Header.GroupName, RecordActorData, RecordSaveData.Header.RecordOptions);
+		Replayer->Initialize(UniqueID, RecordActorData, RecordSaveData.Header.RecordOptions);
 
-		BloodStainPlaybackGroup.ActiveReplayers.Add(GhostActor, Replayer);
+		BloodStainPlaybackGroup.ActiveReplayers.Add(GhostActor);
 	}
-	
-	BloodStainPlaybackGroups.Add(RecordSaveData.Header.GroupName, BloodStainPlaybackGroup);
+
+	if (BloodStainPlaybackGroup.ActiveReplayers.Num() == 0)
+	{
+		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] Cannot Start Replay, Active Replay is zero"));
+		return false;
+	}
+	BloodStainPlaybackGroups.Add(UniqueID, BloodStainPlaybackGroup);
 	// OnReplayStarted.Broadcast(TargetActor, Replayer);
 	return true;
 }
 
-void UBloodStainSubsystem::StopReplay(FName GroupName)
+void UBloodStainSubsystem::StopReplay(FGuid PlaybackKey)
 {
-	if (!BloodStainPlaybackGroups.Contains(GroupName))
+	if (!BloodStainPlaybackGroups.Contains(PlaybackKey))
 	{
-		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopReplay failed: Group [%s] is not exist"), *GroupName.ToString());
+		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopReplay failed: Group [%s] is not exist"), *PlaybackKey.ToString());
 		return;
 	}
 
-	FBloodStainPlaybackGroup& BloodStainPlaybackGroup = BloodStainPlaybackGroups[GroupName];
+	FBloodStainPlaybackGroup& BloodStainPlaybackGroup = BloodStainPlaybackGroups[PlaybackKey];
 
-	for (const auto& [GhostActor, PlayComponent] : BloodStainPlaybackGroup.ActiveReplayers)
+	for (AReplayActor* GhostActor : BloodStainPlaybackGroup.ActiveReplayers)
 	{
 		// StopReplayPlayComponent 으로 하면 재귀 발생함.
 		GhostActor->Destroy();
@@ -321,10 +323,10 @@ void UBloodStainSubsystem::StopReplay(FName GroupName)
 	
 	BloodStainPlaybackGroup.ActiveReplayers.Empty();
 
-	BloodStainPlaybackGroups.Remove(GroupName);	
+	BloodStainPlaybackGroups.Remove(PlaybackKey);	
 }
 
-void UBloodStainSubsystem::StopReplayPlayComponent(AActor* GhostActor)
+void UBloodStainSubsystem::StopReplayPlayComponent(AReplayActor* GhostActor)
 {
 	if (!GhostActor)
 	{
@@ -339,26 +341,24 @@ void UBloodStainSubsystem::StopReplayPlayComponent(AActor* GhostActor)
 		return;
 	}
 
-	const FName& GroupName = PlayComponent->GetGroupName();
-	if (!BloodStainPlaybackGroups.Contains(GroupName))
+	const FGuid PlaybackKey = PlayComponent->GetPlaybackKey();
+	if (!BloodStainPlaybackGroups.Contains(PlaybackKey))
 	{
-		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopReplay failed: Group [%s] is not exist"), *GroupName.ToString());
+		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopReplay failed: Key [%s] is not exist"), *PlaybackKey.ToString());
 		return;
 	}
 
-	FBloodStainPlaybackGroup& BloodStainPlaybackGroup = BloodStainPlaybackGroups[GroupName];
+	FBloodStainPlaybackGroup& BloodStainPlaybackGroup = BloodStainPlaybackGroups[PlaybackKey];
 	if (!BloodStainPlaybackGroup.ActiveReplayers.Contains(GhostActor))
 	{
-		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopReplay failed: Group [%s] is not contains Actor [%s]"), *GroupName.ToString(), *GhostActor->GetActorLabel());
+		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopReplay failed: Key [%s] is not contains Actor [%s]"), *PlaybackKey.ToString(), *GhostActor->GetActorLabel());
 		return;
 	}
 	
-	
-	UPlayComponent* ReplayComp = BloodStainPlaybackGroup.ActiveReplayers[GhostActor];
-	ReplayComp->SetComponentTickEnabled(false);
-	ReplayComp->UnregisterComponent();
-	GhostActor->RemoveInstanceComponent(ReplayComp);
-	ReplayComp->DestroyComponent();
+	PlayComponent->SetComponentTickEnabled(false);
+	PlayComponent->UnregisterComponent();
+	GhostActor->RemoveInstanceComponent(PlayComponent);
+	PlayComponent->DestroyComponent();
 	
 	BloodStainPlaybackGroup.ActiveReplayers.Remove(GhostActor);
 
@@ -369,7 +369,7 @@ void UBloodStainSubsystem::StopReplayPlayComponent(AActor* GhostActor)
 
 	if (BloodStainPlaybackGroup.ActiveReplayers.Num() == 0)
 	{
-		StopReplay(GroupName);
+		StopReplay(PlaybackKey);
 	}
 }
 

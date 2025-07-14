@@ -6,6 +6,8 @@
 #include "OptionTypes.h"
 #include "GhostData.generated.h"
 
+class AReplayActor;
+
 USTRUCT()
 struct FBloodStainRecordGroup
 {
@@ -30,7 +32,7 @@ struct FBloodStainPlaybackGroup
 	GENERATED_BODY()
 
 	UPROPERTY()
-	TMap<AActor*, class UPlayComponent*> ActiveReplayers;
+	TSet<TObjectPtr<AReplayActor>> ActiveReplayers;
 };
 
 USTRUCT()
