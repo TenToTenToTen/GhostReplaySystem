@@ -3,10 +3,10 @@
 
 #include "RecordComponent.h"
 
+#include "BloodStainRecordDataUtils.h"
 #include "BloodStainSubsystem.h"
 #include "BloodStainSystem.h"
 #include "GhostData.h"
-#include "ReplayTerminatedActorManager.h"
 #include "Camera/CameraComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/StaticMesh.h"
@@ -17,7 +17,7 @@
 //DECLARE_CYCLE_STAT(TEXT("SaveQueueFrames"), STAT_FrameQueueSave, STATGROUP_BloodStain);
 
 URecordComponent::URecordComponent()
-	: CurrentFrameIndex(0)
+	: StartTime(0), MaxRecordFrames(0), CurrentFrameIndex(0)
 {
 	PrimaryComponentTick.bCanEverTick = true;
 }
@@ -63,9 +63,9 @@ void URecordComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 		for (TObjectPtr<USceneComponent>& SceneComp : RecordComponents)
 		{
 			FString ComponentName = FString::Printf(TEXT("%s_%u"), *SceneComp->GetName(), SceneComp->GetUniqueID());
-			if (USkeletalMeshComponent* SkelComp = Cast<USkeletalMeshComponent>(SceneComp))
+			if (USkeletalMeshComponent* SkeletalComp = Cast<USkeletalMeshComponent>(SceneComp))
 			{
-				FBoneComponentSpace LocalBaseTransforms(SkelComp->GetBoneSpaceTransforms());
+				FBoneComponentSpace LocalBaseTransforms(SkeletalComp->GetBoneSpaceTransforms());
 				NewFrame.SkeletalMeshBoneTransforms.Add(ComponentName, LocalBaseTransforms);
 			}
 			NewFrame.ComponentTransforms.Add(ComponentName, SceneComp->GetComponentTransform()); // 월드 트랜스폼 저장
@@ -109,7 +109,7 @@ void URecordComponent::Initialize(const FName& InGroupName, const FBloodStainRec
 	// TimeSinceLastRecord = 0.f;
 	if (UWorld* World = GetWorld())
 	{
-		StartTime = GetWorld()->GetTimeSeconds();
+		StartTime = World->GetTimeSeconds();
 	}
 	
 	GhostSaveData.InitialComponentStructure.Empty(); // 초기화
@@ -153,7 +153,7 @@ void URecordComponent::CollectMeshComponents()
     		}
     		else if (UStaticMeshComponent* StaticMeshComp = Cast<UStaticMeshComponent>(MeshComp))
     		{
-    			GhostSaveData.ComponentName = FName(FString::Printf(TEXT("%s_%u"), *MeshComp->GetName(), MeshComp->GetUniqueID()));
+    			GhostSaveData.ComponentName = FName(FString::Printf(TEXT("%s_%u"), *StaticMeshComp->GetName(), StaticMeshComp->GetUniqueID()));
     			break;
     		}
     	}
@@ -218,145 +218,8 @@ void URecordComponent::CollectMeshComponents()
 }
 
 bool URecordComponent::SaveQueuedFrames()
-{	
-    FRecordFrame First;
-    if (!FrameQueuePtr->Peek(First))
-    {
-        UE_LOG(LogBloodStain, Warning, TEXT("No frames to save in RecordComponent for %s"), *GetOwner()->GetName());
-        return false;
-    }
-
-	const int32 FirstIndex = First.FrameIndex;
-    const float BaseTime = First.TimeStamp;
-
-    // 1. 원본 프레임들 복사 + 시간 정규화
-    TArray<FRecordFrame> RawFrames;
-    FRecordFrame Tmp;
-    while (FrameQueuePtr->Dequeue(Tmp))
-    {
-        Tmp.TimeStamp -= BaseTime;
-        RawFrames.Add(MoveTemp(Tmp));
-    }
-
-    if (RawFrames.Num() < 2)
-    {
-        UE_LOG(LogBloodStain, Warning, TEXT("Not enough raw frames to interpolate."));
-        return false;
-    }
-
-    // 2. 보간 프레임 설정
-    const float FrameInterval = RecordOptions.SamplingInterval;
-    const int32 NumInterpFrames = FMath::FloorToInt(RawFrames.Last().TimeStamp / FrameInterval);
-
-    GhostSaveData.RecordedFrames.Empty(NumInterpFrames + 1);
-
-    for (int32 i = 0; i <= NumInterpFrames; ++i)
-    {
-        float TargetTime = i * FrameInterval;
-
-        // 3. 보간을 위한 A, B 프레임 찾기
-        int32 PrevIndex = 0;
-        while (PrevIndex + 1 < RawFrames.Num() && RawFrames[PrevIndex + 1].TimeStamp < TargetTime)
-        {
-            ++PrevIndex;
-        }
-
-        const FRecordFrame& A = RawFrames[PrevIndex];
-        const FRecordFrame& B = RawFrames[PrevIndex + 1];
-        float Alpha = (TargetTime - A.TimeStamp) / (B.TimeStamp - A.TimeStamp);
-
-        FRecordFrame NewFrame;
-        NewFrame.TimeStamp = TargetTime;
-    	NewFrame.AddedComponents = A.AddedComponents;
-    	NewFrame.RemovedComponentNames = A.RemovedComponentNames;
-
-        // 4. ComponentTransform 보간
-        for (const auto& Pair : A.ComponentTransforms)
-        {
-            const FString& Name = Pair.Key;
-            const FTransform& TA = Pair.Value;
-            const FTransform* TBPtr = B.ComponentTransforms.Find(Name);
-            if (!TBPtr) continue;
-
-            const FTransform& TB = *TBPtr;
-            FTransform Interp = FTransform(
-                FQuat::Slerp(TA.GetRotation(), TB.GetRotation(), Alpha),
-                FMath::Lerp(TA.GetLocation(), TB.GetLocation(), Alpha),
-                FMath::Lerp(TA.GetScale3D(), TB.GetScale3D(), Alpha)
-            );
-            NewFrame.ComponentTransforms.Add(Name, Interp);
-        }
-
-        // 5. BoneTransform 보간
-        for (const auto& BonePairA : A.SkeletalMeshBoneTransforms)
-        {
-            const FString& CompName = BonePairA.Key;
-            const FBoneComponentSpace& BoneA = BonePairA.Value;
-
-            if (const FBoneComponentSpace* BoneB = B.SkeletalMeshBoneTransforms.Find(CompName))
-            {
-                const int32 BoneCount = FMath::Min(BoneA.BoneTransforms.Num(), BoneB->BoneTransforms.Num());
-                FBoneComponentSpace InterpBone;
-                InterpBone.BoneTransforms.SetNum(BoneCount);
-
-                for (int32 j = 0; j < BoneCount; ++j)
-                {
-                    const FTransform& TA = BoneA.BoneTransforms[j];
-                    const FTransform& TB = BoneB->BoneTransforms[j];
-                    InterpBone.BoneTransforms[j] = FTransform(
-                        FQuat::Slerp(TA.GetRotation(), TB.GetRotation(), Alpha),
-                        FMath::Lerp(TA.GetLocation(), TB.GetLocation(), Alpha),
-                        FMath::Lerp(TA.GetScale3D(), TB.GetScale3D(), Alpha)
-                    );
-                }
-
-                NewFrame.SkeletalMeshBoneTransforms.Add(CompName, InterpBone);
-            }
-        }
-
-        GhostSaveData.RecordedFrames.Add(MoveTemp(NewFrame));
-    }
-
-	/* Construct Initial Component Structure based on Total Component event Data */
-	BuildInitialComponentStructure(FirstIndex, GhostSaveData.RecordedFrames.Num());
-	
-    return true;
-}
-
-
-void URecordComponent::BuildInitialComponentStructure(int32 FirstFrameIndex, int32 NumSavedFrames)
 {
-	ComponentIntervals.Sort([](auto& A, auto& B) {
-		return A.EndFrame < B.EndFrame;
-	});
-
-	// StartIdx : first index where EndFrame > FirstFrameIndex 
-	int32 StartIdx = Algo::UpperBoundBy(ComponentIntervals, FirstFrameIndex, &FComponentInterval::EndFrame);
-	// Sorted[0..StartIdx-1] 은 FirstFrameIndex 이전에 이미 탈착된 구간
-
-	// 3) 그 이후 구간만 순회하며 StartFrame ≤ FirstFrameIndex 필터
-	GhostSaveData.InitialComponentStructure.Empty();
-	for (int32 i = StartIdx; i < ComponentIntervals.Num(); ++i)
-	{
-		FComponentInterval& I = ComponentIntervals[i];
-		// if (I.StartFrame <= FirstFrameIndex)
-		// [StartFrame, EndFrame] 구간을 [0, NumSavedFrames) 구간으로 변환
-		{
-			GhostSaveData.InitialComponentStructure.Add(I.Meta);
-			I.StartFrame = FMath::Max(0, I.StartFrame - FirstFrameIndex);
-			if (I.EndFrame == INT32_MAX)
-			{
-				I.EndFrame = NumSavedFrames;
-			}
-			else
-			{
-				I.EndFrame = FMath::Min(I.EndFrame - FirstFrameIndex, NumSavedFrames);
-			}
-			
-			GhostSaveData.ComponentIntervals.Add(I);
-			UE_LOG(LogBloodStain, Log, TEXT("BuildInitialComponentStructure: %s added to initial structure"), *I.Meta.ComponentName);
-		}
-	}
+	return BloodStainRecordDataUtils::CookQueuedFrames(RecordOptions.SamplingInterval, FrameQueuePtr.Get(), GhostSaveData, ComponentIntervals);
 }
 
 void URecordComponent::OnComponentAttached(UMeshComponent* NewComponent)
@@ -417,21 +280,18 @@ bool URecordComponent::ShouldRecord()
  * @param OutRecord 생성된 레코드 정보를 담을 구조체
  * @return 성공적으로 레코드를 생성했으면 true를 반환합니다.
  */
-void URecordComponent::FillMaterialData(UMeshComponent* MeshComp, FComponentRecord& OutRecord)
+void URecordComponent::FillMaterialData(const UMeshComponent* InMeshComponent, FComponentRecord& OutRecord)
 {
 		TArray<UMaterialInterface*> Materials;
-		MeshComp->GetUsedMaterials(Materials);
+		InMeshComponent->GetUsedMaterials(Materials);
 		for (int32 MatIndex = 0; MatIndex < Materials.Num(); ++MatIndex)
 		{
-			UMaterialInterface* Mat = Materials[MatIndex];
-			if (Mat)
+			if (UMaterialInterface* Material = Materials[MatIndex])
 			{
-				UMaterialInstanceDynamic* DynMaterial = Cast<UMaterialInstanceDynamic>(Mat);
-				
-				if (DynMaterial)
+				if (UMaterialInstanceDynamic* DynamicMaterial = Cast<UMaterialInstanceDynamic>(Material))
 				{
 					// MID인 경우 -> 부모를 가져와서 경로 저장, 이후 파라미터로 복구
-					UMaterialInterface* ParentMaterial = DynMaterial->Parent;
+					UMaterialInterface* ParentMaterial = DynamicMaterial->Parent;
 					OutRecord.MaterialPaths.Add(ParentMaterial ? ParentMaterial->GetPathName() : TEXT(""));
 
 					// MID 동적 파라미터 저장
@@ -439,11 +299,11 @@ void URecordComponent::FillMaterialData(UMeshComponent* MeshComp, FComponentReco
 					
 					TArray<FMaterialParameterInfo> VectorParamInfos;
 					TArray<FGuid> VectorParamGuids;
-					DynMaterial->GetAllVectorParameterInfo(VectorParamInfos, VectorParamGuids);
+					DynamicMaterial->GetAllVectorParameterInfo(VectorParamInfos, VectorParamGuids);
 					for (const FMaterialParameterInfo& ParamInfo : VectorParamInfos)
 					{
 						FLinearColor Value;
-						if (DynMaterial->GetVectorParameterValue(ParamInfo, Value))
+						if (DynamicMaterial->GetVectorParameterValue(ParamInfo, Value))
 						{
 							MatParams.VectorParams.Add(ParamInfo.Name, Value);
 						}
@@ -451,11 +311,11 @@ void URecordComponent::FillMaterialData(UMeshComponent* MeshComp, FComponentReco
 
 					TArray<FMaterialParameterInfo> ScalarParamInfos;
 					TArray<FGuid> ScalarParamGuids;
-					DynMaterial->GetAllScalarParameterInfo(ScalarParamInfos, ScalarParamGuids);
+					DynamicMaterial->GetAllScalarParameterInfo(ScalarParamInfos, ScalarParamGuids);
 					for (const FMaterialParameterInfo& ParamInfo : ScalarParamInfos)
 					{
 						float Value;
-						if (DynMaterial->GetScalarParameterValue(ParamInfo, Value))
+						if (DynamicMaterial->GetScalarParameterValue(ParamInfo, Value))
 						{
 							MatParams.ScalarParams.Add(ParamInfo.Name, Value);
 						}
@@ -469,7 +329,7 @@ void URecordComponent::FillMaterialData(UMeshComponent* MeshComp, FComponentReco
 				else
 				{
 					//  MID가 아닌 경우 디스크에 저장된 에셋 사용
-					OutRecord.MaterialPaths.Add(Mat->GetPathName());
+					OutRecord.MaterialPaths.Add(Material->GetPathName());
 				}
 			}
 			else

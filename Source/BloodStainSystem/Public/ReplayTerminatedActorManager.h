@@ -21,7 +21,6 @@ public:
 	virtual TStatId GetStatId() const override;
 	
 	TArray<FRecordActorSaveData> CookQueuedFrames(const FName& GroupName);
-	static void BuildInitialComponentStructure(int32 FirstFrameIndex, int32 NumSavedFrames, FRecordActorSaveData& GhostSaveData, TArray<FComponentInterval>& ComponentIntervals);
 	
 	void AddToRecordGroup(const FName& GroupName, URecordComponent* RecordComponent);
 	void ClearRecordGroup(const FName& GroupName);	

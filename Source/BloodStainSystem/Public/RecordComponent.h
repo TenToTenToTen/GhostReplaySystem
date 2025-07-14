@@ -35,8 +35,7 @@ public:
 	void Initialize(const FName& InGroupName, const FBloodStainRecordOptions& InOptions);
 	void CollectMeshComponents();
 	bool SaveQueuedFrames();
-	void BuildInitialComponentStructure(int32 FirstFrameIndex, int32 NumSavedFrames);
-
+	
 public:
 	/* Called when a new component attached to the owner */
 	void OnComponentAttached(UMeshComponent* NewComponent);
@@ -71,7 +70,7 @@ protected:
 private:
 	/** Create FComponentRecord Data from meshcomponent */
 	bool CreateRecordFromMeshComponent(UMeshComponent* InMeshComponent, FComponentRecord& OutRecord);
-	void FillMaterialData(UMeshComponent* MeshComp, FComponentRecord& OutRecord);
+	void FillMaterialData(const UMeshComponent* InMeshComponent, FComponentRecord& OutRecord);
 	/** Records All frames up to MaxFrames */
 	TUniquePtr<TCircularQueue<FRecordFrame>> FrameQueuePtr;
 	int32 MaxRecordFrames;
