@@ -7,6 +7,7 @@
 #include "GhostData.generated.h"
 
 class AReplayActor;
+class URecordComponent;
 
 USTRUCT()
 struct FBloodStainRecordGroup
@@ -23,7 +24,7 @@ struct FBloodStainRecordGroup
 	FBloodStainRecordOptions RecordOptions;
 	
 	UPROPERTY()
-	TMap<AActor*, class URecordComponent*> ActiveRecorders;
+	TMap<TObjectPtr<AActor>, TObjectPtr<URecordComponent>> ActiveRecorders;
 };
 
 USTRUCT()
