@@ -12,8 +12,3 @@ void FSaveRecordingTask::DoWork()
 		UE_LOG(LogBloodStain, Log, TEXT("FSaveRecordingTask::DoWork() - SaveToFile failed"));
 	}
 }
-
-TStatId FSaveRecordingTask::GetStatId() const
-{
-	RETURN_QUICK_DECLARE_CYCLE_STAT(FSaveRecordingTask, STATGROUP_ThreadPoolAsyncTasks);
-}

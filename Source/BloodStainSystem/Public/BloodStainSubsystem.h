@@ -19,6 +19,7 @@ class BLOODSTAINSYSTEM_API UBloodStainSubsystem : public UGameInstanceSubsystem
 {
 	GENERATED_BODY()
 
+	UBloodStainSubsystem();
 public:
 	
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
@@ -127,8 +128,8 @@ public:
 	
 protected:
 	/** 플레이어 사망 시 스폰할 BloodStainActor 클래스 */
-	UPROPERTY(EditDefaultsOnly, Category="BloodStain|Pool")
-	TSubclassOf<AActor> BloodStainActorClass;
+	UPROPERTY()
+	TSubclassOf<ABloodActor> BloodStainActorClass;
 	
 private:
 

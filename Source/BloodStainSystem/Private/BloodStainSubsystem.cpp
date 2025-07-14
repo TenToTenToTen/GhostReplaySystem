@@ -14,23 +14,30 @@
 #include "SaveRecordingTask.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
+#include "UObject/ConstructorHelpers.h"
+
+class FSaveRecordingTask;
 
 FName UBloodStainSubsystem::DefaultGroupName = TEXT("BloodStainReplay");
+
+UBloodStainSubsystem::UBloodStainSubsystem()
+{
+	static ConstructorHelpers::FClassFinder<ABloodActor> BloodActorClassFinder(TEXT("/BloodStainSystem/BP_BloodActor.BP_BloodActor_C"));
+
+	if (BloodActorClassFinder.Succeeded())
+	{
+		BloodStainActorClass = BloodActorClassFinder.Class;
+	}
+	else
+	{
+		// 생성자에서는 Fatal 대신 Warning이나 Error를 사용하는 것이 더 안정적일 수 있습니다.
+		UE_LOG(LogBloodStain, Fatal, TEXT("Failed to find BloodActorClass at path. Subsystem may not function."));
+	}
+}
 
 void UBloodStainSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
-
-	const FString PathToLoad = TEXT("/BloodStainSystem/BP_BloodActor.BP_BloodActor_C");
-	BloodStainActorClass = StaticLoadClass(ABloodActor::StaticClass(), nullptr, *PathToLoad);
-
-	if (!BloodStainActorClass)
-	{
-		// 로드에 실패하면 치명적인 오류를 로그에 남깁니다.
-		// 이 서브시스템의 핵심 기능이 동작하지 않을 것이기 때문입니다.
-		UE_LOG(LogBloodStain, Fatal, TEXT("Failed to load BloodActorClass at path: %s. Subsystem will not function."), *PathToLoad);
-	}
-
 	ReplayTerminatedActorManager = NewObject<UReplayTerminatedActorManager>(this, UReplayTerminatedActorManager::StaticClass(), "ReplayDeadActorManager");
 }
 
@@ -354,7 +361,7 @@ void UBloodStainSubsystem::StopReplayPlayComponent(AReplayActor* GhostActor)
 	FBloodStainPlaybackGroup& BloodStainPlaybackGroup = BloodStainPlaybackGroups[PlaybackKey];
 	if (!BloodStainPlaybackGroup.ActiveReplayers.Contains(GhostActor))
 	{
-#if WITH_EDITORONLY_DATA
+#if WITH_EDITOR
 		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopReplay failed: Key [%s] is not contains Actor [%s]"), *PlaybackKey.ToString(), *GhostActor->GetActorLabel());
 #endif
 		return;

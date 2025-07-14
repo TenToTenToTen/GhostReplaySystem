@@ -25,5 +25,8 @@ public:
 	void DoWork();
 
 	// Required by FNonAbandonableTask
-	FORCEINLINE TStatId GetStatId() const;
+	FORCEINLINE TStatId GetStatId() const
+	{
+		RETURN_QUICK_DECLARE_CYCLE_STAT(FSaveRecordingTask, STATGROUP_ThreadPoolAsyncTasks);
+	}
 };
