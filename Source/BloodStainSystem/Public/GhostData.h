@@ -173,6 +173,23 @@ struct FRecordFrame
 	}
 };
 
+USTRUCT()
+struct FBoneRange
+{
+	GENERATED_BODY()
+	
+	UPROPERTY()
+	FVector PosMin;
+
+	UPROPERTY()
+	FVector PosMax;
+
+	friend FArchive& operator<<(FArchive& Ar, FBoneRange& R)
+	{
+		Ar << R.PosMin << R.PosMax;
+		return Ar;
+	}
+};
 
 USTRUCT(BlueprintType)
 struct FRecordActorSaveData
@@ -184,6 +201,9 @@ struct FRecordActorSaveData
 
 	UPROPERTY()
 	TArray<FComponentInterval> ComponentIntervals;
+
+	UPROPERTY()
+	TMap<FString, FBoneRange> BoneRanges;
 	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "BloodStain")
 	TArray<FRecordFrame> RecordedFrames;
@@ -193,6 +213,7 @@ struct FRecordActorSaveData
 	{
 		Ar << Data.ComponentName;
 		Ar << Data.ComponentIntervals;
+		Ar << Data.BoneRanges;
 		Ar << Data.RecordedFrames;
 		return Ar;
 	}

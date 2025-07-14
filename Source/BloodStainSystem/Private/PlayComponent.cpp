@@ -6,7 +6,6 @@
 #include "BloodStainSystem.h"
 #include "ReplayActor.h"
 #include "Animation/AnimSequence.h"
-#include "EntitySystem/MovieSceneEntitySystemRunner.h"
 #include "Stats/Stats2.h"
 #include "Engine/World.h"
 #include "Engine/SkeletalMesh.h"
@@ -24,8 +23,8 @@
 #include "Animation/Skeleton.h"
 
 // 스탯 그룹, 스탯 한번만 정의
-//DECLARE_STATS_GROUP(TEXT("BloodStain"), STATGROUP_BloodStain, STATCAT_Advanced);
-//DECLARE_CYCLE_STAT(TEXT("ApplyBoneTransforms"), STAT_ApplyBoneTransforms, STATGROUP_BloodStain);
+DECLARE_STATS_GROUP(TEXT("BloodStain"), STATGROUP_BloodStain, STATCAT_Advanced);
+DECLARE_CYCLE_STAT(TEXT("ApplyBoneTransforms"), STAT_ApplyBoneTransforms, STATGROUP_BloodStain);
 
 // Sets default values for this component's properties
 UPlayComponent::UPlayComponent()

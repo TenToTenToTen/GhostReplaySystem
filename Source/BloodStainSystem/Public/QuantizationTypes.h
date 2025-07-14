@@ -4,6 +4,7 @@
 #include "Engine/NetSerialization.h"
 #include "Math/Quat.h"
 #include "AnimationCompression.h"
+#include "GhostData.h"
 
 // 표준-고정밀도 양자화 트랜스폼 (FQuatFixed48 사용)
 struct FQuantizedTransform_High
@@ -78,4 +79,30 @@ struct FQuantizedTransform_Compact
 		Ar << Data.Scale;
 		return Ar;
 	}
+};
+
+struct FQuantizedTransform_Lowest
+{
+
+	// 위치: IntervalFixed32NoW (10bit/축)  
+	FVectorIntervalFixed32NoW Translation;
+
+	// 회전: Fixed32NoW (11/11/10 bit)  
+	FQuatFixed32NoW           Rotation;
+
+	// 스케일: IntervalFixed32NoW (8bit/축)  
+	FVectorIntervalFixed32NoW Scale;
+
+	FQuantizedTransform_Lowest() = default;
+
+	/** 원본 FTransform → 양자화 비트필드 */
+	explicit FQuantizedTransform_Lowest(const FTransform& T);
+	FQuantizedTransform_Lowest(const FTransform& T, const FBoneRange& BoneRange);
+
+	/** 양자화된 비트필드를 FTransform으로 복원 */
+	FTransform ToTransform() const;
+	FTransform ToTransform(const FBoneRange& BoneRange) const;
+
+	/** Archive << 연산자 (순서대로 Translation, Rotation, Scale) */
+	friend FArchive& operator<<(FArchive& Ar, FQuantizedTransform_Lowest& Q);
 };

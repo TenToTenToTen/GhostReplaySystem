@@ -39,6 +39,7 @@ enum class ETransformQuantizationMethod : uint8
 	None,                // 양자화 안함 (FTransform, 48바이트)
 	Standard_High,       // 표준 양자화 (FQuatFixed48 사용, 약 20바이트)
 	Standard_Compact,    // 압축 양자화 (FQuatFixed32 사용, 약 18바이트)
+	Standard_Low,      // 저해상도 양자화 (86비트, 약 12바이트)
 };
 
 // 양자화 옵션을 담는 구조체
@@ -48,7 +49,7 @@ struct FQuantizationOption
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Quantization")
-	ETransformQuantizationMethod Method = ETransformQuantizationMethod::Standard_Compact;
+	ETransformQuantizationMethod Method = ETransformQuantizationMethod::Standard_Low;
 
 	friend FArchive& operator<<(FArchive& Ar, FQuantizationOption& Options)
 	{
