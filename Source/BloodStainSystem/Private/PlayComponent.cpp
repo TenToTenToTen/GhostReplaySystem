@@ -135,6 +135,22 @@ void UPlayComponent::Initialize(FGuid InPlaybackKey, const FRecordActorSaveData&
     PlaybackStartTime = GetWorld()->GetTimeSeconds();
     CurrentFrame      = ReplayOptions.PlaybackRate > 0 ? 0 : ReplayData.RecordedFrames.Num() - 2;
 
+	ReconstructedComponents.Empty();
+	for (FComponentInterval& Interval : ReplayData.ComponentIntervals)
+	{
+		if (USceneComponent* NewComp = CreateComponentFromRecord(Interval.Meta))
+		{
+			NewComp->SetVisibility(false);
+			NewComp->SetActive(false);
+			ReconstructedComponents.Add(Interval.Meta.ComponentName, NewComp);
+			UE_LOG(LogBloodStain, Log, TEXT("Initialize: Component Added - %s"), *Interval.Meta.ComponentName);
+		}
+		else
+		{
+			UE_LOG(LogBloodStain, Warning, TEXT("Initialize: Failed to create comp from interval: %s"), *Interval.Meta.ComponentName);
+		}
+	}
+	
 	/* 특정 점에 걸치는 Alive component 쿼리용 Interval Tree 초기화 */
 	TArray<FComponentInterval*> Ptrs;
 	for (auto& I : ReplayData.ComponentIntervals)
@@ -174,28 +190,28 @@ void UPlayComponent::Initialize(FGuid InPlaybackKey, const FRecordActorSaveData&
 	
 
     // Generate animation sequences if not already present
-    if (AnimSequences.Num() == 0)
-    {
-        ConvertFrameToAnimSequence();
-    }
-
-    // Play animations on skeletal components
-    for (auto& Pair : ReconstructedComponents)
-    {
-        const FString& CompName = Pair.Key;
-        if (USkeletalMeshComponent* SkelComp = Cast<USkeletalMeshComponent>(Pair.Value))
-        {
-            if (UAnimSequence* Seq = AnimSequences.FindRef(CompName))
-            {
-	            SkelComp->PlayAnimation(Seq, ReplayOptions.bIsLooping);
-	            SkelComp->SetPlayRate(ReplayOptions.PlaybackRate);
-            	if (ReplayOptions.PlaybackRate < 0)
-            	{
-            		SkelComp->SetPosition(Seq->GetPlayLength(), false);
-            	}
-            }
-        }
-    }
+    // if (AnimSequences.Num() == 0)
+    // {
+    //     ConvertFrameToAnimSequence();
+    // }
+    //
+    // // Play animations on skeletal components
+    // for (auto& Pair : ReconstructedComponents)
+    // {
+    //     const FString& CompName = Pair.Key;
+    //     if (USkeletalMeshComponent* SkelComp = Cast<USkeletalMeshComponent>(Pair.Value))
+    //     {
+    //         if (UAnimSequence* Seq = AnimSequences.FindRef(CompName))
+    //         {
+	   //          SkelComp->PlayAnimation(Seq, ReplayOptions.bIsLooping);
+	   //          SkelComp->SetPlayRate(ReplayOptions.PlaybackRate);
+    //         	if (ReplayOptions.PlaybackRate < 0)
+    //         	{
+    //         		SkelComp->SetPosition(Seq->GetPlayLength(), false);
+    //         	}
+    //         }
+    //     }
+    // }
 }
 
 void UPlayComponent::FinishReplay()
@@ -592,43 +608,32 @@ void UPlayComponent::SeekFrame(int32 FrameIndex)
 	TArray<FComponentInterval*> AliveComps;
 	QueryIntervalTree(IntervalRoot.Get(), FrameIndex, AliveComps);
 
-	// Only create components for those that are not in the ReconstructedComponents yet 
-	for (auto* Interval : AliveComps)
+	// TSet으로 변환하여 빠른 조회를 위함 (O(1) 평균 시간 복잡도)
+	TSet<FString> AliveComponentNames;
+	for (const FComponentInterval* Interval : AliveComps)
 	{
-		const FString& Name = Interval->Meta.ComponentName;
-		if (!ReconstructedComponents.Contains(Name))
-		{
-			if (USceneComponent* NewComp = CreateComponentFromRecord(Interval->Meta))
-			{
-				ReconstructedComponents.Add(Name, NewComp);
-				UE_LOG(LogBloodStain, Log, TEXT("SeekFrame: Component Added - %s"), *Name);
-			}
-			else
-			{
-				UE_LOG(LogBloodStain, Warning, TEXT("SeekFrame: Failed to create comp from interval: %s"), *Name);
-			}
-		}
+		AliveComponentNames.Add(Interval->Meta.ComponentName);
 	}
 
-	// Remove components that are no longer alive in ReconstructedComponents in FrameIndex
-	TArray<FString> ToRemove;
+	// 2. 미리 생성된 모든 컴포넌트를 순회하며 상태를 업데이트합니다.
 	for (auto& Pair : ReconstructedComponents)
 	{
-		bool bStillAlive = AliveComps.ContainsByPredicate([&](FComponentInterval* I){
-			return I->Meta.ComponentName == Pair.Key;
-		});
-		
-		if (!bStillAlive)
+		const FString& ComponentName = Pair.Key;
+		USceneComponent* Component = Pair.Value;
+
+		if (!Component) continue;
+
+		// 현재 프레임에 활성화되어야 하는지 확인
+		const bool bShouldBeActive = AliveComponentNames.Contains(ComponentName);
+		const bool bIsCurrentlyActive = Component->IsVisible();
+
+		// 상태가 변경되어야 할 때만 함수를 호출하여 불필요한 비용을 줄입니다.
+		if (bShouldBeActive != bIsCurrentlyActive)
 		{
-			Pair.Value->DestroyComponent();
-			ToRemove.Add(Pair.Key);
+			Component->SetVisibility(bShouldBeActive);
+			Component->SetActive(bShouldBeActive);
 		}
 	}
-	for (auto& Key : ToRemove)
-	{
-		ReconstructedComponents.Remove(Key);		
-	}
-	
 }
 
 /*
@@ -689,7 +694,3 @@ void UPlayComponent::QueryIntervalTree(FIntervalTreeNode* Node, int32 FrameIndex
 	else if (FrameIndex > Node->Center)
 		QueryIntervalTree(Node->Right.Get(), FrameIndex, Out);
 }
-
-
-
-

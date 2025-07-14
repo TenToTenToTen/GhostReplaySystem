@@ -237,7 +237,7 @@ void URecordComponent::OnComponentAttached(UMeshComponent* NewComponent)
 
 void URecordComponent::OnComponentDetached(UMeshComponent* DetachedComponent)
 {
-	if (!IsValid(DetachedComponent)) return;
+	if (!DetachedComponent) return;
 
 	// 1. 기록할 컴포넌트 목록에서 제거하여 더 이상 트랜스폼을 기록하지 않음
 	RecordComponents.Remove(DetachedComponent);
