@@ -245,41 +245,88 @@ void UPlayComponent::ApplyComponentTransforms(const FRecordFrame& Prev, const FR
 	}
 }
 
-void UPlayComponent::ApplySkeletalBoneTransforms(const FRecordFrame& Prev, const FRecordFrame& Next, float Alpha) const
+void UPlayComponent::ApplySkeletalBoneTransforms(
+    const FRecordFrame& Prev,
+    const FRecordFrame& Next,
+    float Alpha) const
 {
+	// 프레임 데이터 미리 캐싱
+    struct FCachedComp
+    {
+        UPoseableMeshComponent* PoseableComp;
+        const FBoneComponentSpace* PrevBones;
+        const FBoneComponentSpace* NextBones;
+    };
+
+    TArray<FCachedComp> Caches;
+    Caches.Reserve(ReconstructedComponents.Num());
+
+    for (const auto& Pair : ReconstructedComponents)
+    {
+        if (UPoseableMeshComponent* Comp = Cast<UPoseableMeshComponent>(Pair.Value))
+        {
+            const FString& CompName = Pair.Key;
+            const FBoneComponentSpace* P = Prev.SkeletalMeshBoneTransforms.Find(CompName);
+            const FBoneComponentSpace* N = Next.SkeletalMeshBoneTransforms.Find(CompName);
+
+            if (P && N)
+            {
+                Caches.Add({ Comp, P, N });
+            }
+        }
+    }
 	
-	for (const auto& Pair : ReconstructedComponents)
-	{
-		if (UPoseableMeshComponent* PoseableComp = Cast<UPoseableMeshComponent>(Pair.Value))
-		{
-			const FString& ComponentName = Pair.Key;
-			
-			const FBoneComponentSpace* PrevBones = Prev.SkeletalMeshBoneTransforms.Find(ComponentName);
-			const FBoneComponentSpace* NextBones = Next.SkeletalMeshBoneTransforms.Find(ComponentName);
+    for (const FCachedComp& Cache : Caches)
+    {
+        UPoseableMeshComponent* Comp = Cache.PoseableComp;
+        const FBoneComponentSpace* PrevBones = Cache.PrevBones;
+        const FBoneComponentSpace* NextBones = Cache.NextBones;
 
-			if (PrevBones && NextBones)
-			{
-				const int32 NumBones = FMath::Min(PrevBones->BoneTransforms.Num(), NextBones->BoneTransforms.Num());
-                
-				// 모든 뼈대에 대해 보간 및 적용
-				for (int32 BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex)
-				{
-					const FTransform& PrevT = PrevBones->BoneTransforms[BoneIndex];
-					const FTransform& NextT = NextBones->BoneTransforms[BoneIndex];
+        const int32 NumBones = FMath::Min(
+            PrevBones->BoneTransforms.Num(),
+            NextBones->BoneTransforms.Num()
+        );
+    	
+        const TArray<FTransform>& PrevArr = PrevBones->BoneTransforms;
+        const TArray<FTransform>& NextArr = NextBones->BoneTransforms;
+        TArray<FTransform>& OutArr = Comp->BoneSpaceTransforms;
+    	
+        if (OutArr.Num() != NumBones)
+        {
+            OutArr.SetNumUninitialized(NumBones);
+        }
 
-					// 트랜스폼 보간 (컴포넌트 스페이스 기준)
-					FTransform InterpT;
-					InterpT.SetLocation(FMath::Lerp(PrevT.GetLocation(), NextT.GetLocation(), Alpha));
-					InterpT.SetRotation(FQuat::Slerp(PrevT.GetRotation(), NextT.GetRotation(), Alpha));
-					InterpT.SetScale3D(FMath::Lerp(PrevT.GetScale3D(), NextT.GetScale3D(), Alpha));
+    	// 본 별로 보간
+        ParallelFor(NumBones, [&](int32 BoneIndex)
+        {
+            const FTransform& PrevT = PrevArr[BoneIndex];
+            const FTransform& NextT = NextArr[BoneIndex];
+        	
+            FTransform InterpT;
+            InterpT.SetLocation(FMath::Lerp(
+                PrevT.GetLocation(),
+                NextT.GetLocation(),
+                Alpha
+            ));
+        	
+            FQuat Rot = FQuat::FastLerp(
+                PrevT.GetRotation(),
+                NextT.GetRotation(),
+                Alpha
+            );
+            Rot.Normalize();
+            InterpT.SetRotation(Rot);
 
-					// 포저블 메시에 직접 적용합니다.
-					PoseableComp->BoneSpaceTransforms[BoneIndex] = InterpT;
-				}
-				PoseableComp->MarkRefreshTransformDirty();
-			}
-		}
-	}
+            InterpT.SetScale3D(FMath::Lerp(
+                PrevT.GetScale3D(),
+                NextT.GetScale3D(),
+                Alpha
+            ));
+            OutArr[BoneIndex] = InterpT;
+        });
+    	
+        Comp->MarkRefreshTransformDirty();
+    }
 }
 
 void UPlayComponent::ConvertFrameToAnimSequence()
