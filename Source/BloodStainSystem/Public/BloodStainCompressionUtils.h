@@ -12,7 +12,7 @@ namespace BloodStainCompressionUtils
 	bool CompressBuffer(
 		const TArray<uint8>& InBuffer,
 		TArray<uint8>&       OutCompressed,
-		const FBSFCompressionOptions& Opts);
+		const FCompressionOption& Opts);
 
 	/**
 	 * 압축된 데이터 InBuffer 를 원본 크기(UncompressedSize)만큼 해제합니다.
@@ -22,6 +22,6 @@ namespace BloodStainCompressionUtils
 	bool DecompressBuffer(
 		const TArray<uint8>& Compressed,
 		TArray<uint8>&       OutRaw,
-		const FBSFCompressionOptions& Opts,
+		const FCompressionOption& Opts,
 		int64                UncompressedSize);
 }

@@ -3,7 +3,7 @@
 
 #include "BloodStainFileOptions.h"
 
-FArchive& operator<<(FArchive& Ar, FBSFCompressionOptions& Options)
+FArchive& operator<<(FArchive& Ar, FCompressionOption& Options)
 {
 	Ar << Options.Method;
 	Ar << Options.Level;

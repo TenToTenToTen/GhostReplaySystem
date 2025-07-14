@@ -2,7 +2,6 @@
 
 #include "BloodStainCompressionUtils.h"
 #include "BloodStainSystem.h"
-#include "QuantizationArchive.h"
 #include "QuantizationHelper.h"
 #include "Serialization/BufferArchive.h"
 // #include "Serialization/BufferArchive.h"
@@ -102,7 +101,7 @@ bool FBloodStainFileUtils::SaveToFile(
 
     // 2) (옵션에 따라) 압축 → Payload
     TArray<uint8> Payload;
-    if (Options.Compression.Method == EBSFCompressionMethod::None)
+    if (Options.Compression.Method == ECompressionMethod::None)
     {
         Payload = MoveTemp(RawBytes);
     }
@@ -185,7 +184,7 @@ bool FBloodStainFileUtils::LoadFromFile(FRecordSaveData& OutData, const FString&
 
     // 4) (옵션에 따라) 압축 해제 → RawBytes
     TArray<uint8> RawBytes;
-    if (Header.Options.Compression.Method == EBSFCompressionMethod::None)
+    if (Header.Options.Compression.Method == ECompressionMethod::None)
     {
         RawBytes = MoveTemp(Compressed);
     }

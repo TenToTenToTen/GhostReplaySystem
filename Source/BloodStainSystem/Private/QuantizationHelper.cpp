@@ -6,17 +6,14 @@
 namespace BloodStainFileUtils_Internal
 {
 
-void SerializeQuantizedTransform(
-    FArchive& Ar,
-    const FTransform& Transform,
-    const FQuantizationOptions& QuantOpts)
+void SerializeQuantizedTransform(FArchive& Ar, const FTransform& Transform, const FQuantizationOption& QuantOpts)
 {
     switch (QuantOpts.Method)
     {
     case ETransformQuantizationMethod::Standard_High:
         {
             FQuantizedTransform_High Q(Transform);
-            Ar << Q;  // operator<<(FArchive&, FQuantizedTransform_High&)
+            Ar << Q;
         }
         break;
     case ETransformQuantizationMethod::Standard_Compact:
@@ -34,9 +31,7 @@ void SerializeQuantizedTransform(
     }
 }
 
-FTransform DeserializeQuantizedTransform(
-    FArchive& Ar,
-    const FQuantizationOptions& QuantOpts)
+FTransform DeserializeQuantizedTransform(FArchive& Ar, const FQuantizationOption& QuantOpts)
 {
     switch (QuantOpts.Method)
     {
@@ -62,10 +57,7 @@ FTransform DeserializeQuantizedTransform(
     }
 }
 
-void SerializeSaveData(
-    FArchive& RawAr,
-    FRecordSaveData& SaveData,
-    FQuantizationOptions& QuantOpts)
+void SerializeSaveData(FArchive& RawAr, FRecordSaveData& SaveData, FQuantizationOption& QuantOpts)
 {
     // 1) Header
     RawAr << SaveData.Header;
@@ -121,10 +113,7 @@ void SerializeSaveData(
     }
 }
 
-void DeserializeSaveData(
-    FArchive& DataAr,
-    FRecordSaveData& OutData,
-    const FQuantizationOptions& QuantOpts)
+void DeserializeSaveData(FArchive& DataAr, FRecordSaveData& OutData, const FQuantizationOption& QuantOpts)
 {
     // 1) Header
     DataAr << OutData.Header;

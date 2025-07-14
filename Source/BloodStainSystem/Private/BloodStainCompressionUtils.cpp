@@ -4,13 +4,13 @@
 namespace BloodStainCompressionUtils
 {
 
-    static FName CompressionFormat(EBSFCompressionMethod Method)
+    static FName CompressionFormat(ECompressionMethod Method)
     {
         switch (Method)
         {
-        case EBSFCompressionMethod::Zlib: return NAME_Zlib;
-        case EBSFCompressionMethod::Gzip: return NAME_Gzip;
-        case EBSFCompressionMethod::LZ4:  return NAME_LZ4;
+        case ECompressionMethod::Zlib: return NAME_Zlib;
+        case ECompressionMethod::Gzip: return NAME_Gzip;
+        case ECompressionMethod::LZ4:  return NAME_LZ4;
         default:                          return NAME_None;
         }
     }
@@ -18,9 +18,9 @@ namespace BloodStainCompressionUtils
     bool CompressBuffer(
         const TArray<uint8>& InBuffer,
         TArray<uint8>&       OutCompressed,
-        const FBSFCompressionOptions& Opts)
+        const FCompressionOption& Opts)
     {
-        if (Opts.Method == EBSFCompressionMethod::None)
+        if (Opts.Method == ECompressionMethod::None)
         {
             OutCompressed = InBuffer;
             return true;
@@ -47,10 +47,10 @@ namespace BloodStainCompressionUtils
     bool DecompressBuffer(
         const TArray<uint8>& Compressed,
         TArray<uint8>&       OutRaw,
-        const FBSFCompressionOptions& Opts,
+        const FCompressionOption& Opts,
         int64                UncompressedSize)
     {
-        if (Opts.Method == EBSFCompressionMethod::None)
+        if (Opts.Method == ECompressionMethod::None)
         {
             OutRaw = Compressed;
             return true;

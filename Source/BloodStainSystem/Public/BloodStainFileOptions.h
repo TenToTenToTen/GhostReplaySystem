@@ -7,7 +7,7 @@
 
 /** Supported Compression Method */
 UENUM(BlueprintType)
-enum class EBSFCompressionMethod : uint8
+enum class ECompressionMethod : uint8
 {
 	None     UMETA(DisplayName="None"),
 	Zlib     UMETA(DisplayName="Zlib"),
@@ -17,19 +17,19 @@ enum class EBSFCompressionMethod : uint8
 
 /** 압축 관련 세부 옵션 */
 USTRUCT(BlueprintType)
-struct FBSFCompressionOptions
+struct FCompressionOption
 {
 	GENERATED_BODY()
 
 	/** 사용할 압축 메서드 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Compression")
-	EBSFCompressionMethod Method = EBSFCompressionMethod::None;
+	ECompressionMethod Method = ECompressionMethod::None;
 
 	/** 압축 레벨 (0=none, 1~9 high) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Compression", meta=(ClampMin="0",ClampMax="9"))
 	int32 Level = 6;
 
-	friend FArchive& operator<<(FArchive& Ar, FBSFCompressionOptions& Options);
+	friend FArchive& operator<<(FArchive& Ar, FCompressionOption& Options);
 };
 
 // 어떤 양자화 전략을 사용할지 선택하는 열거형
@@ -43,14 +43,14 @@ enum class ETransformQuantizationMethod : uint8
 
 // 양자화 옵션을 담는 구조체
 USTRUCT(BlueprintType)
-struct FQuantizationOptions
+struct FQuantizationOption
 {
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Quantization")
 	ETransformQuantizationMethod Method = ETransformQuantizationMethod::Standard_Compact;
 
-	friend FArchive& operator<<(FArchive& Ar, FQuantizationOptions& Options)
+	friend FArchive& operator<<(FArchive& Ar, FQuantizationOption& Options)
 	{
 		Ar << Options.Method;
 		return Ar;
@@ -65,11 +65,11 @@ struct FBloodStainFileOptions
 
 	/** 압축 옵션 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="File|Compression")
-	FBSFCompressionOptions Compression;
+	FCompressionOption Compression;
 
 	/** 본 트랜스폼 퀀타이제이션 옵션 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="File|Quantization")
-	FQuantizationOptions Quantization;
+	FQuantizationOption Quantization;
 
 	/** 파일 끝 CRC 체크섬을 포함할지 여부 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="File|Integrity")

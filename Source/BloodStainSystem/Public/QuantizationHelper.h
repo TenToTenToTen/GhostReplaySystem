@@ -13,14 +13,14 @@ namespace BloodStainFileUtils_Internal
 	void SerializeQuantizedTransform(
 		FArchive& Ar,
 		const FTransform& Transform,
-		const FQuantizationOptions& QuantOpts);
+		const FQuantizationOption& QuantOpts);
 
 	/**
 	 * 양자화된 형태로 Ar에 기록된 데이터를 읽어 FTransform으로 복원합니다.
 	 */
 	FTransform DeserializeQuantizedTransform(
 		FArchive& Ar,
-		const FQuantizationOptions& QuantOpts);
+		const FQuantizationOption& QuantOpts);
 
 	/**
 	 * FRecordSaveData 전체를 RawAr에 직렬화합니다.
@@ -29,7 +29,7 @@ namespace BloodStainFileUtils_Internal
 	void SerializeSaveData(
 		FArchive& RawAr,
 		FRecordSaveData& SaveData,
-		FQuantizationOptions& QuantOpts);
+		FQuantizationOption& QuantOpts);
 
 	/**
 	 * Raw 데이터(양자화+직렬화된)를 DataAr에서 읽어 FRecordSaveData로 역직렬화합니다.
@@ -37,5 +37,5 @@ namespace BloodStainFileUtils_Internal
 	void DeserializeSaveData(
 		FArchive& DataAr,
 		FRecordSaveData& OutData,
-		const FQuantizationOptions& QuantOpts);
+		const FQuantizationOption& QuantOpts);
 }
