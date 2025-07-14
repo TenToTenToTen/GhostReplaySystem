@@ -555,7 +555,7 @@ USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecor
 		}
 		else if (UPoseableMeshComponent* PoseableMeshComp = Cast<UPoseableMeshComponent>(NewComponent))
 		{
-			PoseableMeshComp->SetSkeletalMesh(Cast<USkeletalMesh>(AssetRef.TryLoad()));
+			PoseableMeshComp->SetSkinnedAssetAndUpdate(Cast<USkeletalMesh>(AssetRef.TryLoad()));
 			PoseableMeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		}
 	}

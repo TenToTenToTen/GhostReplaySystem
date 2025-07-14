@@ -181,9 +181,6 @@ struct FRecordActorSaveData
 	UPROPERTY()
 	FName ComponentName;
 
-	UPROPERTY(BlueprintReadWrite, Category = "BloodStain")
-	TArray<FComponentRecord> InitialComponentStructure; // 초기 컴포넌트 구조 (BeginPlay 시점)
-
 	UPROPERTY()
 	TArray<FComponentInterval> ComponentIntervals;
 	
@@ -194,7 +191,6 @@ struct FRecordActorSaveData
 	friend FArchive& operator<<(FArchive& Ar, FRecordActorSaveData& Data)
 	{
 		Ar << Data.ComponentName;
-		Ar << Data.InitialComponentStructure;
 		Ar << Data.ComponentIntervals;
 		Ar << Data.RecordedFrames;
 		return Ar;

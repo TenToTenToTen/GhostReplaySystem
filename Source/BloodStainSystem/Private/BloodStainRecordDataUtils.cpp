@@ -124,14 +124,12 @@ void BloodStainRecordDataUtils::BuildInitialComponentStructure(int32 FirstFrameI
 	// Sorted[0..StartIdx-1] 은 FirstFrameIndex 이전에 이미 탈착된 구간
 
 	// 3) 그 이후 구간만 순회하며 StartFrame ≤ FirstFrameIndex 필터
-	OutGhostSaveData.InitialComponentStructure.Empty();
 	for (int32 i = StartIdx; i < OutComponentIntervals.Num(); ++i)
 	{
 		FComponentInterval& Interval = OutComponentIntervals[i];
 		// if (I.StartFrame <= FirstFrameIndex)
 		// [StartFrame, EndFrame] 구간을 [0, NumSavedFrames) 구간으로 변환
 		{
-			OutGhostSaveData.InitialComponentStructure.Add(Interval.Meta);
 			Interval.StartFrame = FMath::Max(0, Interval.StartFrame - FirstFrameIndex);
 			if (Interval.EndFrame == INT32_MAX)
 			{

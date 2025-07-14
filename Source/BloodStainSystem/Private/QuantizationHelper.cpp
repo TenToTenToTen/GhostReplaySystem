@@ -70,7 +70,6 @@ void SerializeSaveData(FArchive& RawAr, FRecordSaveData& SaveData, FQuantization
     {
         // Actor 식별자
         RawAr << ActorData.ComponentName;
-        RawAr << ActorData.InitialComponentStructure;
         RawAr << ActorData.ComponentIntervals; 
 
         // Frame 개수
@@ -127,7 +126,6 @@ void DeserializeSaveData(FArchive& DataAr, FRecordSaveData& OutData, const FQuan
     {
         FRecordActorSaveData ActorData;
         DataAr << ActorData.ComponentName;
-        DataAr << ActorData.InitialComponentStructure;
         DataAr << ActorData.ComponentIntervals;  
 
         int32 NumFrames = 0;

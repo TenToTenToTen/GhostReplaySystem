@@ -112,24 +112,15 @@ void URecordComponent::Initialize(const FName& InGroupName, const FBloodStainRec
 		StartTime = World->GetTimeSeconds();
 	}
 	
-	GhostSaveData.InitialComponentStructure.Empty(); // 초기화
 	// 현재 액터와 모든 하위 액터에서 메시 컴포넌트를 수집하는 헬퍼 함수
 	CollectMeshComponents();
-
-	ComponentIntervals.Empty();
-	for (const FComponentRecord& Rec : GhostSaveData.InitialComponentStructure)
-	{
-		FComponentInterval I = {Rec, 0, INT32_MAX};
-		int32 NewIdx = ComponentIntervals.Add(I);
-		IntervalIndexMap.Add(Rec.ComponentName, NewIdx);
-	}
 }
 
 void URecordComponent::CollectMeshComponents()
 {
     if (AActor* Owner = GetOwner())
     {
-        GhostSaveData.InitialComponentStructure.Empty();
+    	ComponentIntervals.Empty();
         RecordComponents.Empty();
 
         // 1. Owner 액터 자체의 메시 컴포넌트 수집
@@ -165,22 +156,15 @@ void URecordComponent::CollectMeshComponents()
                 continue;
             }
 
-        	if (USkeletalMeshComponent* SkeletalMeshComp = Cast<USkeletalMeshComponent>(MeshComp))
+        	if (Cast<USkeletalMeshComponent>(MeshComp) || Cast<UStaticMeshComponent>(MeshComp))
         	{
         		FComponentRecord Record;
-        		if (CreateRecordFromMeshComponent(SkeletalMeshComp, Record))
+        		if (CreateRecordFromMeshComponent(MeshComp, Record))
         		{
-        			GhostSaveData.InitialComponentStructure.Add(Record);
-        			RecordComponents.Add(SkeletalMeshComp);
-        		}
-        	}
-        	if (UStaticMeshComponent* StaticMeshComp = Cast<UStaticMeshComponent>(MeshComp))
-        	{
-        		FComponentRecord Record;
-        		if (CreateRecordFromMeshComponent(StaticMeshComp, Record))
-        		{
-        			GhostSaveData.InitialComponentStructure.Add(Record);
-        			RecordComponents.Add(StaticMeshComp);
+        			FComponentInterval Interval = {Record, 0, INT32_MAX};
+        			int32 NewIdx = ComponentIntervals.Add(Interval);
+        			IntervalIndexMap.Add(Record.ComponentName, NewIdx);
+        			RecordComponents.Add(MeshComp);
         		}
         	}
         }
@@ -202,18 +186,21 @@ void URecordComponent::CollectMeshComponents()
                 {
                     continue;
                 }
+            	
 				if (Cast<UStaticMeshComponent>(MeshComp) || Cast<USkeletalMeshComponent>(MeshComp))
                 {
 					FComponentRecord Record;
 					if (CreateRecordFromMeshComponent(MeshComp, Record))
 					{
-						GhostSaveData.InitialComponentStructure.Add(Record);
+						FComponentInterval Interval = {Record, 0, INT32_MAX};
+						int32 NewIdx = ComponentIntervals.Add(Interval);
+						IntervalIndexMap.Add(Record.ComponentName, NewIdx);
 						RecordComponents.Add(MeshComp);
 					}
                 }
             }
         }
-        UE_LOG(LogTemp, Warning, TEXT("Collected %d mesh components for %s."), GhostSaveData.InitialComponentStructure.Num(), *Owner->GetName());
+        UE_LOG(LogBloodStain, Warning, TEXT("Collected %d mesh components for %s."), RecordComponents.Num(), *Owner->GetName());
     }
 }
 
