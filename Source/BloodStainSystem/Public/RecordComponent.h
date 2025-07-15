@@ -18,15 +18,12 @@ class BLOODSTAINSYSTEM_API URecordComponent : public UActorComponent
 	GENERATED_BODY()
 
 public:	
-	// Sets default values for this component's properties
 	URecordComponent();
 	
 protected:
-	// Called when the game starts
 	virtual void BeginPlay() override;
 
 public:	
-	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
@@ -108,5 +105,4 @@ private:
 	TArray<TObjectPtr<AActor>> AttachedIndexToActor;
 	TBitArray<> PrevAttachedBits;
 	TBitArray<> CurAttachedBits;
-	
 };

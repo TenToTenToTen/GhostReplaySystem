@@ -53,10 +53,6 @@ protected:
 	/** 한 쌍의 Frame(Prev, Next)과 Alpha 를 받아 Mesh 에 적용합니다. */
 	void ApplyComponentTransforms(const FRecordFrame& Prev, const FRecordFrame& Next, float Alpha) const;
 
-	void ConvertFrameToAnimSequence();
-
-	// /** 현재 프레임에 추가 / 삭제되는 컴포넌트 변경사항을 적용합니다 */
-	// void ApplyComponentChanges(const FRecordFrame& Frame);
 private:
 	/** FComponentRecord 데이터로부터 메시 컴포넌트를 생성, 등록, 부착하는 헬퍼 함수 */
 	USceneComponent* CreateComponentFromRecord(const FComponentRecord& Record, const TMap<FString, TObjectPtr<UObject>>& AssetCache);

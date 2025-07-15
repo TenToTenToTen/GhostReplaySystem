@@ -32,7 +32,6 @@ URecordComponent::URecordComponent()
 	PrimaryComponentTick.bCanEverTick = true;
 }
 
-// Called when the game starts
 void URecordComponent::BeginPlay()
 {
 	Super::BeginPlay();

@@ -22,8 +22,6 @@
 #include "Engine/StaticMesh.h"
 #include "Animation/Skeleton.h"
 
-// 스탯 그룹, 스탯 한번만 정의
-// DECLARE_STATS_GROUP(TEXT("BloodStain"), STATGROUP_BloodStain, STATCAT_Advanced);
 DECLARE_CYCLE_STAT(TEXT("PlayComp TickComponent"), STAT_PlayComponent_TickComponent, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("PlayComp Initialize"), STAT_PlayComponent_Initialize, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("PlayComp FinishReplay"), STAT_PlayComponent_FinishReplay, STATGROUP_BloodStain);
@@ -117,17 +115,8 @@ void UPlayComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
 	if (PreviousFrame != CurrentFrame)
 	{
 		SeekFrame(CurrentFrame);
-		// ApplyComponentChanges(ReplayData.RecordedFrames[CurrentFrame]);
 	}
-	// ApplyComponentChanges(ReplayData.RecordedFrames[CurrentFrame]);
-
-// Sweep에 대한 처리 (Animation Notify와 유사)
-	// for (int32 FrameToProcess = PreviousFrame + 1; FrameToProcess <= CurrentFrame; ++FrameToProcess)
-	// {
-	// 	// 이제 건너뛰는 프레임 없이 모든 이벤트가 처리됨!
-	// 	ApplyComponentChanges(Frames[FrameToProcess]);
-	// }
-
+	
 	// Interpolate between CurrentFrame and CurrentFrame+1
 	const FRecordFrame& Prev = Frames[CurrentFrame];
 	const FRecordFrame& Next = Frames[CurrentFrame + 1];
@@ -212,58 +201,6 @@ void UPlayComponent::Initialize(FGuid InPlaybackKey, const FRecordHeaderData& In
 	}
 	IntervalRoot = BuildIntervalTree(Ptrs);
 	SeekFrame(0);
-
-	// int32 eventSum = 0;
-	// for (int32 i = 0; i < ReplayData.RecordedFrames.Num(); ++i)
-	// {
-	// 	const FRecordFrame& Frame = ReplayData.RecordedFrames[i];
-	// 	if (Frame.AddedComponents.Num() > 0)
-	// 	{
-	// 		eventSum += Frame.AddedComponents.Num();
-	// 		UE_LOG(LogBloodStain, Log, TEXT("PlayComponent::Initialize(): Frame %d has %d added components"), i, Frame.AddedComponents.Num());
-	// 	}
-	// }
-	// if (eventSum == 0)
-	// {
-	// 	UE_LOG(LogBloodStain, Log, TEXT("PlayComponent::Initialize(): No added components found in replay data!"));
-	// }
-	
-	// for (const FComponentRecord& Record : ReplayData.InitialComponentStructure)
-	// {
-	// 	if (USceneComponent* NewComponent = CreateComponentFromRecord(Record))
-	// 	{
-	// 		ReconstructedComponents.Add(Record.PrimaryComponentName, NewComponent);
-	// 	}
-	// 	else
-	// 	{
-	// 		UE_LOG(LogBloodStain, Warning, TEXT("RecordComponent::Initialize(): Failed to create component from record: %s"), *Record.PrimaryComponentName);
-	// 	}
-	// }
-	
-
-    // Generate animation sequences if not already present
-    // if (AnimSequences.Num() == 0)
-    // {
-    //     ConvertFrameToAnimSequence();
-    // }
-    //
-    // // Play animations on skeletal components
-    // for (auto& Pair : ReconstructedComponents)
-    // {
-    //     const FString& CompName = Pair.Key;
-    //     if (USkeletalMeshComponent* SkelComp = Cast<USkeletalMeshComponent>(Pair.Value))
-    //     {
-    //         if (UAnimSequence* Seq = AnimSequences.FindRef(CompName))
-    //         {
-	   //          SkelComp->PlayAnimation(Seq, ReplayOptions.bIsLooping);
-	   //          SkelComp->SetPlayRate(ReplayOptions.PlaybackRate);
-    //         	if (ReplayOptions.PlaybackRate < 0)
-    //         	{
-    //         		SkelComp->SetPosition(Seq->GetPlayLength(), false);
-    //         	}
-    //         }
-    //     }
-    // }
 }
 
 void UPlayComponent::FinishReplay()
@@ -349,169 +286,6 @@ void UPlayComponent::ApplySkeletalBoneTransforms(const FRecordFrame& Prev, const
 	}
 }
 
-void UPlayComponent::ConvertFrameToAnimSequence()
-{
-    const TArray<FRecordFrame>& Frames = ReplayData.RecordedFrames;
-    if (Frames.Num() < 2)
-    {
-        UE_LOG(LogBloodStain, Warning, TEXT("Not enough frames to generate animation."));
-        return;
-    }
-
-    // Iterate over all reconstructed components and generate sequences for skeletal meshes
-    for (auto& Pair : ReconstructedComponents)
-    {
-        const FString& CompName = Pair.Key;
-        USceneComponent* SceneComp = Pair.Value;
-        USkeletalMeshComponent* SkeletalComp = Cast<USkeletalMeshComponent>(SceneComp);
-        if (!SkeletalComp || !SkeletalComp->GetSkeletalMeshAsset())
-        {
-            continue;
-        }
-
-        USkeletalMesh* Mesh = SkeletalComp->GetSkeletalMeshAsset();
-        USkeleton* Skeleton = Mesh->GetSkeleton();
-        if (!Skeleton)
-        {
-            UE_LOG(LogBloodStain, Warning, TEXT("SkeletalMesh %s has no skeleton."), *CompName);
-            continue;
-        }
-
-        const int32 NumFrames = Frames.Num() - 1;
-        const float SequenceLength = Frames.Last().TimeStamp;
-        const FReferenceSkeleton& SkeletonRef = Skeleton->GetReferenceSkeleton();
-        const FReferenceSkeleton& MeshRef     = Mesh->GetRefSkeleton();
-        const int32 NumBones = SkeletonRef.GetNum();
-
-        // Create a new animation sequence
-        UAnimSequence* AnimSeq = NewObject<UAnimSequence>(GetTransientPackage(), NAME_None, RF_Transient);
-        AnimSeq->SetSkeleton(Skeleton);
-        AnimSeq->SetPreviewMesh(Mesh);
-
-#if WITH_EDITOR
-        IAnimationDataController& Controller = AnimSeq->GetController();
-        Controller.InitializeModel();
-        Controller.OpenBracket(FText::FromString(FString::Printf(TEXT("Generate_%s"), *CompName)));
-
-    	const float FrameRate = 1.0f / RecordHeaderData.SamplingInterval;
-        Controller.SetFrameRate(FFrameRate(FrameRate, 1));
-        Controller.SetNumberOfFrames(NumFrames);
-
-        // Build tracks for each bone
-        for (int32 BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex)
-        {
-            const FName BoneName = SkeletonRef.GetBoneName(BoneIndex);
-            const int32 MeshBoneIndex = MeshRef.FindBoneIndex(BoneName);
-            if (MeshBoneIndex == INDEX_NONE)
-            {
-                UE_LOG(LogBloodStain, Warning, TEXT("Bone %s not found in mesh ref skeleton."), *BoneName.ToString());
-                continue;
-            }
-
-            TArray<FVector3f> PosKeys; PosKeys.Reserve(NumFrames);
-            TArray<FQuat4f>   RotKeys; RotKeys.Reserve(NumFrames);
-            TArray<FVector3f> ScaleKeys;ScaleKeys.Reserve(NumFrames);
-
-            // Populate key arrays
-            for (int32 FrameIdx = 0; FrameIdx < NumFrames; ++FrameIdx)
-            {
-                const FRecordFrame& Frame = Frames[FrameIdx];
-                const FBoneComponentSpace* BoneSpace = Frame.SkeletalMeshBoneTransforms.Find(CompName);
-                FTransform LocalT = FTransform::Identity;
-
-                if (BoneSpace && BoneSpace->BoneTransforms.IsValidIndex(MeshBoneIndex))
-                {
-                    // Compute local transform relative to parent
-                    if (BoneIndex == 0)
-                    {
-                        LocalT = BoneSpace->BoneTransforms[MeshBoneIndex];
-                    }
-                    else
-                    {
-                        const int32 ParentIndex = SkeletonRef.GetParentIndex(BoneIndex);
-                        const FName ParentName = SkeletonRef.GetBoneName(ParentIndex);
-                        const int32 MeshParentIndex = MeshRef.FindBoneIndex(ParentName);
-                        if (BoneSpace->BoneTransforms.IsValidIndex(MeshParentIndex))
-                        {
-                            LocalT = BoneSpace->BoneTransforms[MeshBoneIndex]
-                                     .GetRelativeTransform(BoneSpace->BoneTransforms[MeshParentIndex]);
-                        }
-                        else
-                        {
-                            LocalT = BoneSpace->BoneTransforms[MeshBoneIndex];
-                        }
-                    }
-                }
-
-                PosKeys.Add((FVector3f)LocalT.GetTranslation());
-                RotKeys.Add((FQuat4f)LocalT.GetRotation());
-                ScaleKeys.Add((FVector3f)LocalT.GetScale3D());
-            }
-
-            Controller.AddBoneCurve(BoneName);
-            Controller.SetBoneTrackKeys(BoneName, PosKeys, RotKeys, ScaleKeys);
-        }
-        Controller.NotifyPopulated();
-        Controller.CloseBracket();
-#endif
-        // Store the generated sequence
-        AnimSequences.Add(CompName, AnimSeq);
-    }
-
-    UE_LOG(LogBloodStain, Log, TEXT("Converted %d skeletal components to AnimSequences."), AnimSequences.Num());
-}
-
-// void UPlayComponent::ApplyComponentChanges(const FRecordFrame& Frame)
-// {
-// 	AActor* Owner = GetOwner();
-// 	if (!Owner)
-// 	{
-// 		UE_LOG(LogBloodStain, Warning, TEXT("Owner is null in ApplyComponentChanges."));
-// 		return;
-// 	}
-//
-// 	// 1. 컴포넌트 추가
-// 	for (const FComponentRecord& Record : Frame.AddedComponents)
-// 	{
-// 		// 이미 해당 이름의 컴포넌트가 있다면 중복 생성을 방지
-// 		const FString& Name = Record.PrimaryComponentName;
-// 		if (ReconstructedComponents.Contains(Name))
-// 		{
-// 			UE_LOG(LogBloodStain, Warning, TEXT("ApplyComponentChanges %s already exists, skipping."), *Record.PrimaryComponentName);
-// 			continue;
-// 		}
-//
-// 		if (TObjectPtr<USceneComponent> NewComponent = CreateComponentFromRecord(Record))
-// 		{
-// 			ReconstructedComponents.Add(Name, NewComponent);
-// 			UE_LOG(LogBloodStain, Log, TEXT("ApplyComponentChanges: Component Added - %s"), *Record.PrimaryComponentName);
-// 		}
-// 		else
-// 		{
-// 			UE_LOG(LogBloodStain, Warning, TEXT("ApplyComponentChanges: Failed to create comp %s"), *Record.PrimaryComponentName);
-// 		}
-// 	}
-//
-// 	// 2. 컴포넌트 제거 처리
-// 	for (const FString& PrimaryComponentName : Frame.RemovedComponentNames)
-// 	{
-// 		// 맵에서 제거할 컴포넌트를 찾습니다.
-// 		if (TObjectPtr<USceneComponent>* CompPtr = ReconstructedComponents.Find(PrimaryComponentName))
-// 		{
-// 			if (TObjectPtr<USceneComponent>CompToDestroy = *CompPtr)
-// 			{
-// 				// 컴포넌트가 유효하면 파괴합니다.
-// 				if (IsValid(CompToDestroy))
-// 				{
-// 					CompToDestroy->DestroyComponent();
-// 				}
-// 			}
-// 			// 맵에서 해당 항목을 제거합니다.
-// 			ReconstructedComponents.Remove(PrimaryComponentName);
-// 			UE_LOG(LogBloodStain, Log, TEXT("Replay: Component Removed - %s"), *PrimaryComponentName);
-// 		}
-// 	}
-// }
 
 FGuid UPlayComponent::GetPlaybackKey() const
 {
@@ -759,7 +533,11 @@ void UPlayComponent::QueryIntervalTree(FIntervalTreeNode* Node, int32 FrameIndex
 
 	// 2. 좌/우 서브트리 결정
 	if (FrameIndex < Node->Center)
-		QueryIntervalTree(Node->Left.Get(), FrameIndex, Out);
+	{
+		QueryIntervalTree(Node->Left.Get(), FrameIndex, Out);		
+	}
 	else if (FrameIndex > Node->Center)
-		QueryIntervalTree(Node->Right.Get(), FrameIndex, Out);
+	{
+		QueryIntervalTree(Node->Right.Get(), FrameIndex, Out);		
+	}
 }
