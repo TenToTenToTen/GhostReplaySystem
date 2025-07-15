@@ -12,9 +12,16 @@
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInterface.h"
 #include "Engine/SkeletalMesh.h"
-//DECLARE_STATS_GROUP(TEXT("BloodStain"), STATGROUP_BloodStain, STATCAT_Advanced);
-//DECLARE_CYCLE_STAT(TEXT("RecordTickComponent"), STAT_RecordCompTick, STATGROUP_BloodStain);
-//DECLARE_CYCLE_STAT(TEXT("SaveQueueFrames"), STAT_FrameQueueSave, STATGROUP_BloodStain);
+
+DECLARE_CYCLE_STAT(TEXT("RecordComp TickComponent"), STAT_RecordComponent_TickComponent, STATGROUP_BloodStain);
+DECLARE_CYCLE_STAT(TEXT("RecordComp Initialize"), STAT_RecordComponent_Initialize, STATGROUP_BloodStain);
+DECLARE_CYCLE_STAT(TEXT("RecordComp CollectMeshComponents"), STAT_RecordComponent_CollectMeshComponents, STATGROUP_BloodStain);
+DECLARE_CYCLE_STAT(TEXT("RecordComp SaveQueuedFrames"), STAT_RecordComponent_SaveQueuedFrames, STATGROUP_BloodStain);
+DECLARE_CYCLE_STAT(TEXT("RecordComp OnComponentAttached"), STAT_RecordComponent_OnComponentAttached, STATGROUP_BloodStain);
+DECLARE_CYCLE_STAT(TEXT("RecordComp OnComponentDetached"), STAT_RecordComponent_OnComponentDetached, STATGROUP_BloodStain);
+DECLARE_CYCLE_STAT(TEXT("RecordComp FillMaterialData"), STAT_RecordComponent_FillMaterialData, STATGROUP_BloodStain);
+DECLARE_CYCLE_STAT(TEXT("RecordComp CreateRecordFromMesh"), STAT_RecordComponent_CreateRecordFromMesh, STATGROUP_BloodStain);
+DECLARE_CYCLE_STAT(TEXT("RecordComp HandleAttachedChanges"), STAT_RecordComponent_HandleAttachedChanges, STATGROUP_BloodStain);
 
 URecordComponent::URecordComponent()
 	: StartTime(0), MaxRecordFrames(0), CurrentFrameIndex(0)
@@ -31,7 +38,7 @@ void URecordComponent::BeginPlay()
 // Called every frame
 void URecordComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
-	//SCOPE_CYCLE_COUNTER(STAT_RecordCompTick);
+	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_TickComponent); 
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
 	// 자동 탈부착 기계 빼고 싶으면 빼세요.
@@ -97,6 +104,7 @@ void URecordComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
 void URecordComponent::Initialize(const FName& InGroupName, const FBloodStainRecordOptions& InOptions)
 {
+	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_Initialize); 
 	// 1) 전체 구조체 복사
 	RecordOptions = InOptions;
 	GroupName = InGroupName;
@@ -118,6 +126,7 @@ void URecordComponent::Initialize(const FName& InGroupName, const FBloodStainRec
 
 void URecordComponent::CollectMeshComponents()
 {
+	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_CollectMeshComponents);
     if (AActor* Owner = GetOwner())
     {
     	ComponentIntervals.Empty();
@@ -206,11 +215,13 @@ void URecordComponent::CollectMeshComponents()
 
 bool URecordComponent::SaveQueuedFrames()
 {
+	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_SaveQueuedFrames);
 	return BloodStainRecordDataUtils::CookQueuedFrames(RecordOptions.SamplingInterval, FrameQueuePtr.Get(), GhostSaveData, ComponentIntervals);
 }
 
 void URecordComponent::OnComponentAttached(UMeshComponent* NewComponent)
-{	
+{
+	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_OnComponentAttached);
 	if (!IsValid(NewComponent)) return;
 	if (Cast<UCameraProxyMeshComponent>(NewComponent)) return; // 기존 필터링 유지
 
@@ -237,6 +248,7 @@ void URecordComponent::OnComponentAttached(UMeshComponent* NewComponent)
 
 void URecordComponent::OnComponentDetached(UMeshComponent* DetachedComponent)
 {
+	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_OnComponentDetached);
 	if (!DetachedComponent) return;
 
 	// 1. 기록할 컴포넌트 목록에서 제거하여 더 이상 트랜스폼을 기록하지 않음
@@ -269,65 +281,67 @@ bool URecordComponent::ShouldRecord()
  */
 void URecordComponent::FillMaterialData(const UMeshComponent* InMeshComponent, FComponentRecord& OutRecord)
 {
-		TArray<UMaterialInterface*> Materials;
-		InMeshComponent->GetUsedMaterials(Materials);
-		for (int32 MatIndex = 0; MatIndex < Materials.Num(); ++MatIndex)
+	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_FillMaterialData);
+	TArray<UMaterialInterface*> Materials;
+	InMeshComponent->GetUsedMaterials(Materials);
+	for (int32 MatIndex = 0; MatIndex < Materials.Num(); ++MatIndex)
+	{
+		if (UMaterialInterface* Material = Materials[MatIndex])
 		{
-			if (UMaterialInterface* Material = Materials[MatIndex])
+			if (UMaterialInstanceDynamic* DynamicMaterial = Cast<UMaterialInstanceDynamic>(Material))
 			{
-				if (UMaterialInstanceDynamic* DynamicMaterial = Cast<UMaterialInstanceDynamic>(Material))
+				// MID인 경우 -> 부모를 가져와서 경로 저장, 이후 파라미터로 복구
+				UMaterialInterface* ParentMaterial = DynamicMaterial->Parent;
+				OutRecord.MaterialPaths.Add(ParentMaterial ? ParentMaterial->GetPathName() : TEXT(""));
+
+				// MID 동적 파라미터 저장
+				FMaterialParameters MatParams;
+
+				TArray<FMaterialParameterInfo> VectorParamInfos;
+				TArray<FGuid> VectorParamGuids;
+				DynamicMaterial->GetAllVectorParameterInfo(VectorParamInfos, VectorParamGuids);
+				for (const FMaterialParameterInfo& ParamInfo : VectorParamInfos)
 				{
-					// MID인 경우 -> 부모를 가져와서 경로 저장, 이후 파라미터로 복구
-					UMaterialInterface* ParentMaterial = DynamicMaterial->Parent;
-					OutRecord.MaterialPaths.Add(ParentMaterial ? ParentMaterial->GetPathName() : TEXT(""));
-
-					// MID 동적 파라미터 저장
-					FMaterialParameters MatParams;
-					
-					TArray<FMaterialParameterInfo> VectorParamInfos;
-					TArray<FGuid> VectorParamGuids;
-					DynamicMaterial->GetAllVectorParameterInfo(VectorParamInfos, VectorParamGuids);
-					for (const FMaterialParameterInfo& ParamInfo : VectorParamInfos)
+					FLinearColor Value;
+					if (DynamicMaterial->GetVectorParameterValue(ParamInfo, Value))
 					{
-						FLinearColor Value;
-						if (DynamicMaterial->GetVectorParameterValue(ParamInfo, Value))
-						{
-							MatParams.VectorParams.Add(ParamInfo.Name, Value);
-						}
-					}
-
-					TArray<FMaterialParameterInfo> ScalarParamInfos;
-					TArray<FGuid> ScalarParamGuids;
-					DynamicMaterial->GetAllScalarParameterInfo(ScalarParamInfos, ScalarParamGuids);
-					for (const FMaterialParameterInfo& ParamInfo : ScalarParamInfos)
-					{
-						float Value;
-						if (DynamicMaterial->GetScalarParameterValue(ParamInfo, Value))
-						{
-							MatParams.ScalarParams.Add(ParamInfo.Name, Value);
-						}
-					}
-
-					if (MatParams.VectorParams.Num() > 0 || MatParams.ScalarParams.Num() > 0)
-					{
-						OutRecord.MaterialParameters.Add(MatIndex, MatParams);
+						MatParams.VectorParams.Add(ParamInfo.Name, Value);
 					}
 				}
-				else
+
+				TArray<FMaterialParameterInfo> ScalarParamInfos;
+				TArray<FGuid> ScalarParamGuids;
+				DynamicMaterial->GetAllScalarParameterInfo(ScalarParamInfos, ScalarParamGuids);
+				for (const FMaterialParameterInfo& ParamInfo : ScalarParamInfos)
 				{
-					//  MID가 아닌 경우 디스크에 저장된 에셋 사용
-					OutRecord.MaterialPaths.Add(Material->GetPathName());
+					float Value;
+					if (DynamicMaterial->GetScalarParameterValue(ParamInfo, Value))
+					{
+						MatParams.ScalarParams.Add(ParamInfo.Name, Value);
+					}
+				}
+
+				if (MatParams.VectorParams.Num() > 0 || MatParams.ScalarParams.Num() > 0)
+				{
+					OutRecord.MaterialParameters.Add(MatIndex, MatParams);
 				}
 			}
 			else
 			{
-				OutRecord.MaterialPaths.Add(TEXT(""));
+				//  MID가 아닌 경우 디스크에 저장된 에셋 사용
+				OutRecord.MaterialPaths.Add(Material->GetPathName());
 			}
 		}
+		else
+		{
+			OutRecord.MaterialPaths.Add(TEXT(""));
+		}
+	}
 }
 
 bool URecordComponent::CreateRecordFromMeshComponent(UMeshComponent* InMeshComponent, FComponentRecord& OutRecord)
 {
+	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_CreateRecordFromMesh);
 	if (!InMeshComponent || !IsValid(InMeshComponent))
 	{
 		UE_LOG(LogBloodStain, Warning, TEXT("CreateRecordFromMeshComponent: Invalid or null mesh component provided."));
@@ -362,6 +376,7 @@ bool URecordComponent::CreateRecordFromMeshComponent(UMeshComponent* InMeshCompo
 
 void URecordComponent::HandleAttachedActorChanges()
 {
+	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_HandleAttachedChanges); 
 	// 이전 틱과 Attached된 액터 비교하고 컴포넌트 탈부착
 	TArray<AActor*> CurrentAttachedActors;
 	AActor* Owner = GetOwner();

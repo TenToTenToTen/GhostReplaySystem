@@ -23,8 +23,19 @@
 #include "Animation/Skeleton.h"
 
 // 스탯 그룹, 스탯 한번만 정의
-DECLARE_STATS_GROUP(TEXT("BloodStain"), STATGROUP_BloodStain, STATCAT_Advanced);
-DECLARE_CYCLE_STAT(TEXT("ApplyBoneTransforms"), STAT_ApplyBoneTransforms, STATGROUP_BloodStain);
+// DECLARE_STATS_GROUP(TEXT("BloodStain"), STATGROUP_BloodStain, STATCAT_Advanced);
+DECLARE_CYCLE_STAT(TEXT("PlayComp TickComponent"), STAT_PlayComponent_TickComponent, STATGROUP_BloodStain);
+DECLARE_CYCLE_STAT(TEXT("PlayComp Initialize"), STAT_PlayComponent_Initialize, STATGROUP_BloodStain);
+DECLARE_CYCLE_STAT(TEXT("PlayComp FinishReplay"), STAT_PlayComponent_FinishReplay, STATGROUP_BloodStain);
+DECLARE_CYCLE_STAT(TEXT("PlayComp ApplyComponentTransforms"), STAT_PlayComponent_ApplyComponentTransforms, STATGROUP_BloodStain);
+DECLARE_CYCLE_STAT(TEXT("PlayComp ApplySkeletalBoneTransforms"), STAT_PlayComponent_ApplySkeletalBoneTransforms, STATGROUP_BloodStain);
+DECLARE_CYCLE_STAT(TEXT("PlayComp ConvertFrameToAnimSequence"), STAT_PlayComponent_ConvertFrameToAnimSequence, STATGROUP_BloodStain);
+DECLARE_CYCLE_STAT(TEXT("PlayComp ApplyComponentChanges"), STAT_PlayComponent_ApplyComponentChanges, STATGROUP_BloodStain);
+DECLARE_CYCLE_STAT(TEXT("PlayComp CreateComponentFromRecord"), STAT_PlayComponent_CreateComponentFromRecord, STATGROUP_BloodStain);
+DECLARE_CYCLE_STAT(TEXT("PlayComp SeekFrame"), STAT_PlayComponent_SeekFrame, STATGROUP_BloodStain);
+DECLARE_CYCLE_STAT(TEXT("PlayComp BuildIntervalTree"), STAT_PlayComponent_BuildIntervalTree, STATGROUP_BloodStain);
+DECLARE_CYCLE_STAT(TEXT("PlayComp QueryIntervalTree"), STAT_PlayComponent_QueryIntervalTree, STATGROUP_BloodStain);
+
 
 // Sets default values for this component's properties
 UPlayComponent::UPlayComponent()
@@ -43,6 +54,7 @@ void UPlayComponent::BeginPlay()
 // Called every frame
 void UPlayComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
+	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_TickComponent); 
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
 	const TArray<FRecordFrame>& Frames = ReplayData.RecordedFrames;
@@ -128,6 +140,7 @@ void UPlayComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
 
 void UPlayComponent::Initialize(FGuid InPlaybackKey, const FRecordActorSaveData& InReplayData, const FBloodStainRecordOptions& InReplayOptions)
 {
+	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_Initialize); 
     ReplayData = InReplayData;
 	PlaybackKey = InPlaybackKey;
     ReplayOptions = InReplayOptions;
@@ -216,6 +229,7 @@ void UPlayComponent::Initialize(FGuid InPlaybackKey, const FRecordActorSaveData&
 
 void UPlayComponent::FinishReplay()
 {
+	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_FinishReplay); 
 	// Subsystem에 종료 요청
 	if (UWorld* World = GetWorld())
 	{
@@ -235,7 +249,8 @@ void UPlayComponent::FinishReplay()
 
 void UPlayComponent::ApplyComponentTransforms(const FRecordFrame& Prev, const FRecordFrame& Next, float Alpha) const
 {
-	//SCOPE_CYCLE_COUNTER(STAT_ApplyBoneTransforms);
+	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_ApplyComponentTransforms);
+	
 	for (const auto& Pair : Next.ComponentTransforms)
 	{
 		const FString& ComponentName = Pair.Key;
@@ -262,7 +277,7 @@ void UPlayComponent::ApplyComponentTransforms(const FRecordFrame& Prev, const FR
 
 void UPlayComponent::ApplySkeletalBoneTransforms(const FRecordFrame& Prev, const FRecordFrame& Next, float Alpha) const
 {
-	
+	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_ApplySkeletalBoneTransforms);
 	for (const auto& Pair : ReconstructedComponents)
 	{
 		if (UPoseableMeshComponent* PoseableComp = Cast<UPoseableMeshComponent>(Pair.Value))
@@ -409,6 +424,7 @@ void UPlayComponent::ConvertFrameToAnimSequence()
 
 void UPlayComponent::ApplyComponentChanges(const FRecordFrame& Frame)
 {
+	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_ApplyComponentChanges);
 	AActor* Owner = GetOwner();
 	if (!Owner)
 	{
@@ -471,6 +487,7 @@ FGuid UPlayComponent::GetPlaybackKey() const
  */	
 USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecord& Record)
 {
+	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_CreateComponentFromRecord);
 	AActor* Owner = GetOwner();
 	if (!Owner)
 	{
@@ -599,6 +616,7 @@ USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecor
 
 void UPlayComponent::SeekFrame(int32 FrameIndex)
 {
+	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_SeekFrame);
 	if (FrameIndex < 0 || FrameIndex >= ReplayData.RecordedFrames.Num())
 	{
 		UE_LOG(LogBloodStain, Warning, TEXT("SeekToFrame: TargetFrame %d is out of bounds."), FrameIndex);
@@ -641,6 +659,7 @@ void UPlayComponent::SeekFrame(int32 FrameIndex)
  */
 TUniquePtr<FIntervalTreeNode> UPlayComponent::BuildIntervalTree(TArray<FComponentInterval*>& List)
 {
+	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_BuildIntervalTree);
 	if (List.Num() == 0)
 	{
 		return nullptr;		
@@ -679,7 +698,11 @@ TUniquePtr<FIntervalTreeNode> UPlayComponent::BuildIntervalTree(TArray<FComponen
 
 void UPlayComponent::QueryIntervalTree(FIntervalTreeNode* Node, int32 FrameIndex, TArray<FComponentInterval*>& Out)
 {
-	if (!Node) return;
+	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_QueryIntervalTree);
+	if (!Node)
+	{
+		return;
+	}
 
 	// 1. 이 노드의 리스트에서 커버되는 구간 수집
 	for (auto* I : Node->Intervals)
