@@ -39,6 +39,7 @@ void UBloodStainSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 	ReplayTerminatedActorManager = NewObject<UReplayTerminatedActorManager>(this, UReplayTerminatedActorManager::StaticClass(), "ReplayDeadActorManager");
+	ReplayTerminatedActorManager->OnRecordGroupRemoveByCollecting.BindUObject(this, &UBloodStainSubsystem::CleanupInvalidRecordGroups);
 }
 
 bool UBloodStainSubsystem::StartRecording(AActor* TargetActor, const FBloodStainRecordOptions& Options, FName GroupName)
@@ -214,8 +215,8 @@ void UBloodStainSubsystem::StopRecording(FName GroupName)
 
 	 (new FAutoDeleteAsyncTask<FSaveRecordingTask>(
 		 MoveTemp(RecordSaveData), FileName,FileSaveOptions
-	 ))->StartBackgroundTask();	
-
+	 ))->StartBackgroundTask();
+	
 	BloodStainRecordGroups.Remove(GroupName);
 	ReplayTerminatedActorManager->ClearRecordGroup(GroupName);
 	
@@ -259,6 +260,10 @@ void UBloodStainSubsystem::StopRecordComponent(URecordComponent* RecordComponent
 	RecordComponent->UnregisterComponent();
 	RecordComponent->GetOwner()->RemoveInstanceComponent(RecordComponent);
 	RecordComponent->DestroyComponent();
+
+	// TODO Option
+	// 1. if Record is Zero -> Stop
+	// 2. if RecordComponent is Record 주체 -> Stop
 }
 
 bool UBloodStainSubsystem::StartReplayByBloodStain(ABloodActor* BloodStainActor, FGuid& OutGuid)
@@ -590,6 +595,44 @@ bool UBloodStainSubsystem::StartReplay_Internal(const FRecordSaveData& RecordSav
 	OutGuid = UniqueID;
 	BloodStainPlaybackGroups.Add(UniqueID, BloodStainPlaybackGroup);
 	// OnReplayStarted.Broadcast(TargetActor, Replayer);
+	return true;
+}
+
+void UBloodStainSubsystem::CleanupInvalidRecordGroups()
+{
+	TSet<FName> InvalidRecordGroups;
+	for (const auto& [GroupName, BloodStainRecordGroup] : BloodStainRecordGroups)
+	{
+		if (!IsValidReplayGroup(GroupName))
+		{
+			InvalidRecordGroups.Add(GroupName);
+		}
+	}
+
+	for (const FName& InvalidRecordGroupName : InvalidRecordGroups)
+	{
+		BloodStainRecordGroups.Remove(InvalidRecordGroupName);
+		ReplayTerminatedActorManager->ClearRecordGroup(InvalidRecordGroupName);
+	}
+}
+
+bool UBloodStainSubsystem::IsValidReplayGroup(const FName& GroupName)
+{
+	if (!BloodStainRecordGroups.Contains(GroupName))
+	{
+		return false;
+	}
+	
+	FBloodStainRecordGroup& BloodStainRecordGroup = BloodStainRecordGroups[GroupName];
+	
+	bool bActiveRecordEmpty = BloodStainRecordGroup.ActiveRecorders.IsEmpty();
+	bool bRecordDataManaged = ReplayTerminatedActorManager->ContainsGroup(GroupName);
+
+	if (bActiveRecordEmpty && !bRecordDataManaged)
+	{
+		return false;
+	}
+
 	return true;
 }
 

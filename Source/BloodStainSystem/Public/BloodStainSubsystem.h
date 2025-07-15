@@ -21,7 +21,6 @@ class BLOODSTAINSYSTEM_API UBloodStainSubsystem : public UGameInstanceSubsystem
 
 	UBloodStainSubsystem();
 public:
-	
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	
 	/**
@@ -123,6 +122,9 @@ private:
 	ABloodActor* SpawnBloodStain_Internal(const FVector& Location, const FRotator& Rotation, const FString& FileName, const FString& LevelName);
 
 	bool StartReplay_Internal(const FRecordSaveData& RecordSaveData, FGuid& OutGuid);
+
+	void CleanupInvalidRecordGroups();
+	bool IsValidReplayGroup(const FName& GroupName);
 	
 public:
 	/** 파일 저장·로드 옵션 (Quantization, Compression, Checksum 등) */

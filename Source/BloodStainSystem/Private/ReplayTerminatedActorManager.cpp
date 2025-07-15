@@ -9,7 +9,43 @@
 
 void UReplayTerminatedActorManager::Tick(float DeltaTime)
 {
-	TArray<FName> KeysToRemove;
+	CollectRecordGroups(DeltaTime);
+}
+
+TStatId UReplayTerminatedActorManager::GetStatId() const
+{
+	RETURN_QUICK_DECLARE_CYCLE_STAT(UReplayTerminatedActorManager, STATGROUP_Tickables);
+}
+
+void UReplayTerminatedActorManager::AddToRecordGroup(const FName& GroupName, URecordComponent* RecordComponent)
+{
+	if (!RecordGroups.Contains(GroupName))
+	{
+		RecordGroups.Add(GroupName, FRecordGroupData());
+	}
+	
+	FRecordComponentData RecordComponentData = FRecordComponentData();
+	RecordComponentData.StartTime = RecordComponent->StartTime;
+	RecordComponentData.ActorName = RecordComponent->GetOwner()->GetFName();
+	RecordComponentData.TimeSinceLastRecord = RecordComponent->TimeSinceLastRecord;
+	RecordComponentData.FrameQueuePtr = TSharedPtr<TCircularQueue<FRecordFrame>>(RecordComponent->FrameQueuePtr.Release());
+	RecordComponentData.GhostSaveData = MoveTemp(RecordComponent->GhostSaveData);
+
+	RecordComponentData.ComponentIntervals = MoveTemp(RecordComponent->ComponentIntervals);
+
+	FRecordGroupData& RecordGroup = RecordGroups[GroupName];
+	RecordGroup.RecordOptions = RecordComponent->RecordOptions;
+	RecordGroup.RecordComponentData.Add(RecordComponentData);
+}
+
+void UReplayTerminatedActorManager::ClearRecordGroup(const FName& GroupName)
+{
+	RecordGroups.Remove(GroupName);
+}
+
+void UReplayTerminatedActorManager::CollectRecordGroups(float DeltaTime)
+{
+	TArray<FName> ToRemoveGroupNames;
 	for (auto& [GroupName, RecordGroupData] : RecordGroups)
 	{
 		for (int32 i = RecordGroupData.RecordComponentData.Num() - 1; i >= 0; --i)
@@ -48,45 +84,15 @@ void UReplayTerminatedActorManager::Tick(float DeltaTime)
 
 		if (RecordGroupData.RecordComponentData.Num() == 0)
 		{
-			KeysToRemove.Add(GroupName);
+			ToRemoveGroupNames.Add(GroupName);
 		}
 	}
 
-	for (const FName& ToRemove : KeysToRemove)
+	for (const FName& ToRemoveGroupName : ToRemoveGroupNames)
 	{
-		RecordGroups.Remove(ToRemove);
+		RecordGroups.Remove(ToRemoveGroupName);
+		OnRecordGroupRemoveByCollecting.ExecuteIfBound();
 	}
-}
-
-TStatId UReplayTerminatedActorManager::GetStatId() const
-{
-	RETURN_QUICK_DECLARE_CYCLE_STAT(UReplayTerminatedActorManager, STATGROUP_Tickables);
-}
-
-void UReplayTerminatedActorManager::AddToRecordGroup(const FName& GroupName, URecordComponent* RecordComponent)
-{
-	if (!RecordGroups.Contains(GroupName))
-	{
-		RecordGroups.Add(GroupName, FRecordGroupData());
-	}
-	
-	FRecordComponentData RecordComponentData = FRecordComponentData();
-	RecordComponentData.StartTime = RecordComponent->StartTime;
-	RecordComponentData.ActorName = RecordComponent->GetOwner()->GetFName();
-	RecordComponentData.TimeSinceLastRecord = RecordComponent->TimeSinceLastRecord;
-	RecordComponentData.FrameQueuePtr = TSharedPtr<TCircularQueue<FRecordFrame>>(RecordComponent->FrameQueuePtr.Release());
-	RecordComponentData.GhostSaveData = MoveTemp(RecordComponent->GhostSaveData);
-
-	RecordComponentData.ComponentIntervals = MoveTemp(RecordComponent->ComponentIntervals);
-
-	FRecordGroupData& RecordGroup = RecordGroups[GroupName];
-	RecordGroup.RecordOptions = RecordComponent->RecordOptions;
-	RecordGroup.RecordComponentData.Add(RecordComponentData);
-}
-
-void UReplayTerminatedActorManager::ClearRecordGroup(const FName& GroupName)
-{
-	RecordGroups.Remove(GroupName);
 }
 
 TArray<FRecordActorSaveData> UReplayTerminatedActorManager::CookQueuedFrames(const FName& GroupName)
@@ -109,5 +115,10 @@ TArray<FRecordActorSaveData> UReplayTerminatedActorManager::CookQueuedFrames(con
 	}
 	
 	return Result;
+}
+
+bool UReplayTerminatedActorManager::ContainsGroup(const FName& GroupName) const
+{
+	return RecordGroups.Contains(GroupName);
 }
 

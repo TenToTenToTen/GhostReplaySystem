@@ -8,6 +8,8 @@
 #include "Tickable.h"
 #include "ReplayTerminatedActorManager.generated.h"
 
+DECLARE_DELEGATE(FOnRecordGroupRemove);
+
 struct FRecordActorSaveData;
 /**
  * 
@@ -22,11 +24,18 @@ public:
 	virtual TStatId GetStatId() const override;
 	
 	TArray<FRecordActorSaveData> CookQueuedFrames(const FName& GroupName);
+
+	bool ContainsGroup(const FName& GroupName) const;
 	
 	void AddToRecordGroup(const FName& GroupName, URecordComponent* RecordComponent);
-	void ClearRecordGroup(const FName& GroupName);	
+	void ClearRecordGroup(const FName& GroupName);
+
+	FOnRecordGroupRemove OnRecordGroupRemoveByCollecting;
 
 private:
+
+	void CollectRecordGroups(float DeltaTime);
+	
 	struct FRecordComponentData
 	{
 		FName ActorName = NAME_None;
