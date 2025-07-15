@@ -417,7 +417,12 @@ const TMap<FString, FRecordHeaderData>& UBloodStainSubsystem::GetCachedHeaders()
 
 void UBloodStainSubsystem::LoadAllHeadersInLevel(const FString& LevelName)
 {
-	FBloodStainFileUtils::LoadHeadersForAllFiles(CachedHeaders, LevelName);
+	FString LevelStr = LevelName;
+	if (LevelStr.IsEmpty())
+	{
+		LevelStr = UGameplayStatics::GetCurrentLevelName(GetWorld());
+	}
+	FBloodStainFileUtils::LoadHeadersForAllFiles(CachedHeaders, LevelStr);
 }
 
 ABloodActor* UBloodStainSubsystem::SpawnBloodStain(const FString& FileName, const FString& LevelName)

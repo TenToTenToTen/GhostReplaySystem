@@ -84,7 +84,12 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
 	const TMap<FString, FRecordHeaderData>& GetCachedHeaders();
-	
+
+	/**
+	 *	Load All Headers In Level.
+	 *	Previously Cached Header Data will be reset.
+	 *	@param	LevelName	Use to current level if LevelName is empty
+	 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
 	void LoadAllHeadersInLevel(const FString& LevelName);
 
