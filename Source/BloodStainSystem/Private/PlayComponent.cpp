@@ -22,6 +22,8 @@
 #include "Engine/StaticMesh.h"
 #include "Animation/Skeleton.h"
 
+#include "Math/VectorRegister.h"
+
 // 스탯 그룹, 스탯 한번만 정의
 // DECLARE_STATS_GROUP(TEXT("BloodStain"), STATGROUP_BloodStain, STATCAT_Advanced);
 DECLARE_CYCLE_STAT(TEXT("PlayComp TickComponent"), STAT_PlayComponent_TickComponent, STATGROUP_BloodStain);
@@ -299,7 +301,7 @@ void UPlayComponent::ApplyComponentTransforms(const FRecordFrame& Prev, const FR
 			if (const FTransform* PrevT = Prev.ComponentTransforms.Find(ComponentName))
 			{
 				FVector Loc = FMath::Lerp(PrevT->GetLocation(), NextT.GetLocation(), Alpha);
-				FQuat Rot = FQuat::Slerp(PrevT->GetRotation(), NextT.GetRotation(), Alpha);
+				FQuat Rot = FQuat::FastLerp(PrevT->GetRotation(), NextT.GetRotation(), Alpha);
 				FVector Scale = FMath::Lerp(PrevT->GetScale3D(), NextT.GetScale3D(), Alpha);
 
 				FTransform InterpT(Rot, Loc, Scale);
@@ -312,36 +314,128 @@ void UPlayComponent::ApplyComponentTransforms(const FRecordFrame& Prev, const FR
 		}
 	}
 }
+//
+// void UPlayComponent::ApplySkeletalBoneTransforms(const FRecordFrame& Prev, const FRecordFrame& Next, float Alpha) const
+// {
+// 	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_ApplySkeletalBoneTransforms);
+// 	for (const auto& Pair : ReconstructedComponents)
+// 	{
+// 		if (UPoseableMeshComponent* PoseableComp = Cast<UPoseableMeshComponent>(Pair.Value))
+// 		{
+// 			const FString& ComponentName = Pair.Key;
+// 			
+// 			const FBoneComponentSpace* PrevBones = Prev.SkeletalMeshBoneTransforms.Find(ComponentName);
+// 			const FBoneComponentSpace* NextBones = Next.SkeletalMeshBoneTransforms.Find(ComponentName);
+//
+// 			if (PrevBones && NextBones)
+// 			{
+// 				const int32 NumBones = FMath::Min(PrevBones->BoneTransforms.Num(), NextBones->BoneTransforms.Num());
+//                 
+// 				// 모든 뼈대에 대해 보간 및 적용
+// 				for (int32 BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex)
+// 				{
+// 					const FTransform& PrevT = PrevBones->BoneTransforms[BoneIndex];
+// 					const FTransform& NextT = NextBones->BoneTransforms[BoneIndex];
+// 					
+// 					FTransform InterpT;
+// 					InterpT.SetLocation(FMath::Lerp(PrevT.GetLocation(), NextT.GetLocation(), Alpha));
+// 					InterpT.SetRotation(FQuat::FastLerp(PrevT.GetRotation(), NextT.GetRotation(), Alpha));
+// 					InterpT.SetScale3D(FMath::Lerp(PrevT.GetScale3D(), NextT.GetScale3D(), Alpha));
+// 					
+// 					PoseableComp->BoneSpaceTransforms[BoneIndex] = InterpT;
+// 				}
+// 				PoseableComp->MarkRefreshTransformDirty();
+// 			}
+// 		}
+// 	}
+// }
+
+// PlayComponent.cpp
+
+#include "PlayComponent.h"
+// ...
+#include "Math/VectorRegister.h"
+
+// ...
 
 void UPlayComponent::ApplySkeletalBoneTransforms(const FRecordFrame& Prev, const FRecordFrame& Next, float Alpha) const
 {
 	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_ApplySkeletalBoneTransforms);
+
+    const VectorRegister VAlpha = VectorLoadFloat1(&Alpha);
+
 	for (const auto& Pair : ReconstructedComponents)
 	{
 		if (UPoseableMeshComponent* PoseableComp = Cast<UPoseableMeshComponent>(Pair.Value))
 		{
 			const FString& ComponentName = Pair.Key;
 			
-			const FBoneComponentSpace* PrevBones = Prev.SkeletalMeshBoneTransforms.Find(ComponentName);
-			const FBoneComponentSpace* NextBones = Next.SkeletalMeshBoneTransforms.Find(ComponentName);
+			const FBoneDataSoA* PrevBones = Prev.SkeletalBoneData.Find(ComponentName);
+			const FBoneDataSoA* NextBones = Next.SkeletalBoneData.Find(ComponentName);
 
 			if (PrevBones && NextBones)
 			{
-				const int32 NumBones = FMath::Min(PrevBones->BoneTransforms.Num(), NextBones->BoneTransforms.Num());
+				const int32 NumBones = FMath::Min3(
+                    PrevBones->Locations.Num(),
+                    NextBones->Locations.Num(),
+                    PoseableComp->BoneSpaceTransforms.Num()
+                );
+
+                if (NumBones == 0) continue;
+
+                const FVector* PrevLocData = PrevBones->Locations.GetData();
+                const FVector* NextLocData = NextBones->Locations.GetData();
+                const FQuat* PrevRotData = PrevBones->Rotations.GetData();
+                const FQuat* NextRotData = NextBones->Rotations.GetData();
+                const FVector* PrevScaleData = PrevBones->Scales.GetData();
+                const FVector* NextScaleData = NextBones->Scales.GetData();
+                FTransform* OutTransformData = PoseableComp->BoneSpaceTransforms.GetData();
                 
-				// 모든 뼈대에 대해 보간 및 적용
-				for (int32 BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex)
-				{
-					const FTransform& PrevT = PrevBones->BoneTransforms[BoneIndex];
-					const FTransform& NextT = NextBones->BoneTransforms[BoneIndex];
-					
-					FTransform InterpT;
-					InterpT.SetLocation(FMath::Lerp(PrevT.GetLocation(), NextT.GetLocation(), Alpha));
-					InterpT.SetRotation(FQuat::Slerp(PrevT.GetRotation(), NextT.GetRotation(), Alpha));
-					InterpT.SetScale3D(FMath::Lerp(PrevT.GetScale3D(), NextT.GetScale3D(), Alpha));
-					
-					PoseableComp->BoneSpaceTransforms[BoneIndex] = InterpT;
-				}
+                const int32 NumBonesSimd = NumBones & ~3;
+
+                // SIMD 루프
+                for (int32 BoneIndex = 0; BoneIndex < NumBonesSimd; BoneIndex += 4)
+                {
+                    // 위치 보간
+                    const VectorRegister PrevLoc = VectorLoadAligned((const FVector4*)(PrevLocData + BoneIndex));
+                    const VectorRegister NextLoc = VectorLoadAligned((const FVector4*)(NextLocData + BoneIndex));
+                    const VectorRegister InterpLoc = VectorLerp(PrevLoc, NextLoc, VAlpha);
+
+                    // 회전 보간 (NLerp)
+                    const VectorRegister PrevRot = VectorLoadAligned((const FVector4*)(PrevRotData + BoneIndex));
+                    const VectorRegister NextRot = VectorLoadAligned((const FVector4*)(NextRotData + BoneIndex));
+                	VectorRegister InterpRot = VectorLerpQuat(PrevRot, NextRot, VAlpha);
+                	InterpRot = VectorNormalizeQuaternion(InterpRot);
+                    
+                    // 스케일 보간
+                    const VectorRegister PrevScale = VectorLoadAligned((const FVector4*)(PrevScaleData + BoneIndex));
+                    const VectorRegister NextScale = VectorLoadAligned((const FVector4*)(NextScaleData + BoneIndex));
+                    const VectorRegister InterpScale = VectorLerp(PrevScale, NextScale, VAlpha);
+                    
+                    // 중간 저장
+                    alignas(16) FVector InterpLocs[4];
+                    alignas(16) FQuat InterpRots[4];
+                    alignas(16) FVector InterpScales[4];
+
+                    VectorStoreAligned(InterpLoc, (float*)InterpLocs);
+                    VectorStoreAligned(InterpRot, (float*)InterpRots);
+                    VectorStoreAligned(InterpScale, (float*)InterpScales);
+
+                    // Setter로 값 설정
+                    OutTransformData[BoneIndex + 0].SetComponents(InterpRots[0], InterpLocs[0], InterpScales[0]);
+                    OutTransformData[BoneIndex + 1].SetComponents(InterpRots[1], InterpLocs[1], InterpScales[1]);
+                    OutTransformData[BoneIndex + 2].SetComponents(InterpRots[2], InterpLocs[2], InterpScales[2]);
+                    OutTransformData[BoneIndex + 3].SetComponents(InterpRots[3], InterpLocs[3], InterpScales[3]);
+                }
+
+                // 나머지 뼈 처리
+                for (int32 BoneIndex = NumBonesSimd; BoneIndex < NumBones; ++BoneIndex)
+                {
+                    OutTransformData[BoneIndex].SetLocation(FMath::Lerp(PrevLocData[BoneIndex], NextLocData[BoneIndex], Alpha));
+                    OutTransformData[BoneIndex].SetRotation(FQuat::Slerp(PrevRotData[BoneIndex], NextRotData[BoneIndex], Alpha)); // Slerp가 더 정확하지만 FastLerp도 가능
+                    OutTransformData[BoneIndex].SetScale3D(FMath::Lerp(PrevScaleData[BoneIndex], NextScaleData[BoneIndex], Alpha));
+                }
+
 				PoseableComp->MarkRefreshTransformDirty();
 			}
 		}
@@ -350,112 +444,112 @@ void UPlayComponent::ApplySkeletalBoneTransforms(const FRecordFrame& Prev, const
 
 void UPlayComponent::ConvertFrameToAnimSequence()
 {
-    const TArray<FRecordFrame>& Frames = ReplayData.RecordedFrames;
-    if (Frames.Num() < 2)
-    {
-        UE_LOG(LogBloodStain, Warning, TEXT("Not enough frames to generate animation."));
-        return;
-    }
-
-    // Iterate over all reconstructed components and generate sequences for skeletal meshes
-    for (auto& Pair : ReconstructedComponents)
-    {
-        const FString& CompName = Pair.Key;
-        USceneComponent* SceneComp = Pair.Value;
-        USkeletalMeshComponent* SkeletalComp = Cast<USkeletalMeshComponent>(SceneComp);
-        if (!SkeletalComp || !SkeletalComp->GetSkeletalMeshAsset())
-        {
-            continue;
-        }
-
-        USkeletalMesh* Mesh = SkeletalComp->GetSkeletalMeshAsset();
-        USkeleton* Skeleton = Mesh->GetSkeleton();
-        if (!Skeleton)
-        {
-            UE_LOG(LogBloodStain, Warning, TEXT("SkeletalMesh %s has no skeleton."), *CompName);
-            continue;
-        }
-
-        const int32 NumFrames = Frames.Num() - 1;
-        const float SequenceLength = Frames.Last().TimeStamp;
-        const FReferenceSkeleton& SkeletonRef = Skeleton->GetReferenceSkeleton();
-        const FReferenceSkeleton& MeshRef     = Mesh->GetRefSkeleton();
-        const int32 NumBones = SkeletonRef.GetNum();
-
-        // Create a new animation sequence
-        UAnimSequence* AnimSeq = NewObject<UAnimSequence>(GetTransientPackage(), NAME_None, RF_Transient);
-        AnimSeq->SetSkeleton(Skeleton);
-        AnimSeq->SetPreviewMesh(Mesh);
-
-#if WITH_EDITOR
-        IAnimationDataController& Controller = AnimSeq->GetController();
-        Controller.InitializeModel();
-        Controller.OpenBracket(FText::FromString(FString::Printf(TEXT("Generate_%s"), *CompName)));
-
-    	const float FrameRate = 1.0f / ReplayOptions.SamplingInterval;
-        Controller.SetFrameRate(FFrameRate(FrameRate, 1));
-        Controller.SetNumberOfFrames(NumFrames);
-
-        // Build tracks for each bone
-        for (int32 BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex)
-        {
-            const FName BoneName = SkeletonRef.GetBoneName(BoneIndex);
-            const int32 MeshBoneIndex = MeshRef.FindBoneIndex(BoneName);
-            if (MeshBoneIndex == INDEX_NONE)
-            {
-                UE_LOG(LogBloodStain, Warning, TEXT("Bone %s not found in mesh ref skeleton."), *BoneName.ToString());
-                continue;
-            }
-
-            TArray<FVector3f> PosKeys; PosKeys.Reserve(NumFrames);
-            TArray<FQuat4f>   RotKeys; RotKeys.Reserve(NumFrames);
-            TArray<FVector3f> ScaleKeys;ScaleKeys.Reserve(NumFrames);
-
-            // Populate key arrays
-            for (int32 FrameIdx = 0; FrameIdx < NumFrames; ++FrameIdx)
-            {
-                const FRecordFrame& Frame = Frames[FrameIdx];
-                const FBoneComponentSpace* BoneSpace = Frame.SkeletalMeshBoneTransforms.Find(CompName);
-                FTransform LocalT = FTransform::Identity;
-
-                if (BoneSpace && BoneSpace->BoneTransforms.IsValidIndex(MeshBoneIndex))
-                {
-                    // Compute local transform relative to parent
-                    if (BoneIndex == 0)
-                    {
-                        LocalT = BoneSpace->BoneTransforms[MeshBoneIndex];
-                    }
-                    else
-                    {
-                        const int32 ParentIndex = SkeletonRef.GetParentIndex(BoneIndex);
-                        const FName ParentName = SkeletonRef.GetBoneName(ParentIndex);
-                        const int32 MeshParentIndex = MeshRef.FindBoneIndex(ParentName);
-                        if (BoneSpace->BoneTransforms.IsValidIndex(MeshParentIndex))
-                        {
-                            LocalT = BoneSpace->BoneTransforms[MeshBoneIndex]
-                                     .GetRelativeTransform(BoneSpace->BoneTransforms[MeshParentIndex]);
-                        }
-                        else
-                        {
-                            LocalT = BoneSpace->BoneTransforms[MeshBoneIndex];
-                        }
-                    }
-                }
-
-                PosKeys.Add((FVector3f)LocalT.GetTranslation());
-                RotKeys.Add((FQuat4f)LocalT.GetRotation());
-                ScaleKeys.Add((FVector3f)LocalT.GetScale3D());
-            }
-
-            Controller.AddBoneCurve(BoneName);
-            Controller.SetBoneTrackKeys(BoneName, PosKeys, RotKeys, ScaleKeys);
-        }
-        Controller.NotifyPopulated();
-        Controller.CloseBracket();
-#endif
-        // Store the generated sequence
-        AnimSequences.Add(CompName, AnimSeq);
-    }
+//     const TArray<FRecordFrame>& Frames = ReplayData.RecordedFrames;
+//     if (Frames.Num() < 2)
+//     {
+//         UE_LOG(LogBloodStain, Warning, TEXT("Not enough frames to generate animation."));
+//         return;
+//     }
+//
+//     // Iterate over all reconstructed components and generate sequences for skeletal meshes
+//     for (auto& Pair : ReconstructedComponents)
+//     {
+//         const FString& CompName = Pair.Key;
+//         USceneComponent* SceneComp = Pair.Value;
+//         USkeletalMeshComponent* SkeletalComp = Cast<USkeletalMeshComponent>(SceneComp);
+//         if (!SkeletalComp || !SkeletalComp->GetSkeletalMeshAsset())
+//         {
+//             continue;
+//         }
+//
+//         USkeletalMesh* Mesh = SkeletalComp->GetSkeletalMeshAsset();
+//         USkeleton* Skeleton = Mesh->GetSkeleton();
+//         if (!Skeleton)
+//         {
+//             UE_LOG(LogBloodStain, Warning, TEXT("SkeletalMesh %s has no skeleton."), *CompName);
+//             continue;
+//         }
+//
+//         const int32 NumFrames = Frames.Num() - 1;
+//         const float SequenceLength = Frames.Last().TimeStamp;
+//         const FReferenceSkeleton& SkeletonRef = Skeleton->GetReferenceSkeleton();
+//         const FReferenceSkeleton& MeshRef     = Mesh->GetRefSkeleton();
+//         const int32 NumBones = SkeletonRef.GetNum();
+//
+//         // Create a new animation sequence
+//         UAnimSequence* AnimSeq = NewObject<UAnimSequence>(GetTransientPackage(), NAME_None, RF_Transient);
+//         AnimSeq->SetSkeleton(Skeleton);
+//         AnimSeq->SetPreviewMesh(Mesh);
+//
+// #if WITH_EDITOR
+//         IAnimationDataController& Controller = AnimSeq->GetController();
+//         Controller.InitializeModel();
+//         Controller.OpenBracket(FText::FromString(FString::Printf(TEXT("Generate_%s"), *CompName)));
+//
+//     	const float FrameRate = 1.0f / ReplayOptions.SamplingInterval;
+//         Controller.SetFrameRate(FFrameRate(FrameRate, 1));
+//         Controller.SetNumberOfFrames(NumFrames);
+//
+//         // Build tracks for each bone
+//         for (int32 BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex)
+//         {
+//             const FName BoneName = SkeletonRef.GetBoneName(BoneIndex);
+//             const int32 MeshBoneIndex = MeshRef.FindBoneIndex(BoneName);
+//             if (MeshBoneIndex == INDEX_NONE)
+//             {
+//                 UE_LOG(LogBloodStain, Warning, TEXT("Bone %s not found in mesh ref skeleton."), *BoneName.ToString());
+//                 continue;
+//             }
+//
+//             TArray<FVector3f> PosKeys; PosKeys.Reserve(NumFrames);
+//             TArray<FQuat4f>   RotKeys; RotKeys.Reserve(NumFrames);
+//             TArray<FVector3f> ScaleKeys;ScaleKeys.Reserve(NumFrames);
+//
+//             // Populate key arrays
+//             for (int32 FrameIdx = 0; FrameIdx < NumFrames; ++FrameIdx)
+//             {
+//                 const FRecordFrame& Frame = Frames[FrameIdx];
+//                 // const FBoneComponentSpace* BoneSpace = Frame.SkeletalBoneData.Find(CompName);
+//                 FTransform LocalT = FTransform::Identity;
+//
+//                 if (BoneSpace && BoneSpace->BoneTransforms.IsValidIndex(MeshBoneIndex))
+//                 {
+//                     // Compute local transform relative to parent
+//                     if (BoneIndex == 0)
+//                     {
+//                         LocalT = BoneSpace->BoneTransforms[MeshBoneIndex];
+//                     }
+//                     else
+//                     {
+//                         const int32 ParentIndex = SkeletonRef.GetParentIndex(BoneIndex);
+//                         const FName ParentName = SkeletonRef.GetBoneName(ParentIndex);
+//                         const int32 MeshParentIndex = MeshRef.FindBoneIndex(ParentName);
+//                         if (BoneSpace->BoneTransforms.IsValidIndex(MeshParentIndex))
+//                         {
+//                             LocalT = BoneSpace->BoneTransforms[MeshBoneIndex]
+//                                      .GetRelativeTransform(BoneSpace->BoneTransforms[MeshParentIndex]);
+//                         }
+//                         else
+//                         {
+//                             LocalT = BoneSpace->BoneTransforms[MeshBoneIndex];
+//                         }
+//                     }
+//                 }
+//
+//                 PosKeys.Add((FVector3f)LocalT.GetTranslation());
+//                 RotKeys.Add((FQuat4f)LocalT.GetRotation());
+//                 ScaleKeys.Add((FVector3f)LocalT.GetScale3D());
+//             }
+//
+//             Controller.AddBoneCurve(BoneName);
+//             Controller.SetBoneTrackKeys(BoneName, PosKeys, RotKeys, ScaleKeys);
+//         }
+//         Controller.NotifyPopulated();
+//         Controller.CloseBracket();
+// #endif
+//         // Store the generated sequence
+//         AnimSequences.Add(CompName, AnimSeq);
+//     }
 
     UE_LOG(LogBloodStain, Log, TEXT("Converted %d skeletal components to AnimSequences."), AnimSequences.Num());
 }
