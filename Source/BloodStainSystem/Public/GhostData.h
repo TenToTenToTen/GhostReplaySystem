@@ -128,74 +128,9 @@ struct FBoneComponentSpace
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "BloodStain")
 	TArray<FTransform> BoneTransforms;
 
-	FBoneComponentSpace() = default;
-	explicit FBoneComponentSpace(TArray<FTransform>&& InTransforms)
-		: BoneTransforms(MoveTemp(InTransforms))
-	{}
-
-	// 기존 복사 생성자도 유지
-	explicit FBoneComponentSpace(const TArray<FTransform>& InTransforms)
-		: BoneTransforms(InTransforms)
-	{}
-
 	friend FArchive& operator<<(FArchive& Ar, FBoneComponentSpace& BoneComponentSpace)
 	{
 		Ar << BoneComponentSpace.BoneTransforms;
-		return Ar;
-	}
-};
-
-USTRUCT()
-struct alignas(16) FBoneDataSoA
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	TArray<FVector> Locations;
-
-	UPROPERTY()
-	TArray<FQuat> Rotations;
-
-	UPROPERTY()
-	TArray<FVector> Scales;
-
-	FBoneDataSoA() = default;
-	explicit FBoneDataSoA(const TArray<FTransform>& InTransforms)
-	{
-		const int32 NumTransforms = InTransforms.Num();
-        
-		Locations.Reserve(NumTransforms);
-		Rotations.Reserve(NumTransforms);
-		Scales.Reserve(NumTransforms);
-
-		for (const FTransform& Transform : InTransforms)
-		{
-			Locations.Add(Transform.GetLocation());
-			Rotations.Add(Transform.GetRotation());
-			Scales.Add(Transform.GetScale3D());
-		}
-	}
-
-	explicit FBoneDataSoA(TArray<FTransform>&& InTransforms)
-	{
-		const int32 NumTransforms = InTransforms.Num();
-		Locations.Reserve(NumTransforms);
-		Rotations.Reserve(NumTransforms);
-		Scales.Reserve(NumTransforms);
-
-		for (const FTransform& Transform : InTransforms)
-		{
-			Locations.Add(Transform.GetLocation());
-			Rotations.Add(Transform.GetRotation());
-			Scales.Add(Transform.GetScale3D());
-		}
-		InTransforms.Empty();
-	}
-	
-	// Serialization (저장/불러오기)
-	friend FArchive& operator<<(FArchive& Ar, FBoneDataSoA& Data)
-	{
-		Ar << Data.Locations << Data.Rotations << Data.Scales;
 		return Ar;
 	}
 };
@@ -211,10 +146,8 @@ struct FRecordFrame
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "BloodStain")
 	TMap<FString, FTransform> ComponentTransforms;
 
-	// UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "BloodStain")
-	// TMap<FString, FBoneComponentSpace> SkeletalMeshBoneTransforms;
-
-	TMap<FString, FBoneDataSoA> SkeletalBoneData;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "BloodStain")
+	TMap<FString, FBoneComponentSpace> SkeletalMeshBoneTransforms;
 
 	/* Added Components list in this frame */
 	UPROPERTY()
@@ -232,8 +165,7 @@ struct FRecordFrame
 	{
 		Ar << Frame.TimeStamp;
 		Ar << Frame.ComponentTransforms;
-		// Ar << Frame.SkeletalMeshBoneTransforms;
-		Ar << Frame.SkeletalBoneData;
+		Ar << Frame.SkeletalMeshBoneTransforms;
 		Ar << Frame.AddedComponents;
 		Ar << Frame.RemovedComponentNames;
 		Ar << Frame.FrameIndex;

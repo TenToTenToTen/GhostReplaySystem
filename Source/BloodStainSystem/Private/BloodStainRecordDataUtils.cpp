@@ -77,12 +77,12 @@ bool BloodStainRecordDataUtils::CookQueuedFrames(float SamplingInterval, TCircul
 		}
 
 		// 5. BoneTransform 보간
-		for (const auto& BonePairA : A.SkeletalBoneData)
+		for (const auto& BonePairA : A.SkeletalMeshBoneTransforms)
 		{
 			const FString& CompName = BonePairA.Key;
-			const FBoneDataSoA& BoneA = BonePairA.Value;
+			const FBoneComponentSpace& BoneA = BonePairA.Value;
 
-			if (const FBoneDataSoA* BoneB = B.SkeletalBoneData.Find(CompName))
+			if (const FBoneComponentSpace* BoneB = B.SkeletalMeshBoneTransforms.Find(CompName))
 			{
 				const int32 BoneCount = FMath::Min(BoneA.BoneTransforms.Num(), BoneB->BoneTransforms.Num());
 				FBoneComponentSpace InterpBone;
@@ -99,7 +99,7 @@ bool BloodStainRecordDataUtils::CookQueuedFrames(float SamplingInterval, TCircul
 					);
 				}
 
-				NewFrame.SkeletalBoneData.Add(CompName, InterpBone);
+				NewFrame.SkeletalMeshBoneTransforms.Add(CompName, InterpBone);
 			}
 		}
 
