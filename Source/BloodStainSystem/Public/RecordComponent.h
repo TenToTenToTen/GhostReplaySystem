@@ -63,7 +63,7 @@ protected:
 	float StartTime;
 	FRecordActorSaveData GhostSaveData;
 	UPROPERTY()
-	TArray<TObjectPtr<USceneComponent>> RecordComponents;
+	TSet<TObjectPtr<USceneComponent>> RecordComponents;
 	
 	
 
@@ -99,4 +99,14 @@ private:
 
 	/** Checks for newly attached or detached actors since the last frame and updates the recording state accordingly. */
 	void HandleAttachedActorChanges();
+
+	void HandleAttachedActorChangesByBit();
+
+private:
+	TMap<FString, TSharedPtr<FComponentRecord>> MetaDataCache;
+	TMap<TObjectPtr<AActor>, int32 > AttachedActorIndexMap;
+	TArray<TObjectPtr<AActor>> AttachedIndexToActor;
+	TBitArray<> PrevAttachedBits;
+	TBitArray<> CurAttachedBits;
+	
 };
