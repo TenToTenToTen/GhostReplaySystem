@@ -3,7 +3,7 @@
 static constexpr float SCL_MINS[3]   = { 0.f, 0.f, 0.f };
 static constexpr float SCL_RANGES[3] = { 10.f, 10.f, 10.f };
 
-FQuantizedTransform_Lowest::FQuantizedTransform_Lowest(const FTransform& T, const FRange& BoneRange)
+FQuantizedTransform_Lowest::FQuantizedTransform_Lowest(const FTransform& T, const FRange& BoneRange,const FScaleRange& ScaleRange)
 {
 	// 위치: 전달받은 BoneRange 사용
 	FVector Mins = BoneRange.PosMin;
@@ -17,11 +17,20 @@ FQuantizedTransform_Lowest::FQuantizedTransform_Lowest(const FTransform& T, cons
 
 	Translation.FromVector(FVector3f(T.GetLocation()), MinsArr, RangesArr);
 	Rotation.FromQuat(FQuat4f(T.GetRotation()));
-	Scale = FVectorIntervalFixed32NoW(FVector3f(T.GetScale3D()), SCL_MINS, SCL_RANGES);
+
+	FVector ScaleMins = ScaleRange.ScaleMin;
+	FVector ScaleRangesVec = ScaleRange.ScaleMax - ScaleMins;
+	const float ScaleMinsArr[3] = { (float)ScaleMins.X, (float)ScaleMins.Y, (float)ScaleMins.Z };
+	const float ScaleRangesArr[3] = {
+		FMath::Max((float)ScaleRangesVec.X, KINDA_SMALL_NUMBER),
+		FMath::Max((float)ScaleRangesVec.Y, KINDA_SMALL_NUMBER),
+		FMath::Max((float)ScaleRangesVec.Z, KINDA_SMALL_NUMBER)
+	};
+	Scale = FVectorIntervalFixed32NoW(FVector3f(T.GetScale3D()), ScaleMinsArr, ScaleRangesArr);
 	// Scale.Packed = 0;
 }
 
-FTransform FQuantizedTransform_Lowest::ToTransform(const FRange& Range) const
+FTransform FQuantizedTransform_Lowest::ToTransform(const FRange& Range, const FScaleRange& ScaleRange) const
 {
 	FTransform Out;
 	
@@ -41,12 +50,22 @@ FTransform FQuantizedTransform_Lowest::ToTransform(const FRange& Range) const
 	// 회전: 기존과 동일
 	FQuat4f Rot;
 	Rotation.ToQuat(Rot);
-
-	FVector3f S3f;
-	Scale.ToVector( S3f, SCL_MINS, SCL_RANGES );
 	
 	Out.SetLocation(FVector(Loc));
 	Out.SetRotation( FQuat(Rot) );
+
+	FVector ScaleMins = ScaleRange.ScaleMin;
+	FVector ScaleRangesVec = ScaleRange.ScaleMax - ScaleMins;
+	const float ScaleMinsArr[3] = { (float)ScaleMins.X, (float)ScaleMins.Y, (float)ScaleMins.Z };
+	const float ScaleRangesArr[3] = {
+		FMath::Max((float)ScaleRangesVec.X, KINDA_SMALL_NUMBER),
+		FMath::Max((float)ScaleRangesVec.Y, KINDA_SMALL_NUMBER),
+		FMath::Max((float)ScaleRangesVec.Z, KINDA_SMALL_NUMBER)
+	};
+	
+	FVector3f S3f;
+	Scale.ToVector(S3f, ScaleMinsArr, ScaleRangesArr);
+	
 	Out.SetScale3D(FVector(S3f));
 
 	return Out;

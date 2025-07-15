@@ -188,6 +188,24 @@ struct FRange
 	}
 };
 
+USTRUCT()
+struct FScaleRange
+{
+	GENERATED_BODY()
+    
+	UPROPERTY()
+	FVector ScaleMin;
+
+	UPROPERTY()
+	FVector ScaleMax;
+
+	friend FArchive& operator<<(FArchive& Ar, FScaleRange& R)
+	{
+		Ar << R.ScaleMin << R.ScaleMax;
+		return Ar;
+	}
+};
+
 USTRUCT(BlueprintType)
 struct FRecordActorSaveData
 {
@@ -201,9 +219,15 @@ struct FRecordActorSaveData
 
 	UPROPERTY()
 	FRange ComponentRanges;
+
+	UPROPERTY()
+	FScaleRange ComponentScaleRanges; 
 	
 	UPROPERTY()
 	TMap<FString, FRange> BoneRanges;
+
+	UPROPERTY()
+	TMap<FString, FScaleRange> BoneScaleRanges;
 	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "BloodStain")
 	TArray<FRecordFrame> RecordedFrames;
@@ -214,7 +238,9 @@ struct FRecordActorSaveData
 		Ar << Data.PrimaryComponentName;
 		Ar << Data.ComponentIntervals;
 		Ar << Data.ComponentRanges;
+		Ar << Data.ComponentScaleRanges;
 		Ar << Data.BoneRanges;
+		Ar << Data.BoneScaleRanges;
 		Ar << Data.RecordedFrames;
 		return Ar;
 	}

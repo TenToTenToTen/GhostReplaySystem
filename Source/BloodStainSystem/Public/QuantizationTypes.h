@@ -122,10 +122,10 @@ struct FQuantizedTransform_Lowest
 	FQuantizedTransform_Lowest() = default;
 
 	/** Quantize original FTransform into bitfields */
-	FQuantizedTransform_Lowest(const FTransform& T, const FRange& Range);
+	FQuantizedTransform_Lowest(const FTransform& T, const FRange& Range, const FScaleRange& ScaleRange);
 
 	/** Reconstruct FTransform from quantized bitfields */
-	FTransform ToTransform(const FRange& Range) const;
+	FTransform ToTransform(const FRange& Range, const FScaleRange& ScaleRange) const;
 
 	friend FArchive& operator<<(FArchive& Ar, FQuantizedTransform_Lowest& Q)
 	{

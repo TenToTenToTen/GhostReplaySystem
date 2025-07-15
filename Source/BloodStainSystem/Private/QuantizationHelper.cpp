@@ -11,8 +11,10 @@ void ComputeRanges(FRecordSaveData& SaveData)
     for (FRecordActorSaveData& ActorData : SaveData.RecordActorDataArray)
     {
         ActorData.BoneRanges.Empty();
+        ActorData.BoneScaleRanges.Empty();
         ActorData.ComponentRanges = FRange();
         bool bIsComponentRangeInitialized  = false;
+        bool bIsComponentScaleRangeInitialized = false; 
         for (const FRecordFrame& Frame : ActorData.RecordedFrames)
         {
             for (const auto& Pair : Frame.SkeletalMeshBoneTransforms)
@@ -20,6 +22,7 @@ void ComputeRanges(FRecordSaveData& SaveData)
                 const FString& BoneKey = Pair.Key;
                 const FBoneComponentSpace& Space = Pair.Value;
                 FRange& R = ActorData.BoneRanges.FindOrAdd(BoneKey);
+                FScaleRange& ScaleRange = ActorData.BoneScaleRanges.FindOrAdd(BoneKey);
 
                 bool bIsFirst = (R.PosMin.IsNearlyZero() && R.PosMax.IsNearlyZero());
                 if (bIsFirst && Space.BoneTransforms.Num() > 0)
@@ -33,12 +36,27 @@ void ComputeRanges(FRecordSaveData& SaveData)
                     R.PosMin = R.PosMin.ComponentMin(Loc);
                     R.PosMax = R.PosMax.ComponentMax(Loc);
                 }
+                
+                bool bIsFirstScale = (ScaleRange.ScaleMin.IsNearlyZero() && ScaleRange.ScaleMax.IsNearlyZero());
+
+                if (bIsFirstScale && Space.BoneTransforms.Num() > 0)
+                {
+                    ScaleRange.ScaleMin = ScaleRange.ScaleMax = Space.BoneTransforms[0].GetScale3D();
+                }
+
+                for (const FTransform& BoneT : Space.BoneTransforms)
+                {
+                    const FVector Scale = BoneT.GetScale3D();
+                    ScaleRange.ScaleMin = ScaleRange.ScaleMin.ComponentMin(Scale);
+                    ScaleRange.ScaleMax = ScaleRange.ScaleMax.ComponentMax(Scale);
+                }
             }
             
             for (const auto& Pair : Frame.ComponentTransforms)
             {
                 const FTransform& ComponentT = Pair.Value;
                 const FVector Loc = ComponentT.GetLocation();
+                const FVector Scale = ComponentT.GetScale3D();
 
                 if (!bIsComponentRangeInitialized)
                 {
@@ -50,12 +68,23 @@ void ComputeRanges(FRecordSaveData& SaveData)
                     ActorData.ComponentRanges.PosMin = ActorData.ComponentRanges.PosMin.ComponentMin(Loc);
                     ActorData.ComponentRanges.PosMax = ActorData.ComponentRanges.PosMax.ComponentMax(Loc);
                 }
+
+                if (!bIsComponentScaleRangeInitialized)
+                {
+                    ActorData.ComponentScaleRanges.ScaleMin = ActorData.ComponentScaleRanges.ScaleMax = Scale;
+                    bIsComponentScaleRangeInitialized = true;
+                }
+                else
+                {
+                    ActorData.ComponentScaleRanges.ScaleMin = ActorData.ComponentScaleRanges.ScaleMin.ComponentMin(Scale);
+                    ActorData.ComponentScaleRanges.ScaleMax = ActorData.ComponentScaleRanges.ScaleMax.ComponentMax(Scale);
+                }
             }
         }
     }
     
 }
-void SerializeQuantizedTransform(FArchive& Ar, const FTransform& Transform, const FQuantizationOption& QuantOpts, const FRange* Range)
+void SerializeQuantizedTransform(FArchive& Ar, const FTransform& Transform, const FQuantizationOption& QuantOpts, const FRange* Range, const FScaleRange* ScaleRange)
 {
     switch (QuantOpts.Method)
     {
@@ -74,7 +103,7 @@ void SerializeQuantizedTransform(FArchive& Ar, const FTransform& Transform, cons
     case ETransformQuantizationMethod::Standard_Low:
         {
             // Only use Range if QuantizationOption is Standard_Low
-            FQuantizedTransform_Lowest Q(Transform, *Range);
+            FQuantizedTransform_Lowest Q(Transform, *Range, *ScaleRange);
             Ar << Q;
             break;
         }
@@ -87,7 +116,7 @@ void SerializeQuantizedTransform(FArchive& Ar, const FTransform& Transform, cons
     }
 }
 
-FTransform DeserializeQuantizedTransform(FArchive& Ar, const FQuantizationOption& Opts, const FRange* Range)   
+FTransform DeserializeQuantizedTransform(FArchive& Ar, const FQuantizationOption& Opts, const FRange* Range, const FScaleRange* ScaleRange)
 {
     switch (Opts.Method)
     {
@@ -107,7 +136,7 @@ FTransform DeserializeQuantizedTransform(FArchive& Ar, const FQuantizationOption
         {
             FQuantizedTransform_Lowest Q;
             Ar << Q;
-            return Q.ToTransform(*Range);
+            return Q.ToTransform(*Range, *ScaleRange);
         }
     default:
         {
@@ -132,7 +161,9 @@ void SerializeSaveData(FArchive& RawAr, FRecordSaveData& SaveData, FQuantization
         RawAr << ActorData.PrimaryComponentName;
         RawAr << ActorData.ComponentIntervals;
         RawAr << ActorData.ComponentRanges;
+        RawAr << ActorData.ComponentScaleRanges;
         RawAr << ActorData.BoneRanges;
+        RawAr << ActorData.BoneScaleRanges;        
 
         // Frame 개수
         int32 NumFrames = ActorData.RecordedFrames.Num();
@@ -154,7 +185,8 @@ void SerializeSaveData(FArchive& RawAr, FRecordSaveData& SaveData, FQuantization
                 RawAr << Pair.Key;
 
                 const FRange* Range = &ActorData.ComponentRanges;
-                SerializeQuantizedTransform(RawAr, Pair.Value, QuantOpts, Range);
+                const FScaleRange* ScaleRange = &ActorData.ComponentScaleRanges; // <<-- 스케일 범위 전달
+                SerializeQuantizedTransform(RawAr, Pair.Value, QuantOpts, Range, ScaleRange);
             }
 
             // SkeletalMeshBoneTransforms
@@ -169,9 +201,10 @@ void SerializeSaveData(FArchive& RawAr, FRecordSaveData& SaveData, FQuantization
                 RawAr << BoneCount;
 
                 const FRange* Range = ActorData.BoneRanges.Find(BonePair.Key);
+                const FScaleRange* ScaleRange = ActorData.BoneScaleRanges.Find(BonePair.Key);
                 for (const FTransform& BoneT : Space.BoneTransforms)
                 {
-                    SerializeQuantizedTransform(RawAr, BoneT, QuantOpts, Range);
+                    SerializeQuantizedTransform(RawAr, BoneT, QuantOpts, Range, ScaleRange);
                 }
             }
         }
@@ -192,7 +225,9 @@ void DeserializeSaveData(FArchive& DataAr, FRecordSaveData& OutData, const FQuan
         DataAr << ActorData.PrimaryComponentName;
         DataAr << ActorData.ComponentIntervals;
         DataAr << ActorData.ComponentRanges;
+        DataAr << ActorData.ComponentScaleRanges;
         DataAr << ActorData.BoneRanges;
+        DataAr << ActorData.BoneScaleRanges;
 
         int32 NumFrames = 0;
         DataAr << NumFrames;
@@ -214,7 +249,8 @@ void DeserializeSaveData(FArchive& DataAr, FRecordSaveData& OutData, const FQuan
                 FString Key;
                 DataAr << Key;
                 const FRange* Range = &ActorData.ComponentRanges;
-                FTransform T = DeserializeQuantizedTransform(DataAr, QuantOpts, Range);
+                const FScaleRange* ScaleRange = &ActorData.ComponentScaleRanges; // <<-- 스케일 범위 전달
+                FTransform T = DeserializeQuantizedTransform(DataAr, QuantOpts, Range, ScaleRange);
                 Frame.ComponentTransforms.Add(Key, T);
             }
 
@@ -230,9 +266,11 @@ void DeserializeSaveData(FArchive& DataAr, FRecordSaveData& OutData, const FQuan
                 FBoneComponentSpace Space;
                 Space.BoneTransforms.Empty(BoneCount);
                 const FRange* Range = ActorData.BoneRanges.Find(Key);
+                const FScaleRange* ScaleRange = ActorData.BoneScaleRanges.Find(Key);
+                
                 for (int32 b = 0; b < BoneCount; ++b)
                 {
-                    FTransform BoneT = DeserializeQuantizedTransform(DataAr, QuantOpts, Range);
+                    FTransform BoneT = DeserializeQuantizedTransform(DataAr, QuantOpts, Range, ScaleRange);
                     Space.BoneTransforms.Add(BoneT);
                 }
                 Frame.SkeletalMeshBoneTransforms.Add(Key, Space);
