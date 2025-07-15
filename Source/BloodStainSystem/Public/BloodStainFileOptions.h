@@ -23,7 +23,7 @@ struct FCompressionOption
 
 	/** 사용할 압축 메서드 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Compression")
-	ECompressionMethod Method = ECompressionMethod::None;
+	ECompressionMethod Method = ECompressionMethod::Zlib;
 
 	/** 압축 레벨 (0=none, 1~9 high) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Compression", meta=(ClampMin="0",ClampMax="9"))
@@ -49,7 +49,7 @@ struct FQuantizationOption
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Quantization")
-	ETransformQuantizationMethod Method = ETransformQuantizationMethod::Standard_Low;
+	ETransformQuantizationMethod Method = ETransformQuantizationMethod::Standard_Compact;
 
 	friend FArchive& operator<<(FArchive& Ar, FQuantizationOption& Options)
 	{
