@@ -184,7 +184,7 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 		FTransform RootTransform = FTransform::Identity;
 		for (const FRecordActorSaveData& SaveData : RecordSaveDataArray)
 		{
-			FTransform Transform = SaveData.RecordedFrames[0].ComponentTransforms[SaveData.ComponentName.ToString()];
+			FTransform Transform = SaveData.RecordedFrames[0].ComponentTransforms[SaveData.PrimaryComponentName.ToString()];
 			RootTransform += Transform;
 		}
 

@@ -231,11 +231,11 @@ void UPlayComponent::Initialize(FGuid InPlaybackKey, const FRecordActorSaveData&
 	// {
 	// 	if (USceneComponent* NewComponent = CreateComponentFromRecord(Record))
 	// 	{
-	// 		ReconstructedComponents.Add(Record.ComponentName, NewComponent);
+	// 		ReconstructedComponents.Add(Record.PrimaryComponentName, NewComponent);
 	// 	}
 	// 	else
 	// 	{
-	// 		UE_LOG(LogBloodStain, Warning, TEXT("RecordComponent::Initialize(): Failed to create component from record: %s"), *Record.ComponentName);
+	// 		UE_LOG(LogBloodStain, Warning, TEXT("RecordComponent::Initialize(): Failed to create component from record: %s"), *Record.PrimaryComponentName);
 	// 	}
 	// }
 	
@@ -473,29 +473,29 @@ void UPlayComponent::ConvertFrameToAnimSequence()
 // 	for (const FComponentRecord& Record : Frame.AddedComponents)
 // 	{
 // 		// 이미 해당 이름의 컴포넌트가 있다면 중복 생성을 방지
-// 		const FString& Name = Record.ComponentName;
+// 		const FString& Name = Record.PrimaryComponentName;
 // 		if (ReconstructedComponents.Contains(Name))
 // 		{
-// 			UE_LOG(LogBloodStain, Warning, TEXT("ApplyComponentChanges %s already exists, skipping."), *Record.ComponentName);
+// 			UE_LOG(LogBloodStain, Warning, TEXT("ApplyComponentChanges %s already exists, skipping."), *Record.PrimaryComponentName);
 // 			continue;
 // 		}
 //
 // 		if (TObjectPtr<USceneComponent> NewComponent = CreateComponentFromRecord(Record))
 // 		{
 // 			ReconstructedComponents.Add(Name, NewComponent);
-// 			UE_LOG(LogBloodStain, Log, TEXT("ApplyComponentChanges: Component Added - %s"), *Record.ComponentName);
+// 			UE_LOG(LogBloodStain, Log, TEXT("ApplyComponentChanges: Component Added - %s"), *Record.PrimaryComponentName);
 // 		}
 // 		else
 // 		{
-// 			UE_LOG(LogBloodStain, Warning, TEXT("ApplyComponentChanges: Failed to create comp %s"), *Record.ComponentName);
+// 			UE_LOG(LogBloodStain, Warning, TEXT("ApplyComponentChanges: Failed to create comp %s"), *Record.PrimaryComponentName);
 // 		}
 // 	}
 //
 // 	// 2. 컴포넌트 제거 처리
-// 	for (const FString& ComponentName : Frame.RemovedComponentNames)
+// 	for (const FString& PrimaryComponentName : Frame.RemovedComponentNames)
 // 	{
 // 		// 맵에서 제거할 컴포넌트를 찾습니다.
-// 		if (TObjectPtr<USceneComponent>* CompPtr = ReconstructedComponents.Find(ComponentName))
+// 		if (TObjectPtr<USceneComponent>* CompPtr = ReconstructedComponents.Find(PrimaryComponentName))
 // 		{
 // 			if (TObjectPtr<USceneComponent>CompToDestroy = *CompPtr)
 // 			{
@@ -506,8 +506,8 @@ void UPlayComponent::ConvertFrameToAnimSequence()
 // 				}
 // 			}
 // 			// 맵에서 해당 항목을 제거합니다.
-// 			ReconstructedComponents.Remove(ComponentName);
-// 			UE_LOG(LogBloodStain, Log, TEXT("Replay: Component Removed - %s"), *ComponentName);
+// 			ReconstructedComponents.Remove(PrimaryComponentName);
+// 			UE_LOG(LogBloodStain, Log, TEXT("Replay: Component Removed - %s"), *PrimaryComponentName);
 // 		}
 // 	}
 // }
@@ -654,7 +654,7 @@ USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecor
 	NewComponent->RegisterComponent();
 	NewComponent->AttachToComponent(Owner->GetRootComponent(), FAttachmentTransformRules::KeepWorldTransform);
 
-	// UE_LOG(LogBloodStain, Log, TEXT("Replay: Component Created - %s"), *Record.ComponentName);
+	// UE_LOG(LogBloodStain, Log, TEXT("Replay: Component Created - %s"), *Record.PrimaryComponentName);
 	
 	return NewComponent;
 }

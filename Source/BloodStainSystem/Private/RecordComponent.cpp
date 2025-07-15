@@ -151,13 +151,13 @@ void URecordComponent::CollectMeshComponents()
     		{
     			if (SkeletalMeshComp->GetSkeletalMeshAsset())
     			{
-	    			GhostSaveData.ComponentName = FName(FString::Printf(TEXT("%s_%u"), *SkeletalMeshComp->GetName(), SkeletalMeshComp->GetUniqueID()));
+	    			GhostSaveData.PrimaryComponentName = FName(FString::Printf(TEXT("%s_%u"), *SkeletalMeshComp->GetName(), SkeletalMeshComp->GetUniqueID()));
     				break;
     			}
     		}
     		else if (UStaticMeshComponent* StaticMeshComp = Cast<UStaticMeshComponent>(MeshComp))
     		{
-    			GhostSaveData.ComponentName = FName(FString::Printf(TEXT("%s_%u"), *StaticMeshComp->GetName(), StaticMeshComp->GetUniqueID()));
+    			GhostSaveData.PrimaryComponentName = FName(FString::Printf(TEXT("%s_%u"), *StaticMeshComp->GetName(), StaticMeshComp->GetUniqueID()));
     			break;
     		}
     	}
@@ -247,11 +247,11 @@ void URecordComponent::OnComponentAttached(UMeshComponent* NewComponent)
 		FComponentInterval I = {Record, CurrentFrameIndex, INT32_MAX};
 		int32 NewIdx = ComponentIntervals.Add(I);
 		IntervalIndexMap.Add(I.Meta.ComponentName, NewIdx);
-		// UE_LOG(LogBloodStain, Log, TEXT("OnComponentAttached: %s added to intervals"), *Record.ComponentName);
+		// UE_LOG(LogBloodStain, Log, TEXT("OnComponentAttached: %s added to intervals"), *Record.PrimaryComponentName);
 	}
 
 	PendingAddedComponents.Add(Record);	
-	// UE_LOG(LogBloodStain, Log, TEXT("OnComponentAttached: %s Attached and pending for record"), *Record.ComponentName);
+	// UE_LOG(LogBloodStain, Log, TEXT("OnComponentAttached: %s Attached and pending for record"), *Record.PrimaryComponentName);
 }
 
 void URecordComponent::OnComponentDetached(UMeshComponent* DetachedComponent)
@@ -275,7 +275,7 @@ void URecordComponent::OnComponentDetached(UMeshComponent* DetachedComponent)
 		ComponentIntervals[*Idx].EndFrame = CurrentFrameIndex;
 		IntervalIndexMap.Remove(ComponentName);
 	}
-	// UE_LOG(LogBloodStain, Log, TEXT("Component Detached and pending for record: %s"), *ComponentName);
+	// UE_LOG(LogBloodStain, Log, TEXT("Component Detached and pending for record: %s"), *PrimaryComponentName);
 	
 }
 

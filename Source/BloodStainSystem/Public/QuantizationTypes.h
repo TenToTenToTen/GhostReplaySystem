@@ -96,12 +96,10 @@ struct FQuantizedTransform_Lowest
 	FQuantizedTransform_Lowest() = default;
 
 	/** 원본 FTransform → 양자화 비트필드 */
-	explicit FQuantizedTransform_Lowest(const FTransform& T);
-	FQuantizedTransform_Lowest(const FTransform& T, const FBoneRange& BoneRange);
+	FQuantizedTransform_Lowest(const FTransform& T, const FRange& Range);
 
 	/** 양자화된 비트필드를 FTransform으로 복원 */
-	FTransform ToTransform() const;
-	FTransform ToTransform(const FBoneRange& BoneRange) const;
+	FTransform ToTransform(const FRange& Range) const;
 
 	/** Archive << 연산자 (순서대로 Translation, Rotation, Scale) */
 	friend FArchive& operator<<(FArchive& Ar, FQuantizedTransform_Lowest& Q);

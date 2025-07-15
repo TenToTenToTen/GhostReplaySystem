@@ -6,18 +6,20 @@
 namespace BloodStainFileUtils_Internal
 {
 
-void ComputeBoneRanges(FRecordSaveData& SaveData)
+void ComputeRanges(FRecordSaveData& SaveData)
 {
     for (FRecordActorSaveData& ActorData : SaveData.RecordActorDataArray)
     {
         ActorData.BoneRanges.Empty();
+        ActorData.ComponentRanges = FRange();
+        bool bIsComponentRangeInitialized  = false;
         for (const FRecordFrame& Frame : ActorData.RecordedFrames)
         {
             for (const auto& Pair : Frame.SkeletalMeshBoneTransforms)
             {
                 const FString& BoneKey = Pair.Key;
                 const FBoneComponentSpace& Space = Pair.Value;
-                FBoneRange& R = ActorData.BoneRanges.FindOrAdd(BoneKey);
+                FRange& R = ActorData.BoneRanges.FindOrAdd(BoneKey);
 
                 bool bIsFirst = (R.PosMin.IsNearlyZero() && R.PosMax.IsNearlyZero());
                 if (bIsFirst && Space.BoneTransforms.Num() > 0)
@@ -32,13 +34,28 @@ void ComputeBoneRanges(FRecordSaveData& SaveData)
                     R.PosMax = R.PosMax.ComponentMax(Loc);
                 }
             }
+            
+            for (const auto& Pair : Frame.ComponentTransforms)
+            {
+                const FTransform& ComponentT = Pair.Value;
+                const FVector Loc = ComponentT.GetLocation();
+
+                if (!bIsComponentRangeInitialized)
+                {
+                    ActorData.ComponentRanges.PosMin = ActorData.ComponentRanges.PosMax = Loc;
+                    bIsComponentRangeInitialized = true;
+                }
+                else
+                {
+                    ActorData.ComponentRanges.PosMin = ActorData.ComponentRanges.PosMin.ComponentMin(Loc);
+                    ActorData.ComponentRanges.PosMax = ActorData.ComponentRanges.PosMax.ComponentMax(Loc);
+                }
+            }
         }
     }
     
 }
-
-
-void SerializeQuantizedTransform(FArchive& Ar, const FTransform& Transform, const FQuantizationOption& QuantOpts, const FBoneRange* Range)
+void SerializeQuantizedTransform(FArchive& Ar, const FTransform& Transform, const FQuantizationOption& QuantOpts, const FRange* Range)
 {
     switch (QuantOpts.Method)
     {
@@ -57,16 +74,8 @@ void SerializeQuantizedTransform(FArchive& Ar, const FTransform& Transform, cons
     case ETransformQuantizationMethod::Standard_Low:
         {
             // Range 유무에 따라 다른 생성자 호출
-            if (Range)
-            {
-                FQuantizedTransform_Lowest Q(Transform, *Range);
-                Ar << Q;
-            }
-            else
-            {
-                FQuantizedTransform_Lowest Q(Transform);
-                Ar << Q;
-            }
+            FQuantizedTransform_Lowest Q(Transform, *Range);
+            Ar << Q;
             break;
         }
     case ETransformQuantizationMethod::None:
@@ -78,7 +87,7 @@ void SerializeQuantizedTransform(FArchive& Ar, const FTransform& Transform, cons
     }
 }
 
-FTransform DeserializeQuantizedTransform(FArchive& Ar, const FQuantizationOption& Opts, const FBoneRange* Range)   
+FTransform DeserializeQuantizedTransform(FArchive& Ar, const FQuantizationOption& Opts, const FRange* Range)   
 {
     switch (Opts.Method)
     {
@@ -98,7 +107,7 @@ FTransform DeserializeQuantizedTransform(FArchive& Ar, const FQuantizationOption
         {
             FQuantizedTransform_Lowest Q;
             Ar << Q;
-            return Range ? Q.ToTransform(*Range) : Q.ToTransform();
+            return Q.ToTransform(*Range);
         }
     default:
         {
@@ -111,7 +120,7 @@ FTransform DeserializeQuantizedTransform(FArchive& Ar, const FQuantizationOption
 
 void SerializeSaveData(FArchive& RawAr, FRecordSaveData& SaveData, FQuantizationOption& QuantOpts)
 {
-    ComputeBoneRanges(SaveData);
+    ComputeRanges(SaveData);
 
     // 2) Actor 배열 길이
     int32 NumActors = SaveData.RecordActorDataArray.Num();
@@ -120,8 +129,9 @@ void SerializeSaveData(FArchive& RawAr, FRecordSaveData& SaveData, FQuantization
     for (FRecordActorSaveData& ActorData : SaveData.RecordActorDataArray)
     {
         // Actor 식별자
-        RawAr << ActorData.ComponentName;
+        RawAr << ActorData.PrimaryComponentName;
         RawAr << ActorData.ComponentIntervals;
+        RawAr << ActorData.ComponentRanges;
         RawAr << ActorData.BoneRanges;
 
         // Frame 개수
@@ -142,7 +152,9 @@ void SerializeSaveData(FArchive& RawAr, FRecordSaveData& SaveData, FQuantization
             for (auto& Pair : Frame.ComponentTransforms)
             {
                 RawAr << Pair.Key;
-                SerializeQuantizedTransform(RawAr, Pair.Value, QuantOpts, nullptr);
+
+                const FRange* Range = &ActorData.ComponentRanges;
+                SerializeQuantizedTransform(RawAr, Pair.Value, QuantOpts, Range);
             }
 
             // SkeletalMeshBoneTransforms
@@ -156,7 +168,7 @@ void SerializeSaveData(FArchive& RawAr, FRecordSaveData& SaveData, FQuantization
                 int32 BoneCount = Space.BoneTransforms.Num();
                 RawAr << BoneCount;
 
-                const FBoneRange* Range = ActorData.BoneRanges.Find(BonePair.Key);
+                const FRange* Range = ActorData.BoneRanges.Find(BonePair.Key);
                 for (const FTransform& BoneT : Space.BoneTransforms)
                 {
                     SerializeQuantizedTransform(RawAr, BoneT, QuantOpts, Range);
@@ -177,8 +189,9 @@ void DeserializeSaveData(FArchive& DataAr, FRecordSaveData& OutData, const FQuan
     for (int32 i = 0; i < NumActors; ++i)
     {
         FRecordActorSaveData ActorData;
-        DataAr << ActorData.ComponentName;
+        DataAr << ActorData.PrimaryComponentName;
         DataAr << ActorData.ComponentIntervals;
+        DataAr << ActorData.ComponentRanges;
         DataAr << ActorData.BoneRanges;
 
         int32 NumFrames = 0;
@@ -200,7 +213,8 @@ void DeserializeSaveData(FArchive& DataAr, FRecordSaveData& OutData, const FQuan
             {
                 FString Key;
                 DataAr << Key;
-                FTransform T = DeserializeQuantizedTransform(DataAr, QuantOpts, nullptr);
+                const FRange* Range = &ActorData.ComponentRanges;
+                FTransform T = DeserializeQuantizedTransform(DataAr, QuantOpts, Range);
                 Frame.ComponentTransforms.Add(Key, T);
             }
 
@@ -215,7 +229,7 @@ void DeserializeSaveData(FArchive& DataAr, FRecordSaveData& OutData, const FQuan
                 DataAr << BoneCount;
                 FBoneComponentSpace Space;
                 Space.BoneTransforms.Empty(BoneCount);
-                const FBoneRange* Range = ActorData.BoneRanges.Find(Key);
+                const FRange* Range = ActorData.BoneRanges.Find(Key);
                 for (int32 b = 0; b < BoneCount; ++b)
                 {
                     FTransform BoneT = DeserializeQuantizedTransform(DataAr, QuantOpts, Range);
