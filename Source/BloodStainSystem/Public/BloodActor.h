@@ -53,8 +53,6 @@ public:
 	void Interact();
 
 public:
-	UPROPERTY()
-	TObjectPtr<UUserWidget> CurrentInteractionWidget;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="BloodStain")
 	FString ReplayFileName;
