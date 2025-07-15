@@ -214,14 +214,34 @@ bool FBloodStainFileUtils::LoadHeaderFromFile(const FString& FileName, const FSt
 	// TODO - AllByte 읽어오는거 바꾸기
 	
 	const FString Path = GetFullFilePath(LevelName / FileName);
-	TArray<uint8> AllBytes;
-	if (!FFileHelper::LoadFileToArray(AllBytes, *Path))
+
+	IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
+	TUniquePtr<IFileHandle> FileHandle(PlatformFile.OpenRead(*Path));
+
+	if (!FileHandle)
 	{
-		UE_LOG(LogBloodStain, Error, TEXT("[BS] LoadFromFile failed read: %s"), *Path);
+		UE_LOG(LogBloodStain, Error, TEXT("[BS] Failed to open file for reading: %s"), *Path);
 		return false;
 	}
 	
-	FMemoryReader MemR(AllBytes, true);
+	constexpr int64 BytesToRead = sizeof(FBloodStainFileHeader) + sizeof(FRecordHeaderData);
+
+	if (FileHandle->Size() < BytesToRead)
+	{
+		UE_LOG(LogBloodStain, Error, TEXT("[BS] File is smaller than the expected header size: %s"), *Path);
+		return false;
+	}
+
+	TArray<uint8> HeaderBytes;
+	HeaderBytes.SetNum(BytesToRead);
+
+	if (!FileHandle->Read(HeaderBytes.GetData(), BytesToRead))
+	{
+		UE_LOG(LogBloodStain, Error, TEXT("[BS] Failed to read header data from file: %s"), *Path);
+		return false;
+	}
+	
+	FMemoryReader MemR(HeaderBytes, true);
 	FBloodStainFileHeader FileHeader;
 	MemR << FileHeader;
 	MemR << OutRecordHeaderData;
