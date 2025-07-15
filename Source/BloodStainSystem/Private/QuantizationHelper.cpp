@@ -112,9 +112,6 @@ FTransform DeserializeQuantizedTransform(FArchive& Ar, const FQuantizationOption
 void SerializeSaveData(FArchive& RawAr, FRecordSaveData& SaveData, FQuantizationOption& QuantOpts)
 {
     ComputeBoneRanges(SaveData);
-    
-    // 1) Header
-    RawAr << SaveData.Header;
 
     // 2) Actor 배열 길이
     int32 NumActors = SaveData.RecordActorDataArray.Num();
@@ -172,9 +169,6 @@ void SerializeSaveData(FArchive& RawAr, FRecordSaveData& SaveData, FQuantization
 
 void DeserializeSaveData(FArchive& DataAr, FRecordSaveData& OutData, const FQuantizationOption& QuantOpts)
 {
-    // 1) Header
-    DataAr << OutData.Header;
-
     // 2) Actor 배열 길이
     int32 NumActors = 0;
     DataAr << NumActors;

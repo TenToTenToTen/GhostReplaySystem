@@ -116,13 +116,14 @@ bool FBloodStainFileUtils::SaveToFile(
     }
 
     // 3) 헤더 준비
-    FBloodStainFileHeader Header;
-    Header.Options          = Options;
-    Header.UncompressedSize = RawBytes.Num();
+    FBloodStainFileHeader FileHeader;
+    FileHeader.Options          = Options;
+    FileHeader.UncompressedSize = RawBytes.Num();
 
     // 4) 파일 아카이브: Header + Payload
     FBufferArchive FileAr;
-    FileAr << Header;
+    FileAr << FileHeader;
+	FileAr << LocalCopy.Header;
     FileAr.Serialize(Payload.GetData(), Payload.Num());
 
     const FString Path = GetFullFilePath(FileName);
@@ -157,21 +158,22 @@ bool FBloodStainFileUtils::SaveToFile(
     return bOK;
 }
 
-bool FBloodStainFileUtils::LoadFromFile(FRecordSaveData& OutData, const FString& FileName)
+bool FBloodStainFileUtils::LoadFromFile(const FString& FileName, const FString& LevelName, FRecordSaveData& OutData)
 {
     // 1) 파일 전체 읽기
-    const FString Path = GetFullFilePath(FileName);
+    const FString Path = GetFullFilePath(LevelName / FileName);
     TArray<uint8> AllBytes;
     if (!FFileHelper::LoadFileToArray(AllBytes, *Path))
     {
         UE_LOG(LogBloodStain, Error, TEXT("[BS] LoadFromFile failed read: %s"), *Path);
-        return false;
+        return false;	
     }
 
     // 2) 헤더 역직렬화
     FMemoryReader MemR(AllBytes, /*bIsPersistent=*/true);
-    FBloodStainFileHeader Header;
-    MemR << Header;  // 읽고 커서가 헤더 끝으로 이동
+    FBloodStainFileHeader FileHeader;
+    MemR << FileHeader;  // 읽고 커서가 헤더 끝으로 이동
+	MemR << OutData.Header;
 
     // 3) 남은 바이트(Payload) TArray<uint8> 로 복사
     int64 Offset = MemR.Tell();
@@ -184,14 +186,14 @@ bool FBloodStainFileUtils::LoadFromFile(FRecordSaveData& OutData, const FString&
 
     // 4) (옵션에 따라) 압축 해제 → RawBytes
     TArray<uint8> RawBytes;
-    if (Header.Options.Compression.Method == ECompressionMethod::None)
+    if (FileHeader.Options.Compression.Method == ECompressionMethod::None)
     {
         RawBytes = MoveTemp(Compressed);
     }
     else
     {
         if (!BloodStainCompressionUtils::DecompressBuffer(
-                Compressed, RawBytes, Header.Options.Compression, Header.UncompressedSize))
+                Compressed, RawBytes, FileHeader.Options.Compression, FileHeader.UncompressedSize))
         {
             UE_LOG(LogBloodStain, Error, TEXT("[BS] DecompressBuffer failed"));
             return false;
@@ -202,9 +204,29 @@ bool FBloodStainFileUtils::LoadFromFile(FRecordSaveData& OutData, const FString&
 	BloodStainFileUtils_Internal::DeserializeSaveData(
 		MemoryReader,
 		OutData,
-		Header.Options.Quantization
+		FileHeader.Options.Quantization
 	);
     return true;
+}
+
+bool FBloodStainFileUtils::LoadHeaderFromFile(const FString& FileName, const FString& LevelName, FRecordHeaderData& OutRecordHeaderData)
+{
+	// TODO - AllByte 읽어오는거 바꾸기
+	
+	const FString Path = GetFullFilePath(LevelName / FileName);
+	TArray<uint8> AllBytes;
+	if (!FFileHelper::LoadFileToArray(AllBytes, *Path))
+	{
+		UE_LOG(LogBloodStain, Error, TEXT("[BS] LoadFromFile failed read: %s"), *Path);
+		return false;
+	}
+	
+	FMemoryReader MemR(AllBytes, true);
+	FBloodStainFileHeader FileHeader;
+	MemR << FileHeader;
+	MemR << OutRecordHeaderData;
+	
+	return true;
 }
 
 
@@ -328,6 +350,43 @@ bool FBloodStainFileUtils::LoadFromFile(FRecordSaveData& OutData, const FString&
 // 	return true;
 // }
 
+int32 FBloodStainFileUtils::LoadHeadersForAllFiles(TMap<FString, FRecordHeaderData>& OutLoadedHeaders, const FString& LevelName)
+{
+	// 1. 기존 맵 데이터를 초기화합니다.
+	OutLoadedHeaders.Empty();
+
+	// 2. 파일 관리자 인스턴스를 가져옵니다.
+	IFileManager& FileManager = IFileManager::Get();
+
+	// 3. 검색할 디렉토리와 파일 패턴을 지정합니다.
+	const FString SearchDirectory = BloodStainFileUtils_Internal::GetSaveDirectory() / LevelName;
+	const FString FilePattern = FString(TEXT("*")) + BloodStainFileUtils_Internal::FILE_EXTENSION; // "*.bin"
+
+	// 4. 파일 시스템에서 파일들을 찾습니다. (결과는 파일 이름 + 확장자)
+	TArray<FString> FoundFileNamesWithExt;
+	FileManager.FindFiles(FoundFileNamesWithExt, *SearchDirectory, *FilePattern);
+
+	UE_LOG(LogBloodStain, Log, TEXT("Found %d recording files in %s."), FoundFileNamesWithExt.Num(), *SearchDirectory);
+
+	// 5. 찾은 각 파일에 대해 로드 작업을 수행합니다.
+	for (const FString& FileNameWithExt : FoundFileNamesWithExt)
+	{
+		// 확장자를 제거하여 순수 파일 이름(키로 사용할 이름)을 만듭니다.
+		FString BaseFileName = FileNameWithExt;
+		BaseFileName.RemoveFromEnd(BloodStainFileUtils_Internal::FILE_EXTENSION);
+
+		// 기존에 만든 LoadFromFile 함수를 재활용합니다.
+		FRecordHeaderData LoadedData;
+		if (LoadHeaderFromFile(BaseFileName, LevelName, LoadedData))
+		{
+			// 로드에 성공하면, 맵에 추가합니다.
+			OutLoadedHeaders.Add(BaseFileName, LoadedData);
+		}
+	}
+
+	return OutLoadedHeaders.Num();
+}
+
 int32 FBloodStainFileUtils::LoadAllFiles(TMap<FString, FRecordSaveData>& OutLoadedDataMap, const FString& LevelName)
 {
 	// 1. 기존 맵 데이터를 초기화합니다.
@@ -355,7 +414,7 @@ int32 FBloodStainFileUtils::LoadAllFiles(TMap<FString, FRecordSaveData>& OutLoad
 
 		// 기존에 만든 LoadFromFile 함수를 재활용합니다.
 		FRecordSaveData LoadedData;
-		if (LoadFromFile(LoadedData, LevelName / BaseFileName))
+		if (LoadFromFile(BaseFileName, LevelName, LoadedData))
 		{
 			// 로드에 성공하면, 맵에 추가합니다.
 			OutLoadedDataMap.Add(BaseFileName, LoadedData);

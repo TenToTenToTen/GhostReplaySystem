@@ -46,7 +46,7 @@ private:
 public:
 	static FName SphereComponentName;
 
-	void Initialize(const FString& InReplayFileName);
+	void Initialize(const FString& InReplayFileName, const FString& InLevelName);
 	
 	// 상호작용 로직 (예: E 키를 눌렀을 때 호출)
 	UFUNCTION(Category = Interaction, BlueprintCallable)
@@ -58,6 +58,9 @@ public:
 	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="BloodStain")
 	FString ReplayFileName;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="BloodStain")
+	FString LevelName;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="BloodStain")
 	bool bAllowMultiplePlayback = true;

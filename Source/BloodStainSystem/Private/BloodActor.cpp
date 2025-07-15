@@ -57,9 +57,10 @@ void ABloodActor::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* Ot
 	}
 }
 
-void ABloodActor::Initialize(const FString& InReplayFileName)
+void ABloodActor::Initialize(const FString& InReplayFileName, const FString& InLevelName)
 {
 	ReplayFileName = InReplayFileName;
+	LevelName = InLevelName;
 }
 
 void ABloodActor::OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
@@ -89,7 +90,7 @@ void ABloodActor::Interact()
 		{
 			if (bAllowMultiplePlayback || !Sub->IsPlaying(PlaybackKey))
 			{
-				Sub->StartReplayFromFile(this, ReplayFileName, PlaybackKey);
+				Sub->StartReplayFromFile(ReplayFileName, LevelName, PlaybackKey);
 			}
 		}
 	}

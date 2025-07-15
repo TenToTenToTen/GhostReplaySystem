@@ -30,7 +30,12 @@ struct FBloodStainFileUtils
 	 * @param FileName  확장자 없이 쓸 파일 이름
 	 * @return 성공 여부
 	 */
-	static bool LoadFromFile(FRecordSaveData& OutData, const FString& FileName);
+	static bool LoadFromFile(const FString& FileName, const FString& LevelName, FRecordSaveData& OutData);
+
+
+	static bool LoadHeaderFromFile(const FString& FileName, const FString& LevelName, FRecordHeaderData& OutRecordHeaderData);
+
+	static int32 LoadHeadersForAllFiles(TMap<FString, FRecordHeaderData>& OutLoadedHeaders, const FString& LevelName);
 	
 	/**
 	 * 저장 디렉토리에서 모든 녹화 파일을 찾아 로드

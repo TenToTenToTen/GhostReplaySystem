@@ -56,7 +56,7 @@ public:
 	
 	/** 재생 시작 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
-	bool StartReplay(ABloodActor* BloodStainActor, const FRecordSaveData& Data, FGuid& OutGuid);
+	bool StartReplayByBloodStain(ABloodActor* BloodStainActor, FGuid& OutGuid);
 
 	/** 재생 중단 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
@@ -66,14 +66,21 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
 	void StopReplayPlayComponent(AReplayActor* GhostActor);
 
+	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
+	bool IsFileBodyLoaded(const FString& FileName);
+	
 	// 순수 파일 로드 (UI나 Blueprint에서 직접 호출해도 OK)
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
-	bool LoadRecordingData(const FString& FileName, FRecordSaveData& OutData);
-	
-	// 3) 파일 바로 리플레이 시작 (1) + (2) 조합)
-	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
-	bool StartReplayFromFile(ABloodActor* BloodStainActor, const FString& FileName, FGuid& OutGuid);
+	bool FindOrLoadRecordBodyData(const FString& FileName, const FString& LevelName, FRecordSaveData& OutData);
 
+	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
+	bool IsFileHeaderLoaded(const FString& FileName);
+
+	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
+	bool FindOrLoadRecordHeader(const FString& FileName, const FString& LevelName, FRecordHeaderData& OutRecordHeaderData);
+	
+	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
+	bool StartReplayFromFile(const FString& FileName, const FString& LevelName, FGuid& OutGuid);
 	
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
 	void SetDefaultMaterial(UMaterialInterface* InMaterial) { GhostMaterial = InMaterial; }
@@ -82,16 +89,15 @@ public:
 	UMaterialInterface* GetDefaultMaterial() const { return GhostMaterial; }
 
 public:
-	/** 혈흔 액터 생성 + 서브시스템에 등록 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain")
-	ABloodActor* SpawnBloodStain(const FVector& Location, const FRotator& Rotation, const FString& FileName);
-
+	ABloodActor* SpawnBloodStain(const FString& FileName, const FString& LevelName);
+	
 	/** 재생 끝난 혈흔 액터 해제 (액터 파괴 또는 풀링 전용 메타콜) */
 	void RemoveBloodStain(ABloodActor* StainActor);
 
 	UFUNCTION(BlueprintCallable, Category="BloodStain")
 	void SpawnAllBloodStainInLevel();
-
+	
 public:
 	/* Notify Attached / Detached Component Events */
 	/**
@@ -114,6 +120,9 @@ public:
 
 private:
 	FRecordSaveData ConvertToSaveData(TArray<FRecordActorSaveData>& RecordActorDataArray, const FName& GroupName);
+	ABloodActor* SpawnBloodStain_Internal(const FVector& Location, const FRotator& Rotation, const FString& FileName, const FString& LevelName);
+
+	bool StartReplay_Internal(const FRecordSaveData& RecordSaveData, FGuid& OutGuid);
 	
 public:
 	/** 파일 저장·로드 옵션 (Quantization, Compression, Checksum 등) */
@@ -138,18 +147,21 @@ private:
 	TMap<FName, FBloodStainRecordGroup> BloodStainRecordGroups;	
 	
 	/** 현재 재생 중인 Group들
-	 * Key is Temporary Hash Id, PlayComponent::Key
+	 * Key is Temporary Hash Id, PlayComponent::PlaybackKey
 	 */
 	UPROPERTY(Transient)
 	TMap<FGuid, FBloodStainPlaybackGroup> BloodStainPlaybackGroups;
 
-	/** 에디터나 시작 시 불러올 리플레이 파일 목록 */
-	UPROPERTY(VisibleAnywhere, Category="BloodStain|Cache")
-	TArray<FString> AvailableRecordings;
-	
 	/** 캐싱된 리플레이 데이터 */
 	UPROPERTY()
 	TMap<FString, FRecordSaveData> CachedRecordings;
+	
+	/** 캐싱된 리플레이 File Header
+	 * Header data may exist both in CachedHeaders and in CachedRecordings.
+	 * The overhead is minimal and acceptable for fast header access.
+	 */
+	UPROPERTY()
+	TMap<FString, FRecordHeaderData> CachedHeaders;
 
 	/** 현재 월드에 존재하는 혈흔 액터 리스트 */
 	UPROPERTY()
