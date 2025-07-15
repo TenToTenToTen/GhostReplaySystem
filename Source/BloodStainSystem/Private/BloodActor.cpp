@@ -90,7 +90,8 @@ void ABloodActor::Interact()
 		{
 			if (bAllowMultiplePlayback || !Sub->IsPlaying(PlaybackKey))
 			{
-				Sub->StartReplayFromFile(ReplayFileName, LevelName, PlaybackKey);
+				// PlayOption
+				Sub->StartReplayFromFile(ReplayFileName, LevelName, PlaybackOptions, PlaybackKey);
 			}
 		}
 	}

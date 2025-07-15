@@ -66,13 +66,13 @@ void UPlayComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
 	
 	const float LastTime = Frames.Last().TimeStamp;
 	// Compute elapsed time since start, scaled by playback rate
-	float Elapsed = (static_cast<float>(GetWorld()->GetTimeSeconds()) - PlaybackStartTime) * ReplayOptions.PlaybackRate;
+	float Elapsed = (static_cast<float>(GetWorld()->GetTimeSeconds()) - PlaybackStartTime) * PlaybackOptions.PlaybackRate;
 
-	if (ReplayOptions.bIsLooping)
+	if (PlaybackOptions.bIsLooping)
 	{
 		// Loop playback within [0, LastTime)
 		Elapsed = FMath::Fmod(Elapsed, LastTime);
-		if (Elapsed < 0.0f || (ReplayOptions.PlaybackRate < 0 && Elapsed == 0.f))
+		if (Elapsed < 0.0f || (PlaybackOptions.PlaybackRate < 0 && Elapsed == 0.f))
 		{
 			Elapsed += LastTime;
 		}
@@ -80,7 +80,7 @@ void UPlayComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
 	else
 	{
 		// If outside of range, finish replay
-		if (ReplayOptions.PlaybackRate < 0)
+		if (PlaybackOptions.PlaybackRate < 0)
 		{
 			if (Elapsed > 0.f || Elapsed < -LastTime)
 			{
@@ -138,15 +138,16 @@ void UPlayComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
 	ApplySkeletalBoneTransforms(Prev, Next, Alpha);
 }
 
-void UPlayComponent::Initialize(FGuid InPlaybackKey, const FRecordActorSaveData& InReplayData, const FBloodStainRecordOptions& InReplayOptions)
+void UPlayComponent::Initialize(FGuid InPlaybackKey, const FRecordHeaderData& InRecordHeaderData, const FRecordActorSaveData& InReplayData, const FBloodStainPlaybackOptions& InPlaybackOptions)
 {
 	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_Initialize); 
-    ReplayData = InReplayData;
 	PlaybackKey = InPlaybackKey;
-    ReplayOptions = InReplayOptions;
+	RecordHeaderData = InRecordHeaderData;
+    ReplayData = InReplayData;
+    PlaybackOptions = InPlaybackOptions;
 
     PlaybackStartTime = GetWorld()->GetTimeSeconds();
-    CurrentFrame      = ReplayOptions.PlaybackRate > 0 ? 0 : ReplayData.RecordedFrames.Num() - 2;
+    CurrentFrame      = PlaybackOptions.PlaybackRate > 0 ? 0 : ReplayData.RecordedFrames.Num() - 2;
 
 	TSet<FString> UniqueAssetPaths;
 	for (const FComponentInterval& Interval : ReplayData.ComponentIntervals)
@@ -392,7 +393,7 @@ void UPlayComponent::ConvertFrameToAnimSequence()
         Controller.InitializeModel();
         Controller.OpenBracket(FText::FromString(FString::Printf(TEXT("Generate_%s"), *CompName)));
 
-    	const float FrameRate = 1.0f / ReplayOptions.SamplingInterval;
+    	const float FrameRate = 1.0f / RecordHeaderData.SamplingInterval;
         Controller.SetFrameRate(FFrameRate(FrameRate, 1));
         Controller.SetNumberOfFrames(NumFrames);
 
@@ -598,7 +599,7 @@ USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecor
 	for (int32 MatIndex = 0; MatIndex < Record.MaterialPaths.Num(); ++MatIndex)
 	{
 		// 옵션에 따라 고스트 머티리얼을 강제 적용하는 경우 (기존 로직)
-		if ((ReplayOptions.bUseGhostMaterial || Record.MaterialPaths[MatIndex].IsEmpty()) && DefaultMaterial)
+		if ((PlaybackOptions.bUseGhostMaterial || Record.MaterialPaths[MatIndex].IsEmpty()) && DefaultMaterial)
 		{
 			NewMeshComponent->SetMaterial(MatIndex, DefaultMaterial);
 			continue; // 다음 머티리얼 슬롯으로 넘어감

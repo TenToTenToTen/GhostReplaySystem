@@ -61,6 +61,9 @@ public:
 	FString LevelName;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="BloodStain")
+	FBloodStainPlaybackOptions PlaybackOptions;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="BloodStain")
 	bool bAllowMultiplePlayback = true;
 	
 private:

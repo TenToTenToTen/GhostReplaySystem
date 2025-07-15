@@ -235,14 +235,20 @@ struct FRecordHeaderData
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "BloodStain")
 	FTransform SpawnPointTransform;
 	
-	UPROPERTY()
-	FBloodStainRecordOptions RecordOptions;
+	/** 최대 녹화 길이(초) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="BloodStain|Header")
+	float MaxRecordTime;
+
+	/** 프레임마다 기록 간격(초) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="BloodStain|Header")
+	float SamplingInterval; // 10fps
 		
 	friend FArchive& operator<<(FArchive& Ar, FRecordHeaderData& Data)
 	{
 		Ar << Data.GroupName;
 		Ar << Data.SpawnPointTransform;
-		Ar << Data.RecordOptions;
+		Ar << Data.MaxRecordTime;
+		Ar << Data.SamplingInterval;
 		return Ar;
 	}
 };

@@ -59,7 +59,7 @@ public:
 	bool StartReplayByBloodStain(ABloodActor* BloodStainActor, FGuid& OutGuid);
 
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
-	bool StartReplayFromFile(const FString& FileName, const FString& LevelName, FGuid& OutGuid);
+	bool StartReplayFromFile(const FString& FileName, const FString& LevelName, const FBloodStainPlaybackOptions& InPlaybackOptions, FGuid& OutGuid);
 
 	/** 재생 중단 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
@@ -134,7 +134,7 @@ private:
 	FRecordSaveData ConvertToSaveData(TArray<FRecordActorSaveData>& RecordActorDataArray, const FName& GroupName);
 	ABloodActor* SpawnBloodStain_Internal(const FVector& Location, const FRotator& Rotation, const FString& FileName, const FString& LevelName);
 
-	bool StartReplay_Internal(const FRecordSaveData& RecordSaveData, FGuid& OutGuid);
+	bool StartReplay_Internal(const FRecordSaveData& RecordSaveData, const FBloodStainPlaybackOptions& InPlaybackOptions, FGuid& OutGuid);
 
 	void CleanupInvalidRecordGroups();
 	bool IsValidReplayGroup(const FName& GroupName);

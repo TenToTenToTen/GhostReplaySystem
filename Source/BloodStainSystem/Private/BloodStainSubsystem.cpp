@@ -271,10 +271,10 @@ bool UBloodStainSubsystem::StartReplayByBloodStain(ABloodActor* BloodStainActor,
 		return false;
 	}
 	
-	return StartReplayFromFile(BloodStainActor->ReplayFileName, BloodStainActor->LevelName, OutGuid);
+	return StartReplayFromFile(BloodStainActor->ReplayFileName, BloodStainActor->LevelName, BloodStainActor->PlaybackOptions, OutGuid);
 }
 
-bool UBloodStainSubsystem::StartReplayFromFile(const FString& FileName, const FString& LevelName, FGuid& OutGuid)
+bool UBloodStainSubsystem::StartReplayFromFile(const FString& FileName, const FString& LevelName, const FBloodStainPlaybackOptions& InPlaybackOptions, FGuid& OutGuid)
 {
 	FRecordSaveData Data;
 	if (!FindOrLoadRecordBodyData(FileName, LevelName, Data))
@@ -282,7 +282,7 @@ bool UBloodStainSubsystem::StartReplayFromFile(const FString& FileName, const FS
 		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] File: Cannot Load File [%s]"), *FileName);
 		return false;
 	}
-	return StartReplay_Internal(Data, OutGuid);
+	return StartReplay_Internal(Data, InPlaybackOptions, OutGuid);
 }
 
 void UBloodStainSubsystem::StopReplay(FGuid PlaybackKey)
@@ -519,7 +519,8 @@ FRecordSaveData UBloodStainSubsystem::ConvertToSaveData(TArray<FRecordActorSaveD
 	FRecordSaveData RecordSaveData;
 	RecordSaveData.Header.GroupName = GroupName;
 	RecordSaveData.Header.SpawnPointTransform = BloodStainRecordGroups[GroupName].SpawnPointTransform;
-	RecordSaveData.Header.RecordOptions = BloodStainRecordGroups[GroupName].RecordOptions;
+	RecordSaveData.Header.MaxRecordTime = BloodStainRecordGroups[GroupName].RecordOptions.MaxRecordTime;
+	RecordSaveData.Header.SamplingInterval = BloodStainRecordGroups[GroupName].RecordOptions.SamplingInterval;
 	RecordSaveData.RecordActorDataArray = MoveTemp(RecordActorDataArray);
 	return RecordSaveData;
 }
@@ -558,7 +559,7 @@ ABloodActor* UBloodStainSubsystem::SpawnBloodStain_Internal(const FVector& Locat
 	return BloodStain;
 }
 
-bool UBloodStainSubsystem::StartReplay_Internal(const FRecordSaveData& RecordSaveData, FGuid& OutGuid)
+bool UBloodStainSubsystem::StartReplay_Internal(const FRecordSaveData& RecordSaveData, const FBloodStainPlaybackOptions& InPlaybackOptions, FGuid& OutGuid)
 {
 	OutGuid = FGuid();
 	if (RecordSaveData.RecordActorDataArray.IsEmpty())
@@ -594,7 +595,7 @@ bool UBloodStainSubsystem::StartReplay_Internal(const FRecordSaveData& RecordSav
 		GhostActor->AddInstanceComponent(Replayer);
 		Replayer->RegisterComponent();
 	
-		Replayer->Initialize(UniqueID, RecordActorData, Header.RecordOptions);
+		Replayer->Initialize(UniqueID, Header, RecordActorData, InPlaybackOptions);
 
 		BloodStainPlaybackGroup.ActiveReplayers.Add(GhostActor);
 	}
