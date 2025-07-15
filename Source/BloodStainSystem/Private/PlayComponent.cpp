@@ -148,10 +148,48 @@ void UPlayComponent::Initialize(FGuid InPlaybackKey, const FRecordActorSaveData&
     PlaybackStartTime = GetWorld()->GetTimeSeconds();
     CurrentFrame      = ReplayOptions.PlaybackRate > 0 ? 0 : ReplayData.RecordedFrames.Num() - 2;
 
+	TSet<FString> UniqueAssetPaths;
+	for (const FComponentInterval& Interval : ReplayData.ComponentIntervals)
+	{
+		if (!Interval.Meta.AssetPath.IsEmpty())
+		{
+			UniqueAssetPaths.Add(Interval.Meta.AssetPath);
+		}
+		for (const FString& MaterialPath : Interval.Meta.MaterialPaths)
+		{
+			if (!MaterialPath.IsEmpty())
+			{
+				UniqueAssetPaths.Add(MaterialPath);
+			}
+		}
+	}
+
+	TMap<FString, TObjectPtr<UObject>> AssetCache;
+
+	// 3. 수집된 고유 경로들을 순회하며 에셋을 미리 로드하고 캐시에 저장
+	for (const FString& Path : UniqueAssetPaths)
+	{
+		// FSoftObjectPath를 사용하면 UStaticMesh, USkeletalMesh, UMaterialInterface 등 타입을 구분할 필요 없이 로드 가능
+		FSoftObjectPath AssetRef(Path);
+		UObject* LoadedAsset = AssetRef.TryLoad();
+		if (LoadedAsset)
+		{
+			AssetCache.Add(Path, LoadedAsset);
+		}
+		else
+		{
+			// StaticLoadObject는 블루프린트 클래스 같은 특정 타입을 로드할 때도 유용합니다.
+			// 여기서는 SoftObjectPath로 대부분 커버 가능합니다.
+			UE_LOG(LogBloodStain, Warning, TEXT("Initialize: Failed to pre-load asset at path: %s"), *Path);
+		}
+	}
+    
+	UE_LOG(LogBloodStain, Log, TEXT("Pre-loaded %d unique assets."), AssetCache.Num());
+	
 	ReconstructedComponents.Empty();
 	for (FComponentInterval& Interval : ReplayData.ComponentIntervals)
 	{
-		if (USceneComponent* NewComp = CreateComponentFromRecord(Interval.Meta))
+		if (USceneComponent* NewComp = CreateComponentFromRecord(Interval.Meta, AssetCache))
 		{
 			NewComp->SetVisibility(false);
 			NewComp->SetActive(false);
@@ -422,58 +460,57 @@ void UPlayComponent::ConvertFrameToAnimSequence()
     UE_LOG(LogBloodStain, Log, TEXT("Converted %d skeletal components to AnimSequences."), AnimSequences.Num());
 }
 
-void UPlayComponent::ApplyComponentChanges(const FRecordFrame& Frame)
-{
-	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_ApplyComponentChanges);
-	AActor* Owner = GetOwner();
-	if (!Owner)
-	{
-		UE_LOG(LogBloodStain, Warning, TEXT("Owner is null in ApplyComponentChanges."));
-		return;
-	}
-
-	// 1. 컴포넌트 추가
-	for (const FComponentRecord& Record : Frame.AddedComponents)
-	{
-		// 이미 해당 이름의 컴포넌트가 있다면 중복 생성을 방지
-		const FString& Name = Record.ComponentName;
-		if (ReconstructedComponents.Contains(Name))
-		{
-			UE_LOG(LogBloodStain, Warning, TEXT("ApplyComponentChanges %s already exists, skipping."), *Record.ComponentName);
-			continue;
-		}
-
-		if (TObjectPtr<USceneComponent> NewComponent = CreateComponentFromRecord(Record))
-		{
-			ReconstructedComponents.Add(Name, NewComponent);
-			UE_LOG(LogBloodStain, Log, TEXT("ApplyComponentChanges: Component Added - %s"), *Record.ComponentName);
-		}
-		else
-		{
-			UE_LOG(LogBloodStain, Warning, TEXT("ApplyComponentChanges: Failed to create comp %s"), *Record.ComponentName);
-		}
-	}
-
-	// 2. 컴포넌트 제거 처리
-	for (const FString& ComponentName : Frame.RemovedComponentNames)
-	{
-		// 맵에서 제거할 컴포넌트를 찾습니다.
-		if (TObjectPtr<USceneComponent>* CompPtr = ReconstructedComponents.Find(ComponentName))
-		{
-			if (TObjectPtr<USceneComponent>CompToDestroy = *CompPtr)
-			{
-				// 컴포넌트가 유효하면 파괴합니다.
-				if (IsValid(CompToDestroy))
-				{
-					CompToDestroy->DestroyComponent();
-				}
-			}
-			// 맵에서 해당 항목을 제거합니다.
-			ReconstructedComponents.Remove(ComponentName);
-			UE_LOG(LogBloodStain, Log, TEXT("Replay: Component Removed - %s"), *ComponentName);
-		}
-	}
-}
+// void UPlayComponent::ApplyComponentChanges(const FRecordFrame& Frame)
+// {
+// 	AActor* Owner = GetOwner();
+// 	if (!Owner)
+// 	{
+// 		UE_LOG(LogBloodStain, Warning, TEXT("Owner is null in ApplyComponentChanges."));
+// 		return;
+// 	}
+//
+// 	// 1. 컴포넌트 추가
+// 	for (const FComponentRecord& Record : Frame.AddedComponents)
+// 	{
+// 		// 이미 해당 이름의 컴포넌트가 있다면 중복 생성을 방지
+// 		const FString& Name = Record.ComponentName;
+// 		if (ReconstructedComponents.Contains(Name))
+// 		{
+// 			UE_LOG(LogBloodStain, Warning, TEXT("ApplyComponentChanges %s already exists, skipping."), *Record.ComponentName);
+// 			continue;
+// 		}
+//
+// 		if (TObjectPtr<USceneComponent> NewComponent = CreateComponentFromRecord(Record))
+// 		{
+// 			ReconstructedComponents.Add(Name, NewComponent);
+// 			UE_LOG(LogBloodStain, Log, TEXT("ApplyComponentChanges: Component Added - %s"), *Record.ComponentName);
+// 		}
+// 		else
+// 		{
+// 			UE_LOG(LogBloodStain, Warning, TEXT("ApplyComponentChanges: Failed to create comp %s"), *Record.ComponentName);
+// 		}
+// 	}
+//
+// 	// 2. 컴포넌트 제거 처리
+// 	for (const FString& ComponentName : Frame.RemovedComponentNames)
+// 	{
+// 		// 맵에서 제거할 컴포넌트를 찾습니다.
+// 		if (TObjectPtr<USceneComponent>* CompPtr = ReconstructedComponents.Find(ComponentName))
+// 		{
+// 			if (TObjectPtr<USceneComponent>CompToDestroy = *CompPtr)
+// 			{
+// 				// 컴포넌트가 유효하면 파괴합니다.
+// 				if (IsValid(CompToDestroy))
+// 				{
+// 					CompToDestroy->DestroyComponent();
+// 				}
+// 			}
+// 			// 맵에서 해당 항목을 제거합니다.
+// 			ReconstructedComponents.Remove(ComponentName);
+// 			UE_LOG(LogBloodStain, Log, TEXT("Replay: Component Removed - %s"), *ComponentName);
+// 		}
+// 	}
+// }
 
 FGuid UPlayComponent::GetPlaybackKey() const
 {
@@ -485,7 +522,7 @@ FGuid UPlayComponent::GetPlaybackKey() const
  * @param Record 생성할 컴포넌트의 정보
  * @return 성공 시 생성된 컴포넌트, 실패 시 nullptr
  */	
-USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecord& Record)
+USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecord& Record, const TMap<FString, TObjectPtr<UObject>>& AssetCache)
 {
 	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_CreateComponentFromRecord);
 	AActor* Owner = GetOwner();
@@ -528,20 +565,23 @@ USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecor
 		return nullptr;
 	}
 	
-	if (!Record.AssetPath.IsEmpty())
-	{
-		FSoftObjectPath AssetRef(Record.AssetPath);
-		if (UStaticMeshComponent* StaticMeshComp = Cast<UStaticMeshComponent>(NewComponent))
-		{
-			StaticMeshComp->SetStaticMesh(Cast<UStaticMesh>(AssetRef.TryLoad()));
-			StaticMeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		}
-		else if (UPoseableMeshComponent* PoseableMeshComp = Cast<UPoseableMeshComponent>(NewComponent))
-		{
-			PoseableMeshComp->SetSkinnedAssetAndUpdate(Cast<USkeletalMesh>(AssetRef.TryLoad()));
-			PoseableMeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		}
-	}
+    if (!Record.AssetPath.IsEmpty())
+    {
+        // AssetRef.TryLoad() 대신 캐시에서 바로 가져옵니다.
+        if (const TObjectPtr<UObject>* FoundAsset = AssetCache.Find(Record.AssetPath))
+        {
+            if (UStaticMeshComponent* StaticMeshComp = Cast<UStaticMeshComponent>(NewComponent))
+            {
+                StaticMeshComp->SetStaticMesh(Cast<UStaticMesh>(*FoundAsset));
+                StaticMeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+            }
+            else if (UPoseableMeshComponent* PoseableMeshComp = Cast<UPoseableMeshComponent>(NewComponent))
+            {
+                PoseableMeshComp->SetSkinnedAssetAndUpdate(Cast<USkeletalMesh>(*FoundAsset));
+                PoseableMeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+            }
+        }
+    }
 
 	UMaterialInterface* DefaultMaterial = nullptr;
 	if (UWorld* World = GetWorld())
@@ -567,11 +607,16 @@ USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecor
 		// 원본 머티리얼 경로가 비어있지 않은 경우
 		if (!Record.MaterialPaths[MatIndex].IsEmpty())
 		{
-			// 원본 머티리얼 애셋을 로드합니다.
-			UMaterialInterface* OriginalMaterial = Cast<UMaterialInterface>(StaticLoadObject(UMaterialInterface::StaticClass(), nullptr, *Record.MaterialPaths[MatIndex]));
+			// StaticLoadObject 대신 캐시에서 바로 가져옵니다.
+			UMaterialInterface* OriginalMaterial = nullptr;
+			if (const TObjectPtr<UObject>* FoundMaterial = AssetCache.Find(Record.MaterialPaths[MatIndex]))
+			{
+				OriginalMaterial = Cast<UMaterialInterface>(*FoundMaterial);
+			}
+
 			if (!OriginalMaterial)
 			{
-				UE_LOG(LogBloodStain, Warning, TEXT("Failed to load material: %s"), *Record.MaterialPaths[MatIndex]);
+				UE_LOG(LogBloodStain, Warning, TEXT("Failed to find pre-loaded material: %s"), *Record.MaterialPaths[MatIndex]);
 				continue;
 			}
 			

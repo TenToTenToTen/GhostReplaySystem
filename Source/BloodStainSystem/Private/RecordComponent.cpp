@@ -13,6 +13,8 @@
 #include "Materials/MaterialInterface.h"
 #include "Engine/SkeletalMesh.h"
 
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Engine/GameInstance.h"
 DECLARE_CYCLE_STAT(TEXT("RecordComp TickComponent"), STAT_RecordComponent_TickComponent, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("RecordComp Initialize"), STAT_RecordComponent_Initialize, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("RecordComp CollectMeshComponents"), STAT_RecordComponent_CollectMeshComponents, STATGROUP_BloodStain);
