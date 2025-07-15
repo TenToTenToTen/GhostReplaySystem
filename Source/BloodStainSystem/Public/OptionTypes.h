@@ -32,6 +32,10 @@ struct FBloodStainRecordOptions
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Replay")
 	bool bTrackAttachmentChanges = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Replay")
+	bool bSaveImmediatelyIfGroupEmpty = false;
+	
 	
 	friend FArchive& operator<<(FArchive& Ar, FBloodStainRecordOptions& Data)
 	{
@@ -41,6 +45,7 @@ struct FBloodStainRecordOptions
 		Ar << Data.bIsLooping;
 		Ar << Data.bUseGhostMaterial;
 		Ar << Data.bTrackAttachmentChanges;
+		Ar << Data.bSaveImmediatelyIfGroupEmpty;
 		return Ar;
 	}
 };

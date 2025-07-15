@@ -42,20 +42,24 @@ public:
 	
 	/**
 	* @param	GroupName	Record Group Name
+	* @param bSaveRecordingData	if true, Save to Local File
 	 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Record")
-	void StopRecording(FName GroupName = NAME_None);
+	void StopRecording(FName GroupName = NAME_None, bool bSaveRecordingData = true);
 	
 	/**
 	 * Recording이 즉각적으로 멈추지 않고 Group의 TimeBuffer 동안 관리된 이후 종료된다.
 	 * RecordComponent는 즉각적으로 삭제된다.
 	 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Record")
-	void StopRecordComponent(URecordComponent* RecordComponent);
+	void StopRecordComponent(URecordComponent* RecordComponent, bool bSaveRecordingData = true);
 	
 	/** 재생 시작 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
 	bool StartReplayByBloodStain(ABloodActor* BloodStainActor, FGuid& OutGuid);
+
+	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
+	bool StartReplayFromFile(const FString& FileName, const FString& LevelName, FGuid& OutGuid);
 
 	/** 재생 중단 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
@@ -65,22 +69,26 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
 	void StopReplayPlayComponent(AReplayActor* GhostActor);
 
-	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
-	bool IsFileBodyLoaded(const FString& FileName);
-	
-	// 순수 파일 로드 (UI나 Blueprint에서 직접 호출해도 OK)
-	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
-	bool FindOrLoadRecordBodyData(const FString& FileName, const FString& LevelName, FRecordSaveData& OutData);
-
-	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
+	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
 	bool IsFileHeaderLoaded(const FString& FileName);
+	
+	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
+	bool IsFileBodyLoaded(const FString& FileName);
 
-	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
+	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
 	bool FindOrLoadRecordHeader(const FString& FileName, const FString& LevelName, FRecordHeaderData& OutRecordHeaderData);
 	
-	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
-	bool StartReplayFromFile(const FString& FileName, const FString& LevelName, FGuid& OutGuid);
+	// 순수 파일 로드 (UI나 Blueprint에서 직접 호출해도 OK)
+	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
+	bool FindOrLoadRecordBodyData(const FString& FileName, const FString& LevelName, FRecordSaveData& OutData);
+
+	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
+	const TMap<FString, FRecordHeaderData>& GetCachedHeaders();
 	
+	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
+	void LoadAllHeadersInLevel(const FString& LevelName);
+
+public:
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
 	void SetDefaultMaterial(UMaterialInterface* InMaterial) { GhostMaterial = InMaterial; }
 	
@@ -154,13 +162,16 @@ private:
 	UPROPERTY(Transient)
 	TMap<FGuid, FBloodStainPlaybackGroup> BloodStainPlaybackGroups;
 
-	/** 캐싱된 리플레이 데이터 */
+	/** 캐싱된 리플레이 데이터
+	 * Key is FileName
+	 */
 	UPROPERTY()
 	TMap<FString, FRecordSaveData> CachedRecordings;
 	
 	/** 캐싱된 리플레이 File Header
 	 * Header data may exist both in CachedHeaders and in CachedRecordings.
 	 * The overhead is minimal and acceptable for fast header access.
+	 * Key is FileName
 	 */
 	UPROPERTY()
 	TMap<FString, FRecordHeaderData> CachedHeaders;

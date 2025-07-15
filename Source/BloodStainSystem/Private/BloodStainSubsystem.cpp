@@ -113,7 +113,7 @@ bool UBloodStainSubsystem::StartRecordingWithActors(TArray<AActor*> TargetActors
 	return bRecordSucceed;
 }
 
-void UBloodStainSubsystem::StopRecording(FName GroupName)
+void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingData)
 {
 	if (GroupName == NAME_None)
 	{
@@ -127,95 +127,83 @@ void UBloodStainSubsystem::StopRecording(FName GroupName)
 	}
 
 	FBloodStainRecordGroup& BloodStainRecordGroup = BloodStainRecordGroups[GroupName];
-
-	if (BloodStainRecordGroup.ActiveRecorders.Num() == 0)
+	
+	if (bSaveRecordingData)
 	{
-		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording failed: There is no active recorder. Record Group %s's Record is already Stopped"), GetData(GroupName.ToString()));
-	}
+		TArray<FRecordActorSaveData> RecordSaveDataArray;
 
-	TArray<FRecordActorSaveData> RecordSaveDataArray;
-
-	for (const auto& [Actor, RecordComponent] : BloodStainRecordGroup.ActiveRecorders)
-	{
-		if (!Actor)
+		for (const auto& [Actor, RecordComponent] : BloodStainRecordGroup.ActiveRecorders)
 		{
-			UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording Warning: Actor is not Valid"));
-			continue;
-		}
+			if (!Actor)
+			{
+				UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording Warning: Actor is not Valid"));
+				continue;
+			}
 
-		if (!RecordComponent)
-		{
-			UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording Warning: RecordComponent is not Valid for Actor: %s"), *Actor->GetName());
-			continue;
+			if (!RecordComponent)
+			{
+				UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording Warning: RecordComponent is not Valid for Actor: %s"), *Actor->GetName());
+				continue;
+			}
+		
+			RecordComponent->SaveQueuedFrames(); // Move Data from FrameQueue to GhostSaveData
+
+			FRecordActorSaveData RecordSaveData = RecordComponent->GetGhostSaveData();
+			if (RecordSaveData.RecordedFrames.Num() == 0)
+			{
+				UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording Warning: Frame is 0: %s"), *Actor->GetName());
+				continue;
+			}
+			RecordSaveDataArray.Add(RecordSaveData);
 		}
 		
-		RecordComponent->SaveQueuedFrames(); // Move Data from FrameQueue to GhostSaveData
-
-		FRecordActorSaveData RecordSaveData = RecordComponent->GetGhostSaveData();
-		if (RecordSaveData.RecordedFrames.Num() == 0)
+		for (const FRecordActorSaveData& RecordActorSaveData : ReplayTerminatedActorManager->CookQueuedFrames(GroupName))
 		{
-			UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording Warning: Frame is 0: %s"), *Actor->GetName());
-			continue;
+			// Valid Data 검증 안해도 괜찮으려나
+			if (RecordActorSaveData.RecordedFrames.Num() == 0)
+			{
+				UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording Warning: Frame num is 0"));
+				continue;
+			}
+			RecordSaveDataArray.Add(RecordActorSaveData);
 		}
-		RecordSaveDataArray.Add(RecordSaveData);
-	}
 	
-	// 1. Destroy 시, 즉시 ActiveRecords에서 없애줄 필요가 있음
-	// 1-2. Destroy 시, Destroyed에 즉시 추가해줘야됨.
-	// 2. 풀링을 돌면서 (Option의 TimeBuffer에 의해 삭제 && ActiveRecord's num == 0) n초 이상 유지되면 StopRecording 하기 (삭제해주기)
-	
-	for (const FRecordActorSaveData& RecordActorSaveData : ReplayTerminatedActorManager->CookQueuedFrames(GroupName))
-	{
-		// Valid Data 검증 안해도 괜찮으려나
-		if (RecordActorSaveData.RecordedFrames.Num() == 0)
+		if (RecordSaveDataArray.Num() == 0)
 		{
-			UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording Warning: Frame num is 0"));
-			continue;
+			UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording Failed: There is no Valid Recorder Group[%s]"), GetData(GroupName.ToString()));
+			return;
 		}
-		RecordSaveDataArray.Add(RecordActorSaveData);
+	
+		// Default Identifier
+		const FString MapName = UGameplayStatics::GetCurrentLevelName(GetWorld());
+		const FString GroupNameString = GroupName.ToString();
+
+		// Provide Unique (TimeStamp)
+		const FString UniqueTimestamp = FDateTime::Now().ToString(TEXT("%Y%m%d-%H%M%S%s")); // %s는 밀리초까지 포함
+
+		FTransform RootTransform = FTransform::Identity;
+		for (const FRecordActorSaveData& SaveData : RecordSaveDataArray)
+		{
+			FTransform Transform = SaveData.RecordedFrames[0].ComponentTransforms[SaveData.ComponentName.ToString()];
+			RootTransform += Transform;
+		}
+
+		RootTransform.SetLocation(RootTransform.GetLocation() / RecordSaveDataArray.Num());
+		// Rotation는 정확할 필요는 없음.
+		RootTransform.NormalizeRotation();
+		RootTransform.SetScale3D(RootTransform.GetScale3D() / RecordSaveDataArray.Num());
+	
+		// 여러 Actor 사이의 중간 위치
+		BloodStainRecordGroup.SpawnPointTransform = RootTransform;
+	
+		FRecordSaveData RecordSaveData = ConvertToSaveData(RecordSaveDataArray, GroupName);
+	
+		const FString FileName = FString::Printf(TEXT("/%s/%s-%s.sav"), *MapName, *GroupNameString, *UniqueTimestamp);
+
+		(new FAutoDeleteAsyncTask<FSaveRecordingTask>(
+			MoveTemp(RecordSaveData), FileName,FileSaveOptions
+		))->StartBackgroundTask();
 	}
-	
-
-	if (RecordSaveDataArray.Num() == 0)
-	{
-		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording Failed: There is no Valid Recorder Group[%s]"), GetData(GroupName.ToString()));
-		return;
-	}
-	
-	// Default Identifier
-	const FString MapName = UGameplayStatics::GetCurrentLevelName(GetWorld());
-	const FString GroupNameString = GroupName.ToString();
-
-	// Provide Unique (TimeStamp)
-	const FString UniqueTimestamp = FDateTime::Now().ToString(TEXT("%Y%m%d-%H%M%S%s")); // %s는 밀리초까지 포함
-
-	FTransform RootTransform = FTransform::Identity;
-	for (const FRecordActorSaveData& SaveData : RecordSaveDataArray)
-	{
-		FTransform Transform = SaveData.RecordedFrames[0].ComponentTransforms[SaveData.ComponentName.ToString()];
-		RootTransform += Transform;
-	}
-
-	RootTransform.SetLocation(RootTransform.GetLocation() / RecordSaveDataArray.Num());
-	// Rotation는 정확할 필요는 없음.
-	RootTransform.NormalizeRotation();
-	RootTransform.SetScale3D(RootTransform.GetScale3D() / RecordSaveDataArray.Num());
-	
-	// 여러 Actor 사이의 중간 위치
-	BloodStainRecordGroup.SpawnPointTransform = RootTransform;
-	
-	FRecordSaveData RecordSaveData = ConvertToSaveData(RecordSaveDataArray, GroupName);
-	
-	const FString FileName = FString::Printf(TEXT("/%s/%s-%s.sav"), *MapName, *GroupNameString, *UniqueTimestamp);
-	
-	// if (!FBloodStainFileUtils::SaveToFile(RecordSaveData, FileName, FileSaveOptions))
-	// {
-	// 	UE_LOG(LogBloodStain, Log, TEXT("[BloodStain] SaveToFile failed"));
-	// }
-
-	 (new FAutoDeleteAsyncTask<FSaveRecordingTask>(
-		 MoveTemp(RecordSaveData), FileName,FileSaveOptions
-	 ))->StartBackgroundTask();
 	
 	BloodStainRecordGroups.Remove(GroupName);
 	ReplayTerminatedActorManager->ClearRecordGroup(GroupName);
@@ -227,10 +215,10 @@ void UBloodStainSubsystem::StopRecording(FName GroupName)
 		RecordComponent->DestroyComponent();
 	}
 	
-	UE_LOG(LogBloodStain, Log, TEXT("[BloodStain] Recording stopped for %s"), GetData(GroupName.ToString()));	
+	UE_LOG(LogBloodStain, Log, TEXT("[BloodStain] Recording stopped for %s"), GetData(GroupName.ToString()));
 }
 
-void UBloodStainSubsystem::StopRecordComponent(URecordComponent* RecordComponent)
+void UBloodStainSubsystem::StopRecordComponent(URecordComponent* RecordComponent, bool bSaveRecordingData)
 {
 	if (!RecordComponent)
 	{
@@ -246,24 +234,33 @@ void UBloodStainSubsystem::StopRecordComponent(URecordComponent* RecordComponent
 		UE_LOG(LogBloodStain, Log, TEXT("[BloodStain] StopRecording stopped. Group [%s] is not exist"), GetData(GroupName.ToString()));	
 		return;
 	}
-	
-	if (!BloodStainRecordGroups[GroupName].ActiveRecorders.Contains(RecordComponent->GetOwner()))
+
+	FBloodStainRecordGroup& BloodStainRecordGroup = BloodStainRecordGroups[GroupName];
+
+	if (!BloodStainRecordGroup.ActiveRecorders.Contains(RecordComponent->GetOwner()))
 	{
 		UE_LOG(LogBloodStain, Log, TEXT("[BloodStain] StopRecording stopped. In Group [%s], no Record Actor [%s]"), GetData(GroupName.ToString()), GetData(RecordComponent->GetOwner()->GetName()));	
 		return;
 	}
 	
-	ReplayTerminatedActorManager->AddToRecordGroup(GroupName, RecordComponent);
+	if (bSaveRecordingData)
+	{	
+		ReplayTerminatedActorManager->AddToRecordGroup(GroupName, RecordComponent);	
+	}
 	
-	BloodStainRecordGroups[GroupName].ActiveRecorders.Remove(RecordComponent->GetOwner());	
+	BloodStainRecordGroup.ActiveRecorders.Remove(RecordComponent->GetOwner());	
 
 	RecordComponent->UnregisterComponent();
 	RecordComponent->GetOwner()->RemoveInstanceComponent(RecordComponent);
 	RecordComponent->DestroyComponent();
 
-	// TODO Option
-	// 1. if Record is Zero -> Stop
-	// 2. if RecordComponent is Record 주체 -> Stop
+	if (BloodStainRecordGroup.ActiveRecorders.IsEmpty())
+	{
+		if (BloodStainRecordGroup.RecordOptions.bSaveImmediatelyIfGroupEmpty)
+		{
+			StopRecording(GroupName, bSaveRecordingData);
+		}
+	}
 }
 
 bool UBloodStainSubsystem::StartReplayByBloodStain(ABloodActor* BloodStainActor, FGuid& OutGuid)
@@ -275,6 +272,17 @@ bool UBloodStainSubsystem::StartReplayByBloodStain(ABloodActor* BloodStainActor,
 	}
 	
 	return StartReplayFromFile(BloodStainActor->ReplayFileName, BloodStainActor->LevelName, OutGuid);
+}
+
+bool UBloodStainSubsystem::StartReplayFromFile(const FString& FileName, const FString& LevelName, FGuid& OutGuid)
+{
+	FRecordSaveData Data;
+	if (!FindOrLoadRecordBodyData(FileName, LevelName, Data))
+	{
+		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] File: Cannot Load File [%s]"), *FileName);
+		return false;
+	}
+	return StartReplay_Internal(Data, OutGuid);
 }
 
 void UBloodStainSubsystem::StopReplay(FGuid PlaybackKey)
@@ -347,9 +355,36 @@ void UBloodStainSubsystem::StopReplayPlayComponent(AReplayActor* GhostActor)
 	}
 }
 
+bool UBloodStainSubsystem::IsFileHeaderLoaded(const FString& FileName)
+{
+	return CachedHeaders.Contains(FileName);		
+}
+
 bool UBloodStainSubsystem::IsFileBodyLoaded(const FString& FileName)
 {
 	return CachedRecordings.Contains(FileName);
+}
+
+bool UBloodStainSubsystem::FindOrLoadRecordHeader(const FString& FileName, const FString& LevelName, FRecordHeaderData& OutRecordHeaderData)
+{
+	if (FRecordHeaderData* Cached = CachedHeaders.Find(FileName))
+	{
+		OutRecordHeaderData = *Cached;
+		return true;
+	}
+
+	// 2) 캐시에 없으면 파일에서 로드
+	FRecordHeaderData Loaded;
+	if (!FBloodStainFileUtils::LoadHeaderFromFile(FileName, LevelName, Loaded))
+	{
+		UE_LOG(LogBloodStain, Error, TEXT("[BloodStain] Failed to load file's Header %s"), *FileName);
+		return false;
+	}
+
+	// 3) 캐시에 저장 & 반환
+	CachedHeaders.Add(FileName, Loaded);
+	OutRecordHeaderData = MoveTemp(Loaded);
+	return true;
 }
 
 bool UBloodStainSubsystem::FindOrLoadRecordBodyData(const FString& FileName, const FString& LevelName, FRecordSaveData& OutData)
@@ -375,42 +410,14 @@ bool UBloodStainSubsystem::FindOrLoadRecordBodyData(const FString& FileName, con
 	return true;
 }
 
-bool UBloodStainSubsystem::IsFileHeaderLoaded(const FString& FileName)
+const TMap<FString, FRecordHeaderData>& UBloodStainSubsystem::GetCachedHeaders()
 {
-	return CachedHeaders.Contains(FileName);		
+	return CachedHeaders;
 }
 
-bool UBloodStainSubsystem::FindOrLoadRecordHeader(const FString& FileName, const FString& LevelName, FRecordHeaderData& OutRecordHeaderData)
+void UBloodStainSubsystem::LoadAllHeadersInLevel(const FString& LevelName)
 {
-	if (FRecordHeaderData* Cached = CachedHeaders.Find(FileName))
-	{
-		OutRecordHeaderData = *Cached;
-		return true;
-	}
-
-	// 2) 캐시에 없으면 파일에서 로드
-	FRecordHeaderData Loaded;
-	if (!FBloodStainFileUtils::LoadHeaderFromFile(FileName, LevelName, Loaded))
-	{
-		UE_LOG(LogBloodStain, Error, TEXT("[BloodStain] Failed to load file's Header %s"), *FileName);
-		return false;
-	}
-
-	// 3) 캐시에 저장 & 반환
-	CachedHeaders.Add(FileName, Loaded);
-	OutRecordHeaderData = MoveTemp(Loaded);
-	return true;
-}
-
-bool UBloodStainSubsystem::StartReplayFromFile(const FString& FileName, const FString& LevelName, FGuid& OutGuid)
-{
-	FRecordSaveData Data;
-	if (!FindOrLoadRecordBodyData(FileName, LevelName, Data))
-	{
-		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] File: Cannot Load File [%s]"), *FileName);
-		return false;
-	}
-	return StartReplay_Internal(Data, OutGuid);
+	FBloodStainFileUtils::LoadHeadersForAllFiles(CachedHeaders, LevelName);
 }
 
 ABloodActor* UBloodStainSubsystem::SpawnBloodStain(const FString& FileName, const FString& LevelName)
@@ -524,7 +531,7 @@ ABloodActor* UBloodStainSubsystem::SpawnBloodStain_Internal(const FVector& Locat
 	UWorld* World = GetWorld();
 	if (!World)
 	{
-		UE_LOG(LogBloodStain, Error, TEXT("[BloodStain] Cannot get world context"));
+		UE_LOG(LogBloodStain, Error, TEXT("[BloodStain] Cannot get world context")); 
 		return nullptr;
 	}
 

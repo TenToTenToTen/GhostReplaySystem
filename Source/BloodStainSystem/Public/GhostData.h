@@ -228,7 +228,7 @@ struct FRecordHeaderData
 	FName GroupName;
 	
 	/** BloodStain Spawn Transform */
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "BloodStain")
 	FTransform SpawnPointTransform;
 	
 	UPROPERTY()
