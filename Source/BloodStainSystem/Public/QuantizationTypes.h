@@ -16,13 +16,10 @@
  */
 struct FQuantizedTransform_High
 {
-	// Location: quantized to 0.01 units (packs each axis into 16 bits)
 	FVector_NetQuantize100 Location;
 
-	// Rotation: fixed-point stored as 48 bits for X/Y/Z, W reconstructed on unpack
 	FQuatFixed48NoW Rotation;
 
-	// Scale: quantized to 0.1 units (packs each axis into 16 bits)
 	FVector_NetQuantize10 Scale;
 
 	FQuantizedTransform_High() = default;
@@ -63,13 +60,10 @@ struct FQuantizedTransform_High
  */
 struct FQuantizedTransform_Compact
 {
-	// Location: quantized to 0.01 units (packs each axis into 16 bits)
 	FVector_NetQuantize100 Location;
 
-	// Rotation: FQuatFixed32NoW (11/11/10 bit)
 	FQuatFixed32NoW Rotation;
 
-	// Scale: quantized to 0.1 units (packs each axis into 16 bits)
 	FVector_NetQuantize10 Scale;
 
 	FQuantizedTransform_Compact() = default;
@@ -110,13 +104,10 @@ struct FQuantizedTransform_Compact
  */
 struct FQuantizedTransform_Lowest
 {
-	// Translation: interval-based quantization using 32-bit fixed-point (10 bits per axis)
 	FVectorIntervalFixed32NoW Translation;
 
-	// Rotation: fixed-point stored as 32 bits (11/11/10 bits for X/Y/Z), W reconstructed on unpack
 	FQuatFixed32NoW           Rotation;
 
-	// Scale: interval-based quantization using 32-bit fixed-point (8 bits per axis)
 	FVectorIntervalFixed32NoW Scale;
 
 	FQuantizedTransform_Lowest() = default;
