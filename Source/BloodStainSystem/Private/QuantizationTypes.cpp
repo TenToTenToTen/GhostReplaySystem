@@ -1,8 +1,7 @@
 #include "QuantizationTypes.h"
 
-// Scale: 0…4
 static constexpr float SCL_MINS[3]   = { 0.f, 0.f, 0.f };
-static constexpr float SCL_RANGES[3] = { 4.f, 4.f, 4.f };
+static constexpr float SCL_RANGES[3] = { 10.f, 10.f, 10.f };
 
 FQuantizedTransform_Lowest::FQuantizedTransform_Lowest(const FTransform& T, const FRange& BoneRange)
 {
@@ -50,14 +49,5 @@ FTransform FQuantizedTransform_Lowest::ToTransform(const FRange& Range) const
 	Out.SetRotation( FQuat(Rot) );
 	Out.SetScale3D(FVector(S3f));
 
-	// return FTransform(FQuat(Rot), FVector(Loc), FVector::OneVector);
 	return Out;
-}
-
-FArchive& operator<<(FArchive& Ar, FQuantizedTransform_Lowest& Q)
-{
-	Ar << Q.Translation;
-	Ar << Q.Rotation;
-	Ar << Q.Scale;
-	return Ar;
 }

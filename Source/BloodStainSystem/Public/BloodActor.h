@@ -70,14 +70,4 @@ private:
 	/** Last Played Playback Key. Use for Control Playback */
 	UPROPERTY()
 	FGuid PlaybackKey;
-	
-	/** 기본 재생 옵션 (실시간 재생 속도 등) */
-	// UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BloodStain")
-	// FBloodStainReplayOptions ReplayOptions;
-	//
-	// UFUNCTION(BlueprintCallable, Category="BloodStain")
-	// void SetReplayOptions(const FBloodStainReplayOptions& InOptions)
-	// {
-	// 	ReplayOptions = InOptions;
-	// }
 };

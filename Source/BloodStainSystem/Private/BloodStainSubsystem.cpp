@@ -173,12 +173,9 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 			UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording Failed: There is no Valid Recorder Group[%s]"), GetData(GroupName.ToString()));
 			return;
 		}
-	
-		// Default Identifier
+		
 		const FString MapName = UGameplayStatics::GetCurrentLevelName(GetWorld());
 		const FString GroupNameString = GroupName.ToString();
-
-		// Provide Unique (TimeStamp)
 		const FString UniqueTimestamp = FDateTime::Now().ToString(TEXT("%Y%m%d-%H%M%S%s")); // %s는 밀리초까지 포함
 
 		FTransform RootTransform = FTransform::Identity;
@@ -652,5 +649,4 @@ bool UBloodStainSubsystem::IsValidReplayGroup(const FName& GroupName)
 void UBloodStainSubsystem::SetFileSaveOptions(const FBloodStainFileOptions& InOptions)
 {
 	FileSaveOptions = InOptions;
-	// 필요 시 바로 Config에 저장하려면 SaveConfig(); 호출
 }

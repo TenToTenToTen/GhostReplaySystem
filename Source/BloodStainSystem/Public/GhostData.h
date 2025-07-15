@@ -13,9 +13,6 @@ USTRUCT()
 struct FBloodStainRecordGroup
 {
 	GENERATED_BODY()
-
-	// UPROPERTY()
-	// FName ReplayDataName;
 	
 	UPROPERTY()
 	FTransform SpawnPointTransform;

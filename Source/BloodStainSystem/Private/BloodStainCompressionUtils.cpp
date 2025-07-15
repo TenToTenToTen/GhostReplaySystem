@@ -15,10 +15,7 @@ namespace BloodStainCompressionUtils
         }
     }
 
-    bool CompressBuffer(
-        const TArray<uint8>& InBuffer,
-        TArray<uint8>&       OutCompressed,
-        const FCompressionOption& Opts)
+    bool CompressBuffer(const TArray<uint8>& InBuffer, TArray<uint8>& OutCompressed, const FCompressionOption& Opts)
     {
         if (Opts.Method == ECompressionMethod::None)
         {
@@ -44,11 +41,7 @@ namespace BloodStainCompressionUtils
         return true;
     }
 
-    bool DecompressBuffer(
-        const TArray<uint8>& Compressed,
-        TArray<uint8>&       OutRaw,
-        const FCompressionOption& Opts,
-        int64                UncompressedSize)
+    bool DecompressBuffer(const TArray<uint8>& Compressed, TArray<uint8>& OutRaw, const FCompressionOption& Opts, int64 UncompressedSize)
     {
         if (Opts.Method == ECompressionMethod::None)
         {

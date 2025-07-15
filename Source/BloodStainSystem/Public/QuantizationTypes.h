@@ -6,13 +6,23 @@
 #include "AnimationCompression.h"
 #include "GhostData.h"
 
-// 표준-고정밀도 양자화 트랜스폼 (FQuatFixed48 사용)
+/**
+ * @brief Relatively High-precision quantized transform.
+ *
+ * Uses:
+ *  - 0.01-unit quantization for Location (FVector_NetQuantize100),
+ *  - 48-bit fixed-point rotation (FQuatFixed48NoW),
+ *  - 0.1-unit quantization for Scale (FVector_NetQuantize10).
+ */
 struct FQuantizedTransform_High
 {
+	// Location: quantized to 0.01 units (packs each axis into 16 bits)
 	FVector_NetQuantize100 Location;
-	
+
+	// Rotation: fixed-point stored as 48 bits for X/Y/Z, W reconstructed on unpack
 	FQuatFixed48NoW Rotation;
-	
+
+	// Scale: quantized to 0.1 units (packs each axis into 16 bits)
 	FVector_NetQuantize10 Scale;
 
 	FQuantizedTransform_High() = default;
@@ -36,7 +46,6 @@ struct FQuantizedTransform_High
 	
 	friend FArchive& operator<<(FArchive& Ar, FQuantizedTransform_High& Data)
 	{
-		// UE_LOG(LogTemp, Warning, TEXT("Serializing FQuantizedTransform_High"));
 		Ar << Data.Location;
 		Ar << Data.Rotation;
 		Ar << Data.Scale;
@@ -44,13 +53,23 @@ struct FQuantizedTransform_High
 	}
 };
 
-// 표준-압축 양자화 트랜스폼 (FQuatFixed32 사용)
+/**
+ * @brief Standard compact quantized transform.
+ *
+ * Uses:
+ *  - 0.01-unit quantization for Location (FVector_NetQuantize100),
+ *  - 32-bit fixed-point rotation (FQuatFixed32NoW, 11/11/10 bits),
+ *  - 0.1-unit quantization for Scale (FVector_NetQuantize10).
+ */
 struct FQuantizedTransform_Compact
 {
+	// Location: quantized to 0.01 units (packs each axis into 16 bits)
 	FVector_NetQuantize100 Location;
-	
+
+	// Rotation: FQuatFixed32NoW (11/11/10 bit)
 	FQuatFixed32NoW Rotation;
-	
+
+	// Scale: quantized to 0.1 units (packs each axis into 16 bits)
 	FVector_NetQuantize10 Scale;
 
 	FQuantizedTransform_Compact() = default;
@@ -81,26 +100,38 @@ struct FQuantizedTransform_Compact
 	}
 };
 
+/**
+ * @brief Lowest-bit quantized transform.
+ *
+ * Uses:
+ *  - interval‐based 32-bit fixed-point quantization for Translation (10 bits per axis),
+ *  - 32-bit fixed-point rotation (FQuatFixed32NoW, 11/11/10 bits),
+ *  - interval‐based 32-bit fixed-point quantization for Scale (8 bits per axis).
+ */
 struct FQuantizedTransform_Lowest
 {
-
-	// 위치: IntervalFixed32NoW (10bit/축)  
+	// Translation: interval-based quantization using 32-bit fixed-point (10 bits per axis)
 	FVectorIntervalFixed32NoW Translation;
 
-	// 회전: Fixed32NoW (11/11/10 bit)  
+	// Rotation: fixed-point stored as 32 bits (11/11/10 bits for X/Y/Z), W reconstructed on unpack
 	FQuatFixed32NoW           Rotation;
 
-	// 스케일: IntervalFixed32NoW (8bit/축)  
+	// Scale: interval-based quantization using 32-bit fixed-point (8 bits per axis)
 	FVectorIntervalFixed32NoW Scale;
 
 	FQuantizedTransform_Lowest() = default;
 
-	/** 원본 FTransform → 양자화 비트필드 */
+	/** Quantize original FTransform into bitfields */
 	FQuantizedTransform_Lowest(const FTransform& T, const FRange& Range);
 
-	/** 양자화된 비트필드를 FTransform으로 복원 */
+	/** Reconstruct FTransform from quantized bitfields */
 	FTransform ToTransform(const FRange& Range) const;
 
-	/** Archive << 연산자 (순서대로 Translation, Rotation, Scale) */
-	friend FArchive& operator<<(FArchive& Ar, FQuantizedTransform_Lowest& Q);
+	friend FArchive& operator<<(FArchive& Ar, FQuantizedTransform_Lowest& Q)
+	{
+		Ar << Q.Translation;
+		Ar << Q.Rotation;
+		Ar << Q.Scale;
+		return Ar;
+	}
 };

@@ -44,7 +44,7 @@ struct FBloodStainPlaybackOptions
 
 	/** 재생 속도 비율(1.0=실시간) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Replay")
-	float PlaybackRate = 1.f;
+	float PlaybackRate = 0.5f;
 
 	/** 재생 완료 시 자동 슬롯 클린업 여부 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Replay")

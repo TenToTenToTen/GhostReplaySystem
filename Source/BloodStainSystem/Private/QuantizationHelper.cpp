@@ -73,7 +73,7 @@ void SerializeQuantizedTransform(FArchive& Ar, const FTransform& Transform, cons
         break;
     case ETransformQuantizationMethod::Standard_Low:
         {
-            // Range 유무에 따라 다른 생성자 호출
+            // Only use Range if QuantizationOption is Standard_Low
             FQuantizedTransform_Lowest Q(Transform, *Range);
             Ar << Q;
             break;
