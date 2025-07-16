@@ -35,19 +35,19 @@ URecordComponent::URecordComponent()
 
 void URecordComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
-	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_TickComponent); 
+	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_TickComponent);
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
 	if (RecordOptions.bTrackAttachmentChanges)
 	{
 		HandleAttachedActorChangesByBit();
 	}
-	
+
 	TimeSinceLastRecord += DeltaTime;
 	if (TimeSinceLastRecord >= RecordOptions.SamplingInterval)
 	{
 		TimeSinceLastRecord = 0.0f;
-		
+
 		FRecordFrame NewFrame;
 		NewFrame.FrameIndex = CurrentFrameIndex++;
 		NewFrame.TimeStamp = GetWorld()->GetTimeSeconds() - StartTime;
@@ -68,13 +68,47 @@ void URecordComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 		for (TObjectPtr<USceneComponent>& SceneComp : OwnedComponentsForRecord)
 		{
 			FString ComponentName = FString::Printf(TEXT("%s_%u"), *SceneComp->GetName(), SceneComp->GetUniqueID());
-			
+
 			if (USkeletalMeshComponent* SkeletalComp = Cast<USkeletalMeshComponent>(SceneComp))
 			{
+				if (SkeletalComp->IsSimulatingPhysics())
+				{
+					const USkeletalMesh* SkeletalMesh = SkeletalComp->GetSkeletalMeshAsset();
+					const FReferenceSkeleton& RefSkeleton = SkeletalMesh->GetRefSkeleton();
+					const int32 NumBones = SkeletalComp->GetNumBones();
+
+					TArray<FTransform> BoneWorldTransforms;
+					BoneWorldTransforms.SetNum(NumBones);
+					for (int32 BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex)
+					{
+						BoneWorldTransforms[BoneIndex] = SkeletalComp->GetBoneTransform(BoneIndex); // World space
+					}
+					TArray<FTransform> BoneLocalTransforms;
+					BoneLocalTransforms.SetNum(NumBones);
+					const FTransform WorldToComponent = SkeletalComp->GetComponentTransform().Inverse();
+
+					for (int32 BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex)
+					{
+						int32 ParentIndex = RefSkeleton.GetParentIndex(BoneIndex);
+						if (ParentIndex != INDEX_NONE)
+						{
+							BoneLocalTransforms[BoneIndex] = BoneWorldTransforms[BoneIndex].GetRelativeTransform(BoneWorldTransforms[ParentIndex]);
+						}
+						else
+						{
+							// Root bone: relative to component
+							BoneLocalTransforms[BoneIndex] = BoneWorldTransforms[BoneIndex] * WorldToComponent;
+						}
+					}
+					FBoneComponentSpace LocalBoneData(BoneLocalTransforms);
+					NewFrame.SkeletalMeshBoneTransforms.Add(ComponentName, LocalBoneData);
+				}
+				else
+				{
 				FBoneComponentSpace LocalBaseTransforms(SkeletalComp->GetBoneSpaceTransforms());
 				NewFrame.SkeletalMeshBoneTransforms.Add(ComponentName, LocalBaseTransforms);
+				}
 			}
-			
 			NewFrame.ComponentTransforms.Add(ComponentName, SceneComp->GetComponentTransform());
 		}
 
