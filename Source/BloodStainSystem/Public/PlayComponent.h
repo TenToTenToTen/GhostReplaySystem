@@ -7,20 +7,8 @@
 
 #include "CoreMinimal.h"
 #include "GhostData.h"
-#include "OptionTypes.h"
 #include "Components/ActorComponent.h"
-//#include "Animation/AnimSequence.h"
 #include "PlayComponent.generated.h"
-
-class UWorld;
-class USkeletalMeshComponent;
-class UGameInstance;
-class USkeletalMesh;
-class USkeleton;
-class UStaticMeshComponent;
-class UMeshComponent;
-class UMaterialInterface;
-class UAnimSequence;
 
 struct FIntervalTreeNode
 {
@@ -37,15 +25,12 @@ class BLOODSTAINSYSTEM_API UPlayComponent : public UActorComponent
 public:	
 	UPlayComponent();
 
-protected:
 	virtual void BeginPlay() override;
-
-public:	
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 	void Initialize(FGuid PlaybackKey, const FRecordHeaderData& InRecordHeaderData, const FRecordActorSaveData& InReplayData, const FBloodStainPlaybackOptions& InPlaybackOptions);
-	void ApplySkeletalBoneTransforms(const FRecordFrame& Prev, const FRecordFrame& Next, float Alpha) const;
-	void FinishReplay();
+	
+	void FinishReplay() const;
 	
 	FGuid GetPlaybackKey() const;
 
@@ -53,10 +38,15 @@ protected:
 
 	/** 한 쌍의 Frame(Prev, Next)과 Alpha 를 받아 Mesh 에 적용합니다. */
 	void ApplyComponentTransforms(const FRecordFrame& Prev, const FRecordFrame& Next, float Alpha) const;
+	void ApplySkeletalBoneTransforms(const FRecordFrame& Prev, const FRecordFrame& Next, float Alpha) const;
 
 private:
 	/** FComponentRecord 데이터로부터 메시 컴포넌트를 생성, 등록, 부착하는 헬퍼 함수 */
-	USceneComponent* CreateComponentFromRecord(const FComponentRecord& Record, const TMap<FString, TObjectPtr<UObject>>& AssetCache);
+	USceneComponent* CreateComponentFromRecord(const FComponentRecord& Record, const TMap<FString, TObjectPtr<UObject>>& AssetCache) const;
+
+	void SeekFrame(int32 FrameIndex);
+	static TUniquePtr<FIntervalTreeNode> BuildIntervalTree(const TArray<FComponentInterval*>& InComponentIntervals);
+	static void QueryIntervalTree(FIntervalTreeNode* Node, int32 FrameIndex, TArray<FComponentInterval*>& OutComponentIntervals);
 	
 protected:
 	FRecordHeaderData RecordHeaderData;
@@ -65,10 +55,7 @@ protected:
 
 	UPROPERTY(BlueprintReadOnly, Category = "BloodStain")
 	FGuid PlaybackKey;
-	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "BloodStain")
-	TMap<FString, TObjectPtr<UAnimSequence>> AnimSequences;
-	
+		
 	/** 재생 시작 시점 */
 	float PlaybackStartTime = 0.f;
 
@@ -77,15 +64,9 @@ protected:
 
 	UPROPERTY()
 	TMap<FString, TObjectPtr<USceneComponent>> ReconstructedComponents;
-
-private:
 	
 	/* Interval Tree root
 	 * Used to quickly find components that overlap with a given time range.
 	 */
 	TUniquePtr<FIntervalTreeNode> IntervalRoot;
-
-	void SeekFrame(int32 FrameIndex);
-	TUniquePtr<FIntervalTreeNode> BuildIntervalTree(TArray<FComponentInterval*>& List);
-	void QueryIntervalTree(FIntervalTreeNode* Node, int32 FrameIndex, TArray<FComponentInterval*>& Out);
 };

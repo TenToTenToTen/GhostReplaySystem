@@ -8,29 +8,25 @@
 #include "BloodStainSubsystem.h"
 #include "BloodStainSystem.h"
 #include "ReplayActor.h"
-#include "Animation/AnimSequence.h"
-#include "Stats/Stats2.h"
 #include "Engine/World.h"
-#include "Engine/SkeletalMesh.h"
-#include "Components/SkeletalMeshComponent.h"
-#include "Components/PoseableMeshComponent.h"
 #include "Engine/GameInstance.h"
+#include "Engine/StaticMesh.h"
 #include "Engine/SkeletalMesh.h"
 #include "UObject/UObjectGlobals.h"
 #include "UObject/Package.h"
 #include "Components/MeshComponent.h"
-#include "Materials/MaterialInterface.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Components/PoseableMeshComponent.h"
+#include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
-#include "Engine/StaticMesh.h"
-#include "Animation/Skeleton.h"
+#include "Stats/Stats2.h"
 
 DECLARE_CYCLE_STAT(TEXT("PlayComp TickComponent"), STAT_PlayComponent_TickComponent, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("PlayComp Initialize"), STAT_PlayComponent_Initialize, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("PlayComp FinishReplay"), STAT_PlayComponent_FinishReplay, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("PlayComp ApplyComponentTransforms"), STAT_PlayComponent_ApplyComponentTransforms, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("PlayComp ApplySkeletalBoneTransforms"), STAT_PlayComponent_ApplySkeletalBoneTransforms, STATGROUP_BloodStain);
-DECLARE_CYCLE_STAT(TEXT("PlayComp ConvertFrameToAnimSequence"), STAT_PlayComponent_ConvertFrameToAnimSequence, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("PlayComp ApplyComponentChanges"), STAT_PlayComponent_ApplyComponentChanges, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("PlayComp CreateComponentFromRecord"), STAT_PlayComponent_CreateComponentFromRecord, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("PlayComp SeekFrame"), STAT_PlayComponent_SeekFrame, STATGROUP_BloodStain);
@@ -38,21 +34,16 @@ DECLARE_CYCLE_STAT(TEXT("PlayComp BuildIntervalTree"), STAT_PlayComponent_BuildI
 DECLARE_CYCLE_STAT(TEXT("PlayComp QueryIntervalTree"), STAT_PlayComponent_QueryIntervalTree, STATGROUP_BloodStain);
 
 
-// Sets default values for this component's properties
 UPlayComponent::UPlayComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
 }
 
-
-// Called when the game starts
 void UPlayComponent::BeginPlay()
 {
 	Super::BeginPlay();
 }
 
-
-// Called every frame
 void UPlayComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_TickComponent); 
@@ -206,7 +197,7 @@ void UPlayComponent::Initialize(FGuid InPlaybackKey, const FRecordHeaderData& In
 	SeekFrame(0);
 }
 
-void UPlayComponent::FinishReplay()
+void UPlayComponent::FinishReplay() const
 {
 	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_FinishReplay); 
 	// Subsystem에 종료 요청
@@ -224,6 +215,11 @@ void UPlayComponent::FinishReplay()
 			}
 		}
 	}
+}
+
+FGuid UPlayComponent::GetPlaybackKey() const
+{
+	return PlaybackKey;
 }
 
 void UPlayComponent::ApplyComponentTransforms(const FRecordFrame& Prev, const FRecordFrame& Next, float Alpha) const
@@ -290,17 +286,12 @@ void UPlayComponent::ApplySkeletalBoneTransforms(const FRecordFrame& Prev, const
 }
 
 
-FGuid UPlayComponent::GetPlaybackKey() const
-{
-	return PlaybackKey;
-}
-
 /**
  * @brief FComponentRecord를 기반으로 메시 컴포넌트를 생성하고 월드에 등록합니다.
  * @param Record 생성할 컴포넌트의 정보
  * @return 성공 시 생성된 컴포넌트, 실패 시 nullptr
  */	
-USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecord& Record, const TMap<FString, TObjectPtr<UObject>>& AssetCache)
+USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecord& Record, const TMap<FString, TObjectPtr<UObject>>& AssetCache) const
 {
 	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_CreateComponentFromRecord);
 	AActor* Owner = GetOwner();
@@ -480,17 +471,17 @@ void UPlayComponent::SeekFrame(int32 FrameIndex)
 /*
  * 균형 이진 트리 전제. 각 중점 왼쪽과 오른쪽에 위치한 Interval list 분류 및 트리 구성
  */
-TUniquePtr<FIntervalTreeNode> UPlayComponent::BuildIntervalTree(TArray<FComponentInterval*>& List)
+TUniquePtr<FIntervalTreeNode> UPlayComponent::BuildIntervalTree(const TArray<FComponentInterval*>& InComponentIntervals)
 {
 	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_BuildIntervalTree);
-	if (List.Num() == 0)
+	if (InComponentIntervals.Num() == 0)
 	{
 		return nullptr;		
 	}
 
 	// 1) 중점(center) 결정: 모든 start/end의 중간값
 	TArray<int32> Endpoints;
-	for (auto* I : List)
+	for (FComponentInterval* I : InComponentIntervals)
 	{
 		Endpoints.Add(I->StartFrame);
 		Endpoints.Add(I->EndFrame);
@@ -502,7 +493,7 @@ TUniquePtr<FIntervalTreeNode> UPlayComponent::BuildIntervalTree(TArray<FComponen
 	TArray<FComponentInterval*> LeftList, RightList;
 	TUniquePtr<FIntervalTreeNode> Node = MakeUnique<FIntervalTreeNode>();
 	Node->Center = Mid;
-	for (auto* I : List)
+	for (FComponentInterval* I : InComponentIntervals)
 	{
 		/* 현재 Mid에 겹치는 Interval만 추가, 겹치지 않는 것은 좌우 Node로 분류*/
 		if (I->EndFrame < Mid)
@@ -519,7 +510,7 @@ TUniquePtr<FIntervalTreeNode> UPlayComponent::BuildIntervalTree(TArray<FComponen
 	return Node;
 }
 
-void UPlayComponent::QueryIntervalTree(FIntervalTreeNode* Node, int32 FrameIndex, TArray<FComponentInterval*>& Out)
+void UPlayComponent::QueryIntervalTree(FIntervalTreeNode* Node, int32 FrameIndex, TArray<FComponentInterval*>& OutComponentIntervals)
 {
 	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_QueryIntervalTree);
 	if (!Node)
@@ -531,16 +522,16 @@ void UPlayComponent::QueryIntervalTree(FIntervalTreeNode* Node, int32 FrameIndex
 	for (auto* I : Node->Intervals)
 	{
 		if (I->StartFrame <= FrameIndex && FrameIndex < I->EndFrame)
-			Out.Add(I);
+			OutComponentIntervals.Add(I);
 	}
 
 	// 2. 좌/우 서브트리 결정
 	if (FrameIndex < Node->Center)
 	{
-		QueryIntervalTree(Node->Left.Get(), FrameIndex, Out);		
+		QueryIntervalTree(Node->Left.Get(), FrameIndex, OutComponentIntervals);		
 	}
 	else if (FrameIndex > Node->Center)
 	{
-		QueryIntervalTree(Node->Right.Get(), FrameIndex, Out);		
+		QueryIntervalTree(Node->Right.Get(), FrameIndex, OutComponentIntervals);		
 	}
 }
