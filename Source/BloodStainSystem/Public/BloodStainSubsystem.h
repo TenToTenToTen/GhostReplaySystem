@@ -208,7 +208,7 @@ public:
 
 	/** Scans the current level's save directory and spawns all BloodStainActors for every replay file found */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|BloodStainActor")
-	void SpawnAllBloodStainInLevel();
+	TArray<ABloodStainActor*> SpawnAllBloodStainInLevel();
 	
 public:
 	/**

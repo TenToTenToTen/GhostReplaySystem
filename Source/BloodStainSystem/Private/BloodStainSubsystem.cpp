@@ -440,27 +440,32 @@ ABloodStainActor* UBloodStainSubsystem::SpawnBloodStain(const FString& FileName,
 	return nullptr;
 }
 
-void UBloodStainSubsystem::SpawnAllBloodStainInLevel()
+TArray<ABloodStainActor*> UBloodStainSubsystem::SpawnAllBloodStainInLevel()
 {
 	FString LevelName = UGameplayStatics::GetCurrentLevelName(GetWorld());
 	
 	// TODO - Currently deleting all cached datas
 	
 	const int32 LoadedCount = BloodStainFileUtils::LoadHeadersForAllFiles(CachedHeaders, LevelName);
-	
+
+	TArray<ABloodStainActor*> SpawnedActors;
 	if (LoadedCount > 0)
 	{
 		UE_LOG(LogBloodStain, Log, TEXT("Subsystem successfully loaded %d recording Headers into cache."), LoadedCount);
 		
 		for (const auto& [FileName, _] : CachedHeaders)
 		{
-			SpawnBloodStain(FileName, LevelName);
+			if (ABloodStainActor* BloodStainActor = SpawnBloodStain(FileName, LevelName))
+			{
+				SpawnedActors.Add(BloodStainActor);
+			}
 		}
 	}
 	else
 	{
 		UE_LOG(LogBloodStain, Log, TEXT("No recording Headers were found or loaded."));
 	}
+	return SpawnedActors;
 }
 
 void UBloodStainSubsystem::NotifyComponentAttached(AActor* TargetActor, UMeshComponent* NewComponent)
