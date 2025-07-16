@@ -13,10 +13,7 @@
 #include "ReplayTerminatedActorManager.generated.h"
 
 struct FRecordActorSaveData;
-
-
 DECLARE_DELEGATE(FOnRecordGroupRemove);
-
 
 /**
  * A Manager Class that takes over and maintains data from a RecordComponent
@@ -31,10 +28,10 @@ public:
 	virtual void Tick(float DeltaTime) override;
 	virtual TStatId GetStatId() const override;
 
-	// Cook Data from FrameQueue to GhostSaveData
+	/** Cook Data from FrameQueue to GhostSaveData */
 	TArray<FRecordActorSaveData> CookQueuedFrames(const FName& GroupName);
 
-	// if the group already exists, RecordComponent join the group
+	/** if the group already exists, RecordComponent join the group */
 	void AddToRecordGroup(const FName& GroupName, URecordComponent* RecordComponent);
 
 	void ClearRecordGroup(const FName& GroupName);
@@ -42,7 +39,7 @@ public:
 	bool ContainsGroup(const FName& GroupName) const;
 
 private:
-	// Remove old frameData from managing record groups
+	/** Remove old frameData from managing record groups */
 	void CollectRecordGroups(float DeltaTime);
 
 public:

@@ -1,4 +1,6 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+/*
+* Copyright 2025 TenToTen, All Rights Reserved.
+*/
 
 #pragma once
 
@@ -7,10 +9,10 @@
 
 DECLARE_LOG_CATEGORY_EXTERN(LogBloodStain, Log, All);
 DECLARE_STATS_GROUP(TEXT("BloodStain"), STATGROUP_BloodStain, STATCAT_Advanced);
+
 class FBloodStainSystemModule : public IModuleInterface
 {
 public:
-
 	/** IModuleInterface implementation */
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;

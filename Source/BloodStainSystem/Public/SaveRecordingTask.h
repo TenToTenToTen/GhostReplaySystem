@@ -28,10 +28,9 @@ public:
 		, FileOptions(InOptions)
 	{ }
 
-	// Save the recorded data to a file
+	/** Save the recorded data to a file */
 	void DoWork();
 
-	// Required by FNonAbandonableTask
 	FORCEINLINE TStatId GetStatId() const
 	{
 		RETURN_QUICK_DECLARE_CYCLE_STAT(FSaveRecordingTask, STATGROUP_ThreadPoolAsyncTasks);
