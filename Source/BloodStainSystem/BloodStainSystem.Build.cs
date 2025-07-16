@@ -1,4 +1,6 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+/*
+* Copyright 2025 TenToTen, All Rights Reserved.
+*/
 
 using UnrealBuildTool;
 
@@ -17,7 +19,6 @@ public class BloodStainSystem : ModuleRules
 		
 		PrivateIncludePaths.AddRange(
 			new string[] {
-				"Engine",
 				// ... add other private include paths required here ...
 		});
 			
