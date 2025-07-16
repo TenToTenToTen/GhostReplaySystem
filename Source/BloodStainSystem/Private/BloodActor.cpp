@@ -2,20 +2,16 @@
 * Copyright 2025 TenToTen, All Rights Reserved.
 */
 
-
-
 #include "BloodActor.h"
 
 #include "BloodStainSubsystem.h"
 #include "Blueprint/UserWidget.h"
 #include "Components/DecalComponent.h"
 #include "Components/SphereComponent.h"
-#include "Kismet/GameplayStatics.h"
-#include "GameFramework/Character.h"
 
 FName ABloodActor::SphereComponentName(TEXT("InteractionSphere"));
 
-ABloodActor::ABloodActor(const FObjectInitializer& ObjectInitializer)
+ABloodActor::ABloodActor()
 {
 	SphereComponent = CreateDefaultSubobject<USphereComponent>(ABloodActor::SphereComponentName);
 
@@ -33,6 +29,12 @@ ABloodActor::ABloodActor(const FObjectInitializer& ObjectInitializer)
 	InteractionWidgetInstance = nullptr;
 }
 
+void ABloodActor::Initialize(const FString& InReplayFileName, const FString& InLevelName)
+{
+	ReplayFileName = InReplayFileName;
+	LevelName = InLevelName;
+}
+
 void ABloodActor::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,
 	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
@@ -44,8 +46,7 @@ void ABloodActor::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* Ot
 		if (InteractionWidgetClass && !InteractionWidgetInstance)
 		{
 			// 2. 로컬 플레이어의 컨트롤러를 가져옵니다. 위젯은 컨트롤러를 통해 생성됩니다.
-			APlayerController* PlayerController = Cast<APlayerController>(PlayerPawn->GetController());
-			if (PlayerController)
+			if (APlayerController* PlayerController = Cast<APlayerController>(PlayerPawn->GetController()))
 			{
 				// 3. 위젯을 생성합니다.
 				InteractionWidgetInstance = CreateWidget<UUserWidget>(PlayerController, InteractionWidgetClass);
@@ -58,12 +59,6 @@ void ABloodActor::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* Ot
 			}
 		}
 	}
-}
-
-void ABloodActor::Initialize(const FString& InReplayFileName, const FString& InLevelName)
-{
-	ReplayFileName = InReplayFileName;
-	LevelName = InLevelName;
 }
 
 void ABloodActor::OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
