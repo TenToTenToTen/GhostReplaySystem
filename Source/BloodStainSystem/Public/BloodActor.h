@@ -4,9 +4,16 @@
 
 #pragma once
 
+#include "CoreMinimal.h"
 #include "OptionTypes.h"
 #include "Engine/DecalActor.h"
 #include "BloodActor.generated.h"
+
+struct FRecordSaveData;
+class USphereComponent;
+class UPrimitiveComponent;
+class UUserWidget;
+class ABloodActor;
 
 /**
  * BloodStianActor 혈흔 보여주고 상호작용 관련된 것 처리 해주는 Actor
@@ -20,21 +27,17 @@ class BLOODSTAINSYSTEM_API ABloodActor : public ADecalActor
 	GENERATED_BODY()
 
 public:
-	ABloodActor();
+	ABloodActor(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
-public:
-	void Initialize(const FString& InReplayFileName, const FString& InLevelName);
-	
-	// 상호작용 로직 (예: E 키를 눌렀을 때 호출)
-	UFUNCTION(Category = Interaction, BlueprintCallable)
-	void Interact();
-
-private:
 	UPROPERTY()
 	TObjectPtr<UUserWidget> InteractionWidgetInstance;
-	
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<UUserWidget> InteractionWidgetClass;
+
+private:
 	UPROPERTY(Category = Interaction, VisibleAnywhere, BlueprintReadOnly, meta=(AllowPrivateAccess = "true"))
-	TObjectPtr<class USphereComponent> SphereComponent;
+	TObjectPtr<USphereComponent> SphereComponent;
 
 	UFUNCTION()
 	void OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
@@ -43,8 +46,15 @@ private:
 	void OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
 
 public:
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
-	TSubclassOf<UUserWidget> InteractionWidgetClass;
+	static FName SphereComponentName;
+
+	void Initialize(const FString& InReplayFileName, const FString& InLevelName);
+	
+	// 상호작용 로직 (예: E 키를 눌렀을 때 호출)
+	UFUNCTION(Category = Interaction, BlueprintCallable)
+	void Interact();
+
+public:
 	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="BloodStain")
 	FString ReplayFileName;
@@ -62,6 +72,4 @@ private:
 	/** Last Played Playback Key. Use for Control Playback */
 	UPROPERTY()
 	FGuid PlaybackKey;
-
-	static FName SphereComponentName;
 };

@@ -3,16 +3,19 @@
 */
 
 
+
 #include "BloodActor.h"
 
 #include "BloodStainSubsystem.h"
 #include "Blueprint/UserWidget.h"
 #include "Components/DecalComponent.h"
 #include "Components/SphereComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "GameFramework/Character.h"
 
 FName ABloodActor::SphereComponentName(TEXT("InteractionSphere"));
 
-ABloodActor::ABloodActor()
+ABloodActor::ABloodActor(const FObjectInitializer& ObjectInitializer)
 {
 	SphereComponent = CreateDefaultSubobject<USphereComponent>(ABloodActor::SphereComponentName);
 
@@ -28,12 +31,6 @@ ABloodActor::ABloodActor()
 	
 	InteractionWidgetClass = nullptr;
 	InteractionWidgetInstance = nullptr;
-}
-
-void ABloodActor::Initialize(const FString& InReplayFileName, const FString& InLevelName)
-{
-	ReplayFileName = InReplayFileName;
-	LevelName = InLevelName;
 }
 
 void ABloodActor::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,
@@ -61,6 +58,12 @@ void ABloodActor::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* Ot
 			}
 		}
 	}
+}
+
+void ABloodActor::Initialize(const FString& InReplayFileName, const FString& InLevelName)
+{
+	ReplayFileName = InReplayFileName;
+	LevelName = InLevelName;
 }
 
 void ABloodActor::OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
