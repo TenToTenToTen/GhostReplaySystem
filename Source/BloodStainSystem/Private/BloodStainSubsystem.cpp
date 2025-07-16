@@ -426,6 +426,11 @@ void UBloodStainSubsystem::LoadAllHeadersInLevel(const FString& LevelName)
 	BloodStainFileUtils::LoadHeadersForAllFiles(CachedHeaders, LevelStr);
 }
 
+FString UBloodStainSubsystem::GetFullFilePath(const FString& FileName) const
+{
+	return BloodStainFileUtils::GetFullFilePath(FileName);
+}
+
 ABloodStainActor* UBloodStainSubsystem::SpawnBloodStain(const FString& FileName, const FString& LevelName)
 {
 	FRecordHeaderData RecordHeaderData;

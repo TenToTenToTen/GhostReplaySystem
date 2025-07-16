@@ -97,6 +97,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
 	void LoadAllHeadersInLevel(const FString& LevelName);
 
+	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
+	FString GetFullFilePath(const FString& FileName) const;
+	
 public:
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
 	void SetDefaultMaterial(UMaterialInterface* InMaterial) { GhostMaterial = InMaterial; }

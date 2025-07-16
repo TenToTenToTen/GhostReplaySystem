@@ -48,6 +48,8 @@ namespace BloodStainFileUtils
 	 */
 	int32 LoadAllFiles(TMap<FString, FRecordSaveData>& OutLoadedDataMap, const FString& LevelName);
 
+	FString GetFullFilePath(const FString& FileName);
+	
 	// // Raw-float 경로
 	// static bool SaveRaw(
 	// 	FRecordSavedData        SaveData,  // by-value 복사

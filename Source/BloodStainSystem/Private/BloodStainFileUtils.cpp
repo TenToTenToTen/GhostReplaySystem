@@ -269,3 +269,8 @@ int32 BloodStainFileUtils::LoadAllFiles(TMap<FString, FRecordSaveData>& OutLoade
 
 	return OutLoadedDataMap.Num();
 }
+
+FString BloodStainFileUtils::GetFullFilePath(const FString& FileName)
+{
+	return BloodStainFileUtils_Internal::GetFullFilePath(FileName);
+}
