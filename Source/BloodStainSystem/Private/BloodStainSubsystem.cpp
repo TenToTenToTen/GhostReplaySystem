@@ -46,7 +46,7 @@ void UBloodStainSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	ReplayTerminatedActorManager->OnRecordGroupRemoveByCollecting.BindUObject(this, &UBloodStainSubsystem::CleanupInvalidRecordGroups);
 }
 
-bool UBloodStainSubsystem::StartRecording(AActor* TargetActor, const FBloodStainRecordOptions& Options, FName GroupName)
+bool UBloodStainSubsystem::StartRecording(AActor* TargetActor, FBloodStainRecordOptions Options, FName GroupName)
 {
 	if (!TargetActor)
 	{
@@ -96,7 +96,7 @@ bool UBloodStainSubsystem::StartRecording(AActor* TargetActor, const FBloodStain
 	return true;
 }
 
-bool UBloodStainSubsystem::StartRecordingWithActors(TArray<AActor*> TargetActors, const FBloodStainRecordOptions& Options, FName GroupName)
+bool UBloodStainSubsystem::StartRecordingWithActors(TArray<AActor*> TargetActors, FBloodStainRecordOptions Options, FName GroupName)
 {
 	if (TargetActors.Num() == 0)
 	{
@@ -267,10 +267,10 @@ bool UBloodStainSubsystem::StartReplayByBloodStain(ABloodStainActor* BloodStainA
 		return false;
 	}
 	
-	return StartReplayFromFile(BloodStainActor->ReplayFileName, BloodStainActor->LevelName, BloodStainActor->PlaybackOptions, OutGuid);
+	return StartReplayFromFile(BloodStainActor->ReplayFileName, BloodStainActor->LevelName, OutGuid, BloodStainActor->PlaybackOptions);
 }
 
-bool UBloodStainSubsystem::StartReplayFromFile(const FString& FileName, const FString& LevelName, const FBloodStainPlaybackOptions& InPlaybackOptions, FGuid& OutGuid)
+bool UBloodStainSubsystem::StartReplayFromFile(const FString& FileName, const FString& LevelName, FGuid& OutGuid, FBloodStainPlaybackOptions InPlaybackOptions)
 {
 	FRecordSaveData Data;
 	if (!FindOrLoadRecordBodyData(FileName, LevelName, Data))

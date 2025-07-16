@@ -49,7 +49,7 @@ public:
 	 *          or if the RecordComponent fails to be created.
 	 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Record")
-	bool StartRecording(AActor* TargetActor, const FBloodStainRecordOptions& Options, FName GroupName = NAME_None);
+	bool StartRecording(AActor* TargetActor, FBloodStainRecordOptions Options = FBloodStainRecordOptions(), FName GroupName = NAME_None);
 	
 	/**
 	 *  @brief Starts recording multiple actors into the same recording group using the same options.
@@ -63,7 +63,7 @@ public:
 	 *  @return True if at least one actor in the array started recording successfully; false otherwise.
 	 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Record")
-	bool StartRecordingWithActors(TArray<AActor*> TargetActors, const FBloodStainRecordOptions& Options, FName GroupName = NAME_None);
+	bool StartRecordingWithActors(TArray<AActor*> TargetActors, FBloodStainRecordOptions Options = FBloodStainRecordOptions(), FName GroupName = NAME_None);
 	
 	/**
 	 *  @brief Stops the entire recording session for the specified group then saves the data.
@@ -117,7 +117,7 @@ public:
 	 *  @return True on success, false otherwise.
 	 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
-	bool StartReplayFromFile(const FString& FileName, const FString& LevelName, const FBloodStainPlaybackOptions& InPlaybackOptions, FGuid& OutGuid);
+	bool StartReplayFromFile(const FString& FileName, const FString& LevelName, FGuid& OutGuid, FBloodStainPlaybackOptions InPlaybackOptions = FBloodStainPlaybackOptions());
 
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
 	bool IsPlaying(const FGuid& InPlaybackKey) const;
