@@ -139,7 +139,11 @@ USTRUCT(BlueprintType)
 struct FRecordFrame
 {
 	GENERATED_BODY()
-
+	FRecordFrame()
+		:TimeStamp(0.f)
+		,FrameIndex(0)
+	{
+	}
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "BloodStain")
 	float TimeStamp;
 	
@@ -178,6 +182,11 @@ struct FRange
 {
 	GENERATED_BODY()
 	
+	FRange()
+			: PosMin(FVector::ZeroVector)
+			, PosMax(FVector::ZeroVector)
+	{}
+	
 	UPROPERTY()
 	FVector PosMin;
 
@@ -195,7 +204,13 @@ USTRUCT()
 struct FScaleRange
 {
 	GENERATED_BODY()
-    
+
+	FScaleRange()
+		:ScaleMin(1.f, 1.f, 1.f)
+		,ScaleMax(1.f, 1.f, 1.f)
+	{
+	}
+	
 	UPROPERTY()
 	FVector ScaleMin;
 
@@ -253,6 +268,11 @@ USTRUCT(BlueprintType)
 struct FRecordHeaderData
 {
 	GENERATED_BODY()
+
+	FRecordHeaderData()
+		: MaxRecordTime(5.f)
+		, SamplingInterval(0.1f)
+	{}
 	
 	UPROPERTY()
 	FName GroupName;
