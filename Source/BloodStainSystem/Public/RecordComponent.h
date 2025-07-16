@@ -42,7 +42,7 @@ public:
 	void OnComponentDetached(UMeshComponent* DetachedComponent);
 
 	/** Recording group name */
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, Category="Record")
 	FName GetRecordGroupName() const { return GroupName; }
 
 private:
