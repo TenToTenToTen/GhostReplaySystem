@@ -87,10 +87,10 @@ void ABloodActor::Interact()
 	{
 		if (UBloodStainSubsystem* Sub = World->GetGameInstance()->GetSubsystem<UBloodStainSubsystem>())
 		{
-			if (bAllowMultiplePlayback || !Sub->IsPlaying(PlaybackKey))
+			if (bAllowMultiplePlayback || !Sub->IsPlaying(LastPlaybackKey))
 			{
 				// PlayOption
-				Sub->StartReplayFromFile(ReplayFileName, LevelName, PlaybackOptions, PlaybackKey);
+				Sub->StartReplayFromFile(ReplayFileName, LevelName, PlaybackOptions, LastPlaybackKey);
 			}
 		}
 	}

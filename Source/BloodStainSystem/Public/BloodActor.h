@@ -35,37 +35,37 @@ public:
 	UFUNCTION()
 	void OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
 	
-	// 상호작용 로직 (예: E 키를 눌렀을 때 호출)
-	UFUNCTION(Category = Interaction, BlueprintCallable)
+	// Interaction Logic (e.g. called when the E key is pressed)
+	UFUNCTION(Category = "BloodActor", BlueprintCallable)
 	void Interact();
 
 public:	
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="BloodStain")
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category="BloodActor")
 	FString ReplayFileName;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="BloodStain")
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category="BloodActor")
 	FString LevelName;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="BloodStain")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="BloodActor")
 	FBloodStainPlaybackOptions PlaybackOptions;
 
 protected:
 	UPROPERTY()
 	TObjectPtr<UUserWidget> InteractionWidgetInstance;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "BloodActor|UI")
 	TSubclassOf<UUserWidget> InteractionWidgetClass;
 	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="BloodStain")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="BloodActor")
 	bool bAllowMultiplePlayback = true;
 	
-private:
-	UPROPERTY(Category = Interaction, VisibleAnywhere, BlueprintReadOnly, meta=(AllowPrivateAccess = "true"))
+	/** Last Played Playback Key. Use for Control Playing BloodStain */
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category="BloodActor")
+	FGuid LastPlaybackKey;
+	
+	UPROPERTY(BlueprintReadOnly, Category = "BloodActor", meta=(AllowPrivateAccess = "true"))
 	TObjectPtr<USphereComponent> SphereComponent;
 	
-	/** Last Played Playback Key. Use for Control Playback */
-	UPROPERTY()
-	FGuid PlaybackKey;
-
+private:
 	static FName SphereComponentName;
 };
