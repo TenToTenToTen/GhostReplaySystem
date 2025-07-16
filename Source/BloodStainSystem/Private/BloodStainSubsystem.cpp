@@ -190,11 +190,8 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 		}
 
 		RootTransform.SetLocation(RootTransform.GetLocation() / RecordSaveDataArray.Num());
-		// Rotation는 정확할 필요는 없음.
 		RootTransform.NormalizeRotation();
 		RootTransform.SetScale3D(RootTransform.GetScale3D() / RecordSaveDataArray.Num());
-	
-		// 여러 Actor 사이의 중간 위치
 		BloodStainRecordGroup.SpawnPointTransform = RootTransform;
 	
 		FRecordSaveData RecordSaveData = ConvertToSaveData(RecordSaveDataArray, GroupName);
@@ -223,7 +220,7 @@ void UBloodStainSubsystem::StopRecordComponent(URecordComponent* RecordComponent
 {
 	if (!RecordComponent)
 	{
-		// TODO UE_Log
+		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording failed: RecordComponent is null."));
 		return;
 	}
 	const FName& GroupName = RecordComponent->GetRecordGroupName();
@@ -344,7 +341,7 @@ void UBloodStainSubsystem::StopReplayPlayComponent(AReplayActor* GhostActor)
 	PlayComponent->DestroyComponent();
 	
 	BloodStainPlaybackGroup.ActiveReplayers.Remove(GhostActor);
-
+	
 	GhostActor->Destroy();
 	
 	// OnReplayStopped.Broadcast(GhostActor, Replayer);
@@ -587,7 +584,7 @@ bool UBloodStainSubsystem::StartReplay_Internal(const FRecordSaveData& RecordSav
 
 		if (!Replayer)
 		{
-			UE_LOG(LogTemp, Error, TEXT("[BloodStain] Cannot create ReplayComponent on %s"), *GhostActor->GetName());
+			UE_LOG(LogBloodStain, Error, TEXT("[BloodStain] Cannot create ReplayComponent on %s"), *GhostActor->GetName());
 			continue;
 		}
 

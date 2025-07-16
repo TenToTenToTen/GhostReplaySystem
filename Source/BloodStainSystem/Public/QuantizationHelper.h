@@ -9,17 +9,39 @@
 #include "BloodStainFileOptions.h"
 #include "QuantizationTypes.h"
 
+/**
+ * @namespace BloodStainFileUtils_Internal
+ * @brief Internal helper functions for file serialization and quantization.
+ *
+ * This namespace contains the core logic for quantizing, serializing, and deserializing
+ * replay data.
+ */
 namespace BloodStainFileUtils_Internal
 {
+	/**
+	 * Computes the min/max ranges for location and scale across all frames in the save data.
+	 * This is a prerequisite for 'Standard_Low' quantization.
+	 * @param SaveData The replay data to process. Ranges will be computed and stored within this struct.
+	 */
 	void ComputeRanges(FRecordSaveData& SaveData);
 	
 	/** 
-	 * 한 개의 FTransform을 주어진 옵션에 따라 양자화하여 Ar에 직렬화합니다.
+	 * Serializes a single FTransform to an archive using the specified quantization options.
+	 * @param Ar The archive to write to.
+	 * @param Transform The source transform to serialize.
+	 * @param QuantOpts The quantization method and precision to use.
+	 * @param Range The location range, required for 'Standard_Low' quantization.
+	 * @param ScaleRange The scale range, required for 'Standard_Low' quantization.
 	 */
 	void SerializeQuantizedTransform(FArchive& Ar, const FTransform& Transform, const FQuantizationOption& QuantOpts, const FLocRange* Range = nullptr, const FScaleRange* ScaleRange = nullptr);
 
 	/**
-	 * 양자화된 형태로 Ar에 기록된 데이터를 읽어 FTransform으로 복원합니다.
+	 * Deserializes a quantized transform from an archive and reconstructs the FTransform.
+	 * @param Ar The archive to read from.
+	 * @param QuantOpts The quantization options used during serialization.
+	 * @param Range The location range, required for 'Standard_Low' quantization.
+	 * @param ScaleRange The scale range, required for 'Standard_Low' quantization.
+	 * @return The reconstructed FTransform.
 	 */
 	FTransform DeserializeQuantizedTransform(FArchive& Ar, const FQuantizationOption& QuantOpts, const FLocRange* Range = nullptr, const FScaleRange* ScaleRange = nullptr);
 

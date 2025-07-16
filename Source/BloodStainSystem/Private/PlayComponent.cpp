@@ -222,7 +222,8 @@ void UPlayComponent::Initialize(FGuid InPlaybackKey, const FRecordHeaderData& In
 
 void UPlayComponent::FinishReplay() const
 {
-	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_FinishReplay); 
+	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_FinishReplay);
+	
 	// Subsystem에 종료 요청
 	if (UWorld* World = GetWorld())
 	{
