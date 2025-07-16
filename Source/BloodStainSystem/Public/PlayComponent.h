@@ -11,7 +11,6 @@
 #include "Components/ActorComponent.h"
 #include "PlayComponent.generated.h"
 
-class UAnimSequence;
 class UWorld;
 class USkeletalMeshComponent;
 class UGameInstance;
