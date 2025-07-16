@@ -1,3 +1,8 @@
+/*
+* Copyright 2025 TenToTen, All Rights Reserved.
+*/
+
+
 #pragma once
 
 #include "CoreMinimal.h"

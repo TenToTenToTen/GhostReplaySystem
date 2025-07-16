@@ -1,3 +1,8 @@
+/*
+* Copyright 2025 TenToTen, All Rights Reserved.
+*/
+
+
 #include "QuantizationTypes.h"
 
 static constexpr float SCL_MINS[3]   = { 0.f, 0.f, 0.f };

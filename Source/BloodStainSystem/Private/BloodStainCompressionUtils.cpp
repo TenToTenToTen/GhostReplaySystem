@@ -1,3 +1,8 @@
+/*
+* Copyright 2025 TenToTen, All Rights Reserved.
+*/
+
+
 #include "BloodStainCompressionUtils.h"
 #include "Misc/Compression.h"
 

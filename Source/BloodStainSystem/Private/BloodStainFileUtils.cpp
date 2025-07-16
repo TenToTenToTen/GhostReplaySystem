@@ -1,5 +1,9 @@
-#include "BloodStainFileUtils.h"
+/*
+* Copyright 2025 TenToTen, All Rights Reserved.
+*/
 
+
+#include "BloodStainFileUtils.h"
 #include "BloodStainCompressionUtils.h"
 #include "BloodStainSystem.h"
 #include "QuantizationHelper.h"

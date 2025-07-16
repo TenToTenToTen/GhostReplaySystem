@@ -1,3 +1,8 @@
+/*
+* Copyright 2025 TenToTen, All Rights Reserved.
+*/
+
+
 #include "QuantizationHelper.h"
 #include "BloodStainFileUtils.h"    // FRecordSaveData 등 정의
 #include "BloodStainFileOptions.h"  // FQuantizationOptions

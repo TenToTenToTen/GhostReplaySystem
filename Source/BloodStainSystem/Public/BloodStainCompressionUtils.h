@@ -1,4 +1,7 @@
-// BloodStainCompression.h
+/*
+* Copyright 2025 TenToTen, All Rights Reserved.
+*/
+
 #pragma once
 #include "CoreMinimal.h"
 #include "BloodStainFileOptions.h"
