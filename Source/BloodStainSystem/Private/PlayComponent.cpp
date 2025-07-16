@@ -156,7 +156,7 @@ void UPlayComponent::Initialize(FGuid InPlaybackKey, const FRecordHeaderData& In
     CurrentFrame      = PlaybackOptions.PlaybackRate > 0 ? 0 : ReplayData.RecordedFrames.Num() - 2;
 
 	TSet<FString> UniqueAssetPaths;
-	for (const FComponentInterval& Interval : ReplayData.ComponentIntervals)
+	for (const FComponentActiveInterval& Interval : ReplayData.ComponentIntervals)
 	{
 		if (!Interval.Meta.AssetPath.IsEmpty())
 		{
@@ -194,7 +194,7 @@ void UPlayComponent::Initialize(FGuid InPlaybackKey, const FRecordHeaderData& In
 	UE_LOG(LogBloodStain, Log, TEXT("Pre-loaded %d unique assets."), AssetCache.Num());
 	
 	ReconstructedComponents.Empty();
-	for (FComponentInterval& Interval : ReplayData.ComponentIntervals)
+	for (FComponentActiveInterval& Interval : ReplayData.ComponentIntervals)
 	{
 		if (USceneComponent* NewComp = CreateComponentFromRecord(Interval.Meta, AssetCache))
 		{
@@ -210,7 +210,7 @@ void UPlayComponent::Initialize(FGuid InPlaybackKey, const FRecordHeaderData& In
 	}
 	
 	/* 특정 점에 걸치는 Alive component 쿼리용 Interval Tree 초기화 */
-	TArray<FComponentInterval*> Ptrs;
+	TArray<FComponentActiveInterval*> Ptrs;
 	for (auto& I : ReplayData.ComponentIntervals)
 	{
 		// I.EndFrame = FMath::Clamp(I.EndFrame, 0, ReplayData.RecordedFrames.Num() - 1);
@@ -461,12 +461,12 @@ void UPlayComponent::SeekFrame(int32 FrameIndex)
 		return;
 	}
 
-	TArray<FComponentInterval*> AliveComps;
+	TArray<FComponentActiveInterval*> AliveComps;
 	QueryIntervalTree(IntervalRoot.Get(), FrameIndex, AliveComps);
 
 	// TSet으로 변환하여 빠른 조회를 위함 (O(1) 평균 시간 복잡도)
 	TSet<FString> AliveComponentNames;
-	for (const FComponentInterval* Interval : AliveComps)
+	for (const FComponentActiveInterval* Interval : AliveComps)
 	{
 		AliveComponentNames.Add(Interval->Meta.ComponentName);
 	}
@@ -495,7 +495,7 @@ void UPlayComponent::SeekFrame(int32 FrameIndex)
 /*
  * 균형 이진 트리 전제. 각 중점 왼쪽과 오른쪽에 위치한 Interval list 분류 및 트리 구성
  */
-TUniquePtr<FIntervalTreeNode> UPlayComponent::BuildIntervalTree(const TArray<FComponentInterval*>& InComponentIntervals)
+TUniquePtr<FIntervalTreeNode> UPlayComponent::BuildIntervalTree(const TArray<FComponentActiveInterval*>& InComponentIntervals)
 {
 	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_BuildIntervalTree);
 	if (InComponentIntervals.Num() == 0)
@@ -505,7 +505,7 @@ TUniquePtr<FIntervalTreeNode> UPlayComponent::BuildIntervalTree(const TArray<FCo
 
 	// 1) 중점(center) 결정: 모든 start/end의 중간값
 	TArray<int32> Endpoints;
-	for (FComponentInterval* I : InComponentIntervals)
+	for (FComponentActiveInterval* I : InComponentIntervals)
 	{
 		Endpoints.Add(I->StartFrame);
 		Endpoints.Add(I->EndFrame);
@@ -514,10 +514,10 @@ TUniquePtr<FIntervalTreeNode> UPlayComponent::BuildIntervalTree(const TArray<FCo
 	int32 Mid = Endpoints[Endpoints.Num()/2];
 
 	// 2) 현재 노드에 걸치는 구간 분류
-	TArray<FComponentInterval*> LeftList, RightList;
+	TArray<FComponentActiveInterval*> LeftList, RightList;
 	TUniquePtr<FIntervalTreeNode> Node = MakeUnique<FIntervalTreeNode>();
 	Node->Center = Mid;
-	for (FComponentInterval* I : InComponentIntervals)
+	for (FComponentActiveInterval* I : InComponentIntervals)
 	{
 		/* 현재 Mid에 겹치는 Interval만 추가, 겹치지 않는 것은 좌우 Node로 분류*/
 		if (I->EndFrame < Mid)
@@ -540,7 +540,7 @@ TUniquePtr<FIntervalTreeNode> UPlayComponent::BuildIntervalTree(const TArray<FCo
 	return Node;
 }
 
-void UPlayComponent::QueryIntervalTree(FIntervalTreeNode* Node, int32 FrameIndex, TArray<FComponentInterval*>& OutComponentIntervals)
+void UPlayComponent::QueryIntervalTree(FIntervalTreeNode* Node, int32 FrameIndex, TArray<FComponentActiveInterval*>& OutComponentIntervals)
 {
 	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_QueryIntervalTree);
 	if (!Node)

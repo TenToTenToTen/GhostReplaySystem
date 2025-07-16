@@ -13,7 +13,7 @@
 struct FIntervalTreeNode
 {
 	int32 Center;
-	TArray<FComponentInterval*>    Intervals;
+	TArray<FComponentActiveInterval*>    Intervals;
 	TUniquePtr<FIntervalTreeNode>  Left, Right;
 };
 
@@ -51,8 +51,8 @@ private:
 	USceneComponent* CreateComponentFromRecord(const FComponentRecord& Record, const TMap<FString, TObjectPtr<UObject>>& AssetCache) const;
 
 	void SeekFrame(int32 FrameIndex);
-	static TUniquePtr<FIntervalTreeNode> BuildIntervalTree(const TArray<FComponentInterval*>& InComponentIntervals);
-	static void QueryIntervalTree(FIntervalTreeNode* Node, int32 FrameIndex, TArray<FComponentInterval*>& OutComponentIntervals);
+	static TUniquePtr<FIntervalTreeNode> BuildIntervalTree(const TArray<FComponentActiveInterval*>& InComponentIntervals);
+	static void QueryIntervalTree(FIntervalTreeNode* Node, int32 FrameIndex, TArray<FComponentActiveInterval*>& OutComponentIntervals);
 	
 protected:
 	FRecordHeaderData RecordHeaderData;

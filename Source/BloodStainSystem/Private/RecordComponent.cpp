@@ -29,7 +29,7 @@ DECLARE_CYCLE_STAT(TEXT("RecordComp HandleAttachedChanges"), STAT_RecordComponen
 DECLARE_CYCLE_STAT(TEXT("RecordComp HandleAttachedChangesByBit"), STAT_RecordComponent_HandleAttachedChangesByBit, STATGROUP_BloodStain);
 
 URecordComponent::URecordComponent()
-	: TimeSinceLastRecord(0), StartTime(0), CurrentFrameIndex(0), MaxRecordFrames(0)
+	: StartTime(0), MaxRecordFrames(0), CurrentFrameIndex(0), TimeSinceLastRecord(0)
 {
 	PrimaryComponentTick.bCanEverTick = true;
 }
@@ -134,7 +134,7 @@ FRecordActorSaveData URecordComponent::CookQueuedFrames()
 
 	FRecordActorSaveData Result = FRecordActorSaveData();
 	Result.PrimaryComponentName = PrimaryComponentName;
-	BloodStainRecordDataUtils::CookQueuedFrames(RecordOptions.SamplingInterval, FrameQueuePtr.Get(), Result, ComponentIntervals);
+	BloodStainRecordDataUtils::CookQueuedFrames(RecordOptions.SamplingInterval, FrameQueuePtr.Get(), Result, ComponentActiveIntervals);
 
 	return Result;
 }
@@ -142,32 +142,39 @@ FRecordActorSaveData URecordComponent::CookQueuedFrames()
 void URecordComponent::OnComponentAttached(UMeshComponent* NewComponent)
 {
 	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_OnComponentAttached);
-	if (!IsValid(NewComponent)) return;
-	if (Cast<UCameraProxyMeshComponent>(NewComponent)) return; // 기존 필터링 유지
+
+	if (!IsValid(NewComponent))
+	{
+		UE_LOG(LogBloodStain, Warning, TEXT("[On Component Attached] Component is Not Valid"));
+		return;
+	}
+	
+	if (Cast<UCameraProxyMeshComponent>(NewComponent))
+	{
+		return;
+	}
 	
 	const FString ComponentName = FString::Printf(TEXT("%s_%u"), *NewComponent->GetName(), NewComponent->GetUniqueID());
 	if (IntervalIndexMap.Contains(ComponentName))
 	{
 		// If it's already registered, do nothing
+		UE_LOG(LogBloodStain, Warning, TEXT("[OnComponentAttached] Component %s is already registered"), *ComponentName);
 		return;
 	}
 	
-	// 1. 기록할 컴포넌트 목록에 즉시 추가하여 다음 틱부터 트랜스폼을 기록
 	OwnedComponentsForRecord.Add(NewComponent);
 
-	// 2. '추가' 이벤트를 기록하기 위해 ComponentRecord 생성 및 Pending 목록에 추가
 	FComponentRecord Record;
 
 	if (CreateRecordFromMeshComponent(NewComponent, Record))
 	{
-		FComponentInterval I = {Record, CurrentFrameIndex, INT32_MAX};
-		int32 NewIdx = ComponentIntervals.Add(I);
+		FComponentActiveInterval I = {Record, CurrentFrameIndex, INT32_MAX};
+		int32 NewIdx = ComponentActiveIntervals.Add(I);
 		IntervalIndexMap.Add(I.Meta.ComponentName, NewIdx);
-		// UE_LOG(LogBloodStain, Log, TEXT("OnComponentAttached: %s added to intervals"), *Record.PrimaryComponentName);
 	}
 
-	PendingAddedComponents.Add(Record);	
-	// UE_LOG(LogBloodStain, Log, TEXT("OnComponentAttached: %s Attached and pending for record"), *Record.PrimaryComponentName);
+	PendingAddedComponents.Add(Record);
+	UE_LOG(LogBloodStain, Warning, TEXT("[OnComponentAttached] Component %s Attached"), *ComponentName);
 }
 
 void URecordComponent::OnComponentDetached(UMeshComponent* DetachedComponent)
@@ -178,29 +185,27 @@ void URecordComponent::OnComponentDetached(UMeshComponent* DetachedComponent)
 		return;
 	}
 
-	// 1. 기록할 컴포넌트 목록에서 제거하여 더 이상 트랜스폼을 기록하지 않음
+	const FString ComponentName = FString::Printf(TEXT("%s_%u"), *DetachedComponent->GetName(), DetachedComponent->GetUniqueID());
+	
+	if (!OwnedComponentsForRecord.Contains(DetachedComponent))
+	{
+		UE_LOG(LogBloodStain, Warning, TEXT("[OnComponentDetached] Component is not Attached %s"), *ComponentName);
+		return;
+	}
+
 	OwnedComponentsForRecord.Remove(DetachedComponent);
 
-	// 2. '제거' 이벤트를 기록하기 위해 고유 이름만 Pending 목록에 추가
-	const FString ComponentName = FString::Printf(TEXT("%s_%u"), *DetachedComponent->GetName(), DetachedComponent->GetUniqueID());
 	PendingRemovedComponentNames.Add(ComponentName);
 	
-	// 3. 맵에서 인덱스 찾아서 EndFrame 갱신 (O(log N))
 	if (const int32* Idx = IntervalIndexMap.Find(ComponentName))
 	{
-		ComponentIntervals[*Idx].EndFrame = CurrentFrameIndex;
+		ComponentActiveIntervals[*Idx].EndFrame = CurrentFrameIndex;
 		IntervalIndexMap.Remove(ComponentName);
 	}
-	// UE_LOG(LogBloodStain, Log, TEXT("Component Detached and pending for record: %s"), *PrimaryComponentName);
-	
+
+	UE_LOG(LogBloodStain, Warning, TEXT("[OnComponentDetached] Component %s Detached"), *ComponentName);
 }
 
-/**
- * UMeshComponent로부터 FComponentRecord를 생성합니다.
- * @param InMeshComponent 정보를 추출할 메시 컴포넌트
- * @param OutRecord 생성된 레코드 정보를 담을 구조체
- * @return 성공적으로 레코드를 생성했으면 true를 반환합니다.
- */
 void URecordComponent::FillMaterialData(const UMeshComponent* InMeshComponent, FComponentRecord& OutRecord)
 {
 	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_FillMaterialData);
@@ -266,14 +271,13 @@ void URecordComponent::CollectOwnedMeshComponents()
 	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_CollectMeshComponents);
     if (AActor* Owner = GetOwner())
     {
-    	ComponentIntervals.Empty();
+    	ComponentActiveIntervals.Empty();
         OwnedComponentsForRecord.Empty();
 
-        // 1. Owner 액터 자체의 메시 컴포넌트 수집
         TArray<UMeshComponent*> OwnerMeshComponents;
         Owner->GetComponents<UMeshComponent>(OwnerMeshComponents);
 
-    	// GetComponents의 순서가 보장되는지 불분명함. 기준이 어떤지 정확히 파악하고 수정이 필요할 수 있음.
+    	// TODO - GetComponents의 순서가 보장되는지 불분명함. 기준이 어떤지 정확히 파악하고 수정이 필요할 수 있음.
     	for (UMeshComponent* MeshComp : OwnerMeshComponents)
     	{
     		if (Cast<UCameraProxyMeshComponent>(MeshComp))
@@ -307,17 +311,15 @@ void URecordComponent::CollectOwnedMeshComponents()
         		FComponentRecord Record;
         		if (CreateRecordFromMeshComponent(MeshComp, Record))
         		{
-        			FComponentInterval Interval = {Record, 0, INT32_MAX};
-        			int32 NewIdx = ComponentIntervals.Add(Interval);
+        			FComponentActiveInterval Interval = {Record, 0, INT32_MAX};
+        			int32 NewIdx = ComponentActiveIntervals.Add(Interval);
         			IntervalIndexMap.Add(Record.ComponentName, NewIdx);
         			OwnedComponentsForRecord.Add(MeshComp);
         		}
         	}
         }
 
-        // 2. Owner 액터에 부착된 모든 액터 (하위의 하위까지 재귀적으로)의 메시 컴포넌트 수집
         TArray<AActor*> AllAttachedActors;
-        // 세 번째 인자를 true로 설정하여 재귀적으로 모든 하위 액터를 가져옵니다.
         Owner->GetAttachedActors(AllAttachedActors, true, true);
     	
         for (AActor* AttachedActor : AllAttachedActors)
@@ -337,8 +339,8 @@ void URecordComponent::CollectOwnedMeshComponents()
 					FComponentRecord Record;
 					if (CreateRecordFromMeshComponent(MeshComp, Record))
 					{
-						FComponentInterval Interval = {Record, 0, INT32_MAX};
-						int32 NewIdx = ComponentIntervals.Add(Interval);
+						FComponentActiveInterval Interval = {Record, 0, INT32_MAX};
+						int32 NewIdx = ComponentActiveIntervals.Add(Interval);
 						IntervalIndexMap.Add(Record.ComponentName, NewIdx);
 						OwnedComponentsForRecord.Add(MeshComp);
 					}
@@ -403,7 +405,7 @@ void URecordComponent::HandleAttachedActorChangesByBit()
 {
 	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_HandleAttachedChangesByBit); 
 	TArray<AActor*> CurActors;
-	if (AActor* Owner = GetOwner())
+	if (const AActor* Owner = GetOwner())
 	{
 		Owner->GetAttachedActors(CurActors, true, true);
 	}
@@ -411,7 +413,7 @@ void URecordComponent::HandleAttachedActorChangesByBit()
 	auto EnsureMapping = [&](AActor* Actor) {
 		if (!AttachedActorIndexMap.Contains(Actor))
 		{
-			int32 NewIndex = AttachedIndexToActor.Add(Actor);
+			const int32 NewIndex = AttachedIndexToActor.Add(Actor);
 			AttachedActorIndexMap.Add(Actor, NewIndex);
 			PrevAttachedBits.Add(false);
 			CurAttachedBits.Add(false);
@@ -429,14 +431,14 @@ void URecordComponent::HandleAttachedActorChangesByBit()
 		CurAttachedBits[AttachedActorIndexMap[Actor]] = true;
 	}
 
-	TBitArray<> Diff = TBitArray<>::BitwiseXOR(CurAttachedBits, PrevAttachedBits, EBitwiseOperatorFlags::MaxSize);
-	TBitArray<> Added = TBitArray<>::BitwiseAND(Diff, CurAttachedBits, EBitwiseOperatorFlags::MaxSize);
-	TBitArray<> Removed = TBitArray<>::BitwiseAND(Diff, PrevAttachedBits, EBitwiseOperatorFlags::MaxSize);
+	const TBitArray<> Diff = TBitArray<>::BitwiseXOR(CurAttachedBits, PrevAttachedBits, EBitwiseOperatorFlags::MaxSize);
+	const TBitArray<> Added = TBitArray<>::BitwiseAND(Diff, CurAttachedBits, EBitwiseOperatorFlags::MaxSize);
+	const TBitArray<> Removed = TBitArray<>::BitwiseAND(Diff, PrevAttachedBits, EBitwiseOperatorFlags::MaxSize);
 
 
 	for (int32 Bit = Added.FindFrom(true, 0); Bit != INDEX_NONE; Bit = Added.FindFrom(true, Bit + 1))
 	{
-		AActor* NewActor = AttachedIndexToActor[Bit];
+		const AActor* NewActor = AttachedIndexToActor[Bit];
 		TArray<UMeshComponent*> MeshComps;
 		NewActor->GetComponents<UMeshComponent>(MeshComps);
 		for (UMeshComponent* MeshComp : MeshComps)
@@ -447,7 +449,7 @@ void URecordComponent::HandleAttachedActorChangesByBit()
 
 	for (int32 Bit = Removed.FindFrom(true, 0); Bit != INDEX_NONE; Bit = Removed.FindFrom(true, Bit + 1))
 	{
-		AActor* GoneActor = AttachedIndexToActor[Bit];
+		const AActor* GoneActor = AttachedIndexToActor[Bit];
 		TArray<UMeshComponent*> MeshComps;
 		GoneActor->GetComponents<UMeshComponent>(MeshComps);
 		for (UMeshComponent* MeshComp : MeshComps)

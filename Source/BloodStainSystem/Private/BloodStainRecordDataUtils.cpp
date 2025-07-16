@@ -9,7 +9,7 @@
 #include "BloodStainSystem.h"
 #include "GhostData.h"
 
-bool BloodStainRecordDataUtils::CookQueuedFrames(float SamplingInterval, TCircularQueue<FRecordFrame>* FrameQueuePtr, FRecordActorSaveData& OutGhostSaveData, TArray<FComponentInterval>& OutComponentIntervals)
+bool BloodStainRecordDataUtils::CookQueuedFrames(float SamplingInterval, TCircularQueue<FRecordFrame>* FrameQueuePtr, FRecordActorSaveData& OutGhostSaveData, TArray<FComponentActiveInterval>& OutComponentIntervals)
 {
 	FRecordFrame First;
 	if (!FrameQueuePtr->Peek(First))
@@ -115,7 +115,7 @@ bool BloodStainRecordDataUtils::CookQueuedFrames(float SamplingInterval, TCircul
 	return true;
 }
 
-void BloodStainRecordDataUtils::BuildInitialComponentStructure(int32 FirstFrameIndex, FRecordActorSaveData& OutGhostSaveData, TArray<FComponentInterval>& OutComponentIntervals)
+void BloodStainRecordDataUtils::BuildInitialComponentStructure(int32 FirstFrameIndex, FRecordActorSaveData& OutGhostSaveData, TArray<FComponentActiveInterval>& OutComponentIntervals)
 {
 	int32 NumSavedFrames = OutGhostSaveData.RecordedFrames.Num();
 	OutComponentIntervals.Sort([](auto& A, auto& B) {
@@ -123,13 +123,13 @@ void BloodStainRecordDataUtils::BuildInitialComponentStructure(int32 FirstFrameI
 	});
 
 	// StartIdx : first index where EndFrame > FirstFrameIndex 
-	const int32 StartIdx = Algo::UpperBoundBy(OutComponentIntervals, FirstFrameIndex, &FComponentInterval::EndFrame);
+	const int32 StartIdx = Algo::UpperBoundBy(OutComponentIntervals, FirstFrameIndex, &FComponentActiveInterval::EndFrame);
 	// Sorted[0..StartIdx-1] 은 FirstFrameIndex 이전에 이미 탈착된 구간
 
 	// 3) 그 이후 구간만 순회하며 StartFrame ≤ FirstFrameIndex 필터
 	for (int32 i = StartIdx; i < OutComponentIntervals.Num(); ++i)
 	{
-		FComponentInterval& Interval = OutComponentIntervals[i];
+		FComponentActiveInterval& Interval = OutComponentIntervals[i];
 		// if (I.StartFrame <= FirstFrameIndex)
 		// [StartFrame, EndFrame] 구간을 [0, NumSavedFrames) 구간으로 변환
 		{

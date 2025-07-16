@@ -58,7 +58,7 @@ private:
 
 		TSharedPtr<TCircularQueue<FRecordFrame>> FrameQueuePtr = nullptr;
 		FRecordActorSaveData GhostSaveData = FRecordActorSaveData();
-		TArray<FComponentInterval> ComponentIntervals;
+		TArray<FComponentActiveInterval> ComponentIntervals;
 	};
 	
 	struct FRecordGroupData

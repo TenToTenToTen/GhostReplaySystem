@@ -39,6 +39,9 @@ public:
 
 	/* Called when a component detached from the owner */
 	void OnComponentDetached(UMeshComponent* DetachedComponent);
+
+	/** Recording group name */
+	UFUNCTION(BlueprintCallable)
 	FName GetRecordGroupName() const { return GroupName; }
 
 private:
@@ -48,7 +51,13 @@ private:
 	/** Create FComponentRecord Data from mesh component */
 	bool CreateRecordFromMeshComponent(UMeshComponent* InMeshComponent, FComponentRecord& OutRecord);
 
-	void FillMaterialData(const UMeshComponent* InMeshComponent, FComponentRecord& OutRecord);
+	/**
+	 * Create FComponentRecord From UMeshComponent
+	 * @param InMeshComponent Target Mesh Component
+	 * @param OutRecord Created Record Struct
+	 * @return return true if the record is created successfully.
+	 */
+	static void FillMaterialData(const UMeshComponent* InMeshComponent, FComponentRecord& OutRecord);
 	
 	/** Checks for newly attached or detached actors since the last frame and updates the recording state accordingly. */
 	void HandleAttachedActorChangesByBit();
@@ -58,27 +67,32 @@ protected:
 	UPROPERTY()
 	FName GroupName = NAME_None;
 	
-	/** 녹화 옵션 원본을 그대로 저장 */
+	/** Record Option */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Record")
 	FBloodStainRecordOptions RecordOptions;
 	
-	float TimeSinceLastRecord;
 	float StartTime;
-	int32 CurrentFrameIndex;
 	int32 MaxRecordFrames;
+	
+	int32 CurrentFrameIndex;
+	float TimeSinceLastRecord;
+	
 	/** Records All frames up to MaxFrames */
 	TUniquePtr<TCircularQueue<FRecordFrame>> FrameQueuePtr;
+
+	/** Component currently owned */
+	UPROPERTY()
+	TSet<TObjectPtr<USceneComponent>> OwnedComponentsForRecord;
 	
 	/** Component Intervals for each component, used to track when components were attached/detached */
 	UPROPERTY()
-	TArray<FComponentInterval> ComponentIntervals;
+	TArray<FComponentActiveInterval> ComponentActiveIntervals;
 
-	/** 이름 → ComponentIntervals 인덱스 맵 (Detach 시 O(log N) 접근용) */
+	/**
+	 * Key is FComponentActiveInterval::FComponentRecord::ComponentName
+	 * O(log N) access when detaching
+	 */
 	TMap<FString, int32> IntervalIndexMap;
-
-	
-	UPROPERTY()
-	TSet<TObjectPtr<USceneComponent>> OwnedComponentsForRecord;
 	
 	/** Attached / Detached Component list to record in next frame */
 	TArray<FComponentRecord> PendingAddedComponents;

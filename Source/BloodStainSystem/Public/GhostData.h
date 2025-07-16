@@ -113,7 +113,7 @@ struct FComponentRecord
  * 
  */
 USTRUCT()
-struct FComponentInterval
+struct FComponentActiveInterval
 {
 	GENERATED_BODY()
 
@@ -129,12 +129,12 @@ struct FComponentInterval
 	UPROPERTY()
 	int32 EndFrame = INT32_MAX;
 	
-	bool operator==(const FComponentInterval& Other) const
+	bool operator==(const FComponentActiveInterval& Other) const
 	{
 		return Meta.ComponentName == Other.Meta.ComponentName;
 	}
 
-	friend FArchive& operator<<(FArchive& Ar, FComponentInterval& Interval)
+	friend FArchive& operator<<(FArchive& Ar, FComponentActiveInterval& Interval)
 	{
 		Ar << Interval.Meta;
 		Ar << Interval.StartFrame;
@@ -276,7 +276,7 @@ struct FRecordActorSaveData
 
 	/** Lifecycle intervals for each component */
 	UPROPERTY()
-	TArray<FComponentInterval> ComponentIntervals;
+	TArray<FComponentActiveInterval> ComponentIntervals;
 
 	/** Combined min/max location for all components on this actor */
 	UPROPERTY()
