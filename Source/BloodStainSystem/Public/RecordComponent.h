@@ -15,7 +15,9 @@ class UMeshComponent;
 
 
 /**
- * 
+ * Component attached to the Actor during recording.
+ * Attach by UBloodStainSubsystem::StartRecording, UBloodStainSubsystem::StartRecordingWithActors
+ * Detach by Stop Recording - Destroy, UBloodStainSubSystem::StopRecording UBloodStainSubSystem::StopRecordComponent, etc.
  */
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class BLOODSTAINSYSTEM_API URecordComponent : public UActorComponent

@@ -17,6 +17,11 @@ struct FIntervalTreeNode
 	TUniquePtr<FIntervalTreeNode>  Left, Right;
 };
 
+/**
+ * Component attached to the Actor during Playback.
+ * Attach by UBloodStainSubsystem::StartReplayByBloodStain, UBloodStainSubsystem::StartReplayFromFile
+ * Detach by Stop Replay - Destroy, UBloodStainSubSystem::StopReplay UBloodStainSubSystem::StopReplayPlayComponent, etc.
+ */
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class BLOODSTAINSYSTEM_API UPlayComponent : public UActorComponent
 {
@@ -36,18 +41,20 @@ public:
 
 protected:
 
-	/** 재생 상태와 현재 시간을 계산합니다. 재생이 끝나야 하면 false를 반환합니다. */
+	/** Calculate Playback State & Current Time.
+	 * @return false - if Playback is end */
 	bool CalculatePlaybackTime(float& OutElapsedTime);
 
-	/** 계산된 시간을 기반으로 리플레이 프레임을 업데이트하고 보간을 적용합니다. */
+	/** Update Replay Frame by Calculated Time & Apply Interpolation */
 	void UpdatePlaybackToTime(float ElapsedTime);
 	
-	/** 한 쌍의 Frame(Prev, Next)과 Alpha 를 받아 Mesh 에 적용합니다. */
+	/** Apply Interpolation to Component between Two Frames */
 	void ApplyComponentTransforms(const FRecordFrame& Prev, const FRecordFrame& Next, float Alpha) const;
+	/** Apply Interpolation to Skeletal Bone between Two Frames */
 	void ApplySkeletalBoneTransforms(const FRecordFrame& Prev, const FRecordFrame& Next, float Alpha) const;
 
 private:
-	/** FComponentRecord 데이터로부터 메시 컴포넌트를 생성, 등록, 부착하는 헬퍼 함수 */
+	/** Create & Attach, Register Component From FComponentRecord Data*/
 	USceneComponent* CreateComponentFromRecord(const FComponentRecord& Record, const TMap<FString, TObjectPtr<UObject>>& AssetCache) const;
 
 	void SeekFrame(int32 FrameIndex);
@@ -57,15 +64,14 @@ private:
 protected:
 	FRecordHeaderData RecordHeaderData;
 	FRecordActorSaveData ReplayData;
+	UPROPERTY(BlueprintReadWrite, Category = "BloodStain|Playback")
 	FBloodStainPlaybackOptions PlaybackOptions;
 
-	UPROPERTY(BlueprintReadOnly, Category = "BloodStain")
+	UPROPERTY(BlueprintReadOnly, Category = "BloodStain|Playback")
 	FGuid PlaybackKey;
-		
-	/** 재생 시작 시점 */
+	
 	float PlaybackStartTime = 0.f;
 
-	/** 현재 프레임 인덱스 */
 	int32 CurrentFrame = 0;
 
 	UPROPERTY()
