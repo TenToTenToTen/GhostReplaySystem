@@ -20,7 +20,7 @@
 DECLARE_CYCLE_STAT(TEXT("RecordComp TickComponent"), STAT_RecordComponent_TickComponent, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("RecordComp Initialize"), STAT_RecordComponent_Initialize, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("RecordComp CollectMeshComponents"), STAT_RecordComponent_CollectMeshComponents, STATGROUP_BloodStain);
-DECLARE_CYCLE_STAT(TEXT("RecordComp SaveQueuedFrames"), STAT_RecordComponent_SaveQueuedFrames, STATGROUP_BloodStain);
+DECLARE_CYCLE_STAT(TEXT("RecordComp SaveQueuedFrames"), STAT_RecordComponent_CookQueuedFrames, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("RecordComp OnComponentAttached"), STAT_RecordComponent_OnComponentAttached, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("RecordComp OnComponentDetached"), STAT_RecordComponent_OnComponentDetached, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("RecordComp FillMaterialData"), STAT_RecordComponent_FillMaterialData, STATGROUP_BloodStain);
@@ -29,14 +29,9 @@ DECLARE_CYCLE_STAT(TEXT("RecordComp HandleAttachedChanges"), STAT_RecordComponen
 DECLARE_CYCLE_STAT(TEXT("RecordComp HandleAttachedChangesByBit"), STAT_RecordComponent_HandleAttachedChangesByBit, STATGROUP_BloodStain);
 
 URecordComponent::URecordComponent()
-	: StartTime(0), CurrentFrameIndex(0), MaxRecordFrames(0)
+	: TimeSinceLastRecord(0), StartTime(0), CurrentFrameIndex(0), MaxRecordFrames(0)
 {
 	PrimaryComponentTick.bCanEverTick = true;
-}
-
-void URecordComponent::BeginPlay()
-{
-	Super::BeginPlay();
 }
 
 void URecordComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -44,21 +39,21 @@ void URecordComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_TickComponent); 
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	// 자동 탈부착 기계 빼고 싶으면 빼세요.
 	if (RecordOptions.bTrackAttachmentChanges)
 	{
-		// HandleAttachedActorChanges();
 		HandleAttachedActorChangesByBit();
 	}
 	
 	TimeSinceLastRecord += DeltaTime;
 	if (TimeSinceLastRecord >= RecordOptions.SamplingInterval)
 	{
+		TimeSinceLastRecord = 0.0f;
+		
 		FRecordFrame NewFrame;
 		NewFrame.FrameIndex = CurrentFrameIndex++;
 		NewFrame.TimeStamp = GetWorld()->GetTimeSeconds() - StartTime;
 
-		// 새로 추가된 컴포넌트 중 기록대상에 추가안된 pending list 적용
+		// Update Pending Component List
 		if (PendingAddedComponents.Num() > 0)
 		{
 			NewFrame.AddedComponents = PendingAddedComponents;
@@ -69,29 +64,28 @@ void URecordComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 			NewFrame.RemovedComponentNames = PendingRemovedComponentNames;
 			PendingRemovedComponentNames.Empty();
 		}
-		
-		// InitialComponentStructure에 있는 컴포넌트들만 월드 트랜스폼을 기록
+
+		// Record All Owned Component Transform (support for SceneComponent, SkeletalMeshComponent)
 		for (TObjectPtr<USceneComponent>& SceneComp : OwnedComponentsForRecord)
 		{
 			FString ComponentName = FString::Printf(TEXT("%s_%u"), *SceneComp->GetName(), SceneComp->GetUniqueID());
+			
 			if (USkeletalMeshComponent* SkeletalComp = Cast<USkeletalMeshComponent>(SceneComp))
 			{
 				FBoneComponentSpace LocalBaseTransforms(SkeletalComp->GetBoneSpaceTransforms());
 				NewFrame.SkeletalMeshBoneTransforms.Add(ComponentName, LocalBaseTransforms);
 			}
-			NewFrame.ComponentTransforms.Add(ComponentName, SceneComp->GetComponentTransform()); // 월드 트랜스폼 저장
+			
+			NewFrame.ComponentTransforms.Add(ComponentName, SceneComp->GetComponentTransform());
 		}
 
-		/* If there is no space left, discard oldest frame */
+		/* If there is no space left, discard the oldest frame */
 		if (FrameQueuePtr->IsFull())
 		{
 			FRecordFrame Discard;
 			FrameQueuePtr->Dequeue(Discard);
 		}
 		FrameQueuePtr->Enqueue(NewFrame);
-		
-		// GhostSaveData.RecordedFrames.Add(Frame);
-		TimeSinceLastRecord = 0.0f;
 	}
 }
 
@@ -102,14 +96,23 @@ void URecordComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	// In General, this is Stable
 	if (EndPlayReason == EEndPlayReason::Type::Destroyed)
 	{
-		GetWorld()->GetGameInstance()->GetSubsystem<UBloodStainSubsystem>()->StopRecordComponent(this);
+		if (const UWorld* World = GetWorld())
+		{
+			if (const UGameInstance* GameInstance = World->GetGameInstance())
+			{
+				if (UBloodStainSubsystem* BloodStainSubsystem = GameInstance->GetSubsystem<UBloodStainSubsystem>())
+				{
+					BloodStainSubsystem->StopRecordComponent(this);
+				}
+			}
+		}
 	}
 }
 
 void URecordComponent::Initialize(const FName& InGroupName, const FBloodStainRecordOptions& InOptions)
 {
-	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_Initialize); 
-	// 1) 전체 구조체 복사
+	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_Initialize);
+	
 	RecordOptions = InOptions;
 	GroupName = InGroupName;
 	
@@ -117,21 +120,23 @@ void URecordComponent::Initialize(const FName& InGroupName, const FBloodStainRec
 	uint32 CapacityPlusOne = FMath::Max<uint32>(MaxRecordFrames + 1, 2);
 	FrameQueuePtr = MakeUnique<TCircularQueue<FRecordFrame>>(CapacityPlusOne);
 	
-	// 2) 타임스탬프 리셋
-	// TimeSinceLastRecord = 0.f;
-	if (UWorld* World = GetWorld())
+	if (const UWorld* World = GetWorld())
 	{
 		StartTime = World->GetTimeSeconds();
 	}
 	
-	// 현재 액터와 모든 하위 액터에서 메시 컴포넌트를 수집하는 헬퍼 함수
-	CollectMeshComponents();
+	CollectOwnedMeshComponents();
 }
 
-bool URecordComponent::SaveQueuedFrames()
+FRecordActorSaveData URecordComponent::CookQueuedFrames()
 {
-	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_SaveQueuedFrames);
-	return BloodStainRecordDataUtils::CookQueuedFrames(RecordOptions.SamplingInterval, FrameQueuePtr.Get(), GhostSaveData, ComponentIntervals);
+	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_CookQueuedFrames);
+
+	FRecordActorSaveData Result = FRecordActorSaveData();
+	Result.PrimaryComponentName = PrimaryComponentName;
+	BloodStainRecordDataUtils::CookQueuedFrames(RecordOptions.SamplingInterval, FrameQueuePtr.Get(), Result, ComponentIntervals);
+
+	return Result;
 }
 
 void URecordComponent::OnComponentAttached(UMeshComponent* NewComponent)
@@ -256,7 +261,7 @@ void URecordComponent::FillMaterialData(const UMeshComponent* InMeshComponent, F
 	}
 }
 
-void URecordComponent::CollectMeshComponents()
+void URecordComponent::CollectOwnedMeshComponents()
 {
 	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_CollectMeshComponents);
     if (AActor* Owner = GetOwner())
@@ -279,13 +284,13 @@ void URecordComponent::CollectMeshComponents()
     		{
     			if (SkeletalMeshComp->GetSkeletalMeshAsset())
     			{
-	    			GhostSaveData.PrimaryComponentName = FName(FString::Printf(TEXT("%s_%u"), *SkeletalMeshComp->GetName(), SkeletalMeshComp->GetUniqueID()));
+	    			PrimaryComponentName = FName(FString::Printf(TEXT("%s_%u"), *SkeletalMeshComp->GetName(), SkeletalMeshComp->GetUniqueID()));
     				break;
     			}
     		}
     		else if (UStaticMeshComponent* StaticMeshComp = Cast<UStaticMeshComponent>(MeshComp))
     		{
-    			GhostSaveData.PrimaryComponentName = FName(FString::Printf(TEXT("%s_%u"), *StaticMeshComp->GetName(), StaticMeshComp->GetUniqueID()));
+    			PrimaryComponentName = FName(FString::Printf(TEXT("%s_%u"), *StaticMeshComp->GetName(), StaticMeshComp->GetUniqueID()));
     			break;
     		}
     	}
@@ -314,7 +319,6 @@ void URecordComponent::CollectMeshComponents()
         TArray<AActor*> AllAttachedActors;
         // 세 번째 인자를 true로 설정하여 재귀적으로 모든 하위 액터를 가져옵니다.
         Owner->GetAttachedActors(AllAttachedActors, true, true);
-    	PreviousAttachedActors = AllAttachedActors;
     	
         for (AActor* AttachedActor : AllAttachedActors)
         {
@@ -395,60 +399,6 @@ bool URecordComponent::CreateRecordFromMeshComponent(UMeshComponent* InMeshCompo
 	return true;
 }
 
-void URecordComponent::HandleAttachedActorChanges()
-{
-	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_HandleAttachedChanges); 
-	// 이전 틱과 Attached된 액터 비교하고 컴포넌트 탈부착
-	TArray<AActor*> CurrentAttachedActors;
-	AActor* Owner = GetOwner();
-	Owner->GetAttachedActors(CurrentAttachedActors, true, true);
-	if (PreviousAttachedActors != CurrentAttachedActors)
-	{
-		TSet<AActor*> PreviousSet(PreviousAttachedActors);
-		TSet<AActor*> CurrentSet(CurrentAttachedActors);
-
-		TSet<AActor*> AddedActorsSet = CurrentSet.Difference(PreviousSet);
-		TArray<AActor*> AddedActors(AddedActorsSet.Array());
-
-		if (AddedActors.Num() > 0)
-		{
-			// TODO: 새로 추가된 액터(AddedActors)에 대한 처리 로직
-			// 예: 녹화 대상에 추가, 초기 정보 기록 등
-			for (AActor* AttachedActor : AddedActors)
-			{
-				TArray<UMeshComponent*> MeshComps;
-				AttachedActor->GetComponents<UMeshComponent>(MeshComps);
-				for (UMeshComponent* MeshComp : MeshComps)
-				{
-					OnComponentAttached(MeshComp);
-				}
-			}
-			UE_LOG(LogTemp, Warning, TEXT("%d a actor(s) have been added."), AddedActors.Num());
-		}
-
-		TSet<AActor*> RemovedActorsSet = PreviousSet.Difference(CurrentSet);
-		TArray<AActor*> RemovedActors(RemovedActorsSet.Array());
-
-		if (RemovedActors.Num() > 0)
-		{
-			for (AActor* DetachedActor : RemovedActors)
-			{
-				TArray<UMeshComponent*> MeshComps;
-				DetachedActor->GetComponents<UMeshComponent>(MeshComps);
-				for (UMeshComponent* MeshComp : MeshComps)
-				{
-					OnComponentDetached(MeshComp);
-				}
-			}
-			// TODO: 사라진 액터(RemovedActors)에 대한 처리 로직
-			// 예: 녹화 대상에서 제거, 소멸 정보 기록 등
-			UE_LOG(LogTemp, Warning, TEXT("%d a actor(s) have been removed."), RemovedActors.Num());
-		}
-
-		PreviousAttachedActors = CurrentAttachedActors;
-	}
-}
-
 void URecordComponent::HandleAttachedActorChangesByBit()
 {
 	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_HandleAttachedChangesByBit); 
@@ -507,6 +457,5 @@ void URecordComponent::HandleAttachedActorChangesByBit()
 	}
 	
 	PrevAttachedBits = CurAttachedBits;
-	PreviousAttachedActors = MoveTemp(CurActors);
 }
 

@@ -32,7 +32,7 @@ void UReplayTerminatedActorManager::AddToRecordGroup(const FName& GroupName, URe
 	RecordComponentData.ActorName = RecordComponent->GetOwner()->GetFName();
 	RecordComponentData.TimeSinceLastRecord = RecordComponent->TimeSinceLastRecord;
 	RecordComponentData.FrameQueuePtr = TSharedPtr<TCircularQueue<FRecordFrame>>(RecordComponent->FrameQueuePtr.Release());
-	RecordComponentData.GhostSaveData = MoveTemp(RecordComponent->GhostSaveData);
+	RecordComponentData.GhostSaveData.PrimaryComponentName = MoveTemp(RecordComponent->PrimaryComponentName);
 
 	RecordComponentData.ComponentIntervals = MoveTemp(RecordComponent->ComponentIntervals);
 

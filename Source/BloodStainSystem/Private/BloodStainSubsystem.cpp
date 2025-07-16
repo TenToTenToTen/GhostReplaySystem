@@ -149,10 +149,8 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 				UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording Warning: RecordComponent is not Valid for Actor: %s"), *Actor->GetName());
 				continue;
 			}
-		
-			RecordComponent->SaveQueuedFrames(); // Move Data from FrameQueue to GhostSaveData
 
-			FRecordActorSaveData RecordSaveData = RecordComponent->GetGhostSaveData();
+			FRecordActorSaveData RecordSaveData = RecordComponent->CookQueuedFrames();
 			if (RecordSaveData.RecordedFrames.Num() == 0)
 			{
 				UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording Warning: Frame is 0: %s"), *Actor->GetName());
