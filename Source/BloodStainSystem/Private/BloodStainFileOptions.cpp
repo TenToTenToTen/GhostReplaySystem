@@ -8,7 +8,6 @@
 FArchive& operator<<(FArchive& Ar, FCompressionOption& Options)
 {
 	Ar << Options.Method;
-	Ar << Options.Level;
 	return Ar;
 }
 
