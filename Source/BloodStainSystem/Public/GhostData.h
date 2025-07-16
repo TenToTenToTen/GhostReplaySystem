@@ -178,11 +178,11 @@ struct FRecordFrame
 };
 
 USTRUCT()
-struct FRange
+struct FLocRange
 {
 	GENERATED_BODY()
 	
-	FRange()
+	FLocRange()
 			: PosMin(FVector::ZeroVector)
 			, PosMax(FVector::ZeroVector)
 	{}
@@ -193,7 +193,7 @@ struct FRange
 	UPROPERTY()
 	FVector PosMax;
 
-	friend FArchive& operator<<(FArchive& Ar, FRange& R)
+	friend FArchive& operator<<(FArchive& Ar, FLocRange& R)
 	{
 		Ar << R.PosMin << R.PosMax;
 		return Ar;
@@ -236,13 +236,13 @@ struct FRecordActorSaveData
 	TArray<FComponentInterval> ComponentIntervals;
 
 	UPROPERTY()
-	FRange ComponentRanges;
+	FLocRange ComponentRanges;
 
 	UPROPERTY()
 	FScaleRange ComponentScaleRanges; 
 	
 	UPROPERTY()
-	TMap<FString, FRange> BoneRanges;
+	TMap<FString, FLocRange> BoneRanges;
 
 	UPROPERTY()
 	TMap<FString, FScaleRange> BoneScaleRanges;

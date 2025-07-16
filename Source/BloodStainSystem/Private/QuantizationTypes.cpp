@@ -8,7 +8,7 @@
 static constexpr float SCL_MINS[3]   = { 0.f, 0.f, 0.f };
 static constexpr float SCL_RANGES[3] = { 10.f, 10.f, 10.f };
 
-FQuantizedTransform_Lowest::FQuantizedTransform_Lowest(const FTransform& T, const FRange& BoneRange,const FScaleRange& ScaleRange)
+FQuantizedTransform_Lowest::FQuantizedTransform_Lowest(const FTransform& T, const FLocRange& BoneRange,const FScaleRange& ScaleRange)
 {
 	// 위치: 전달받은 BoneRange 사용
 	FVector Mins = BoneRange.PosMin;
@@ -35,7 +35,7 @@ FQuantizedTransform_Lowest::FQuantizedTransform_Lowest(const FTransform& T, cons
 	// Scale.Packed = 0;
 }
 
-FTransform FQuantizedTransform_Lowest::ToTransform(const FRange& Range, const FScaleRange& ScaleRange) const
+FTransform FQuantizedTransform_Lowest::ToTransform(const FLocRange& Range, const FScaleRange& ScaleRange) const
 {
 	FTransform Out;
 	
