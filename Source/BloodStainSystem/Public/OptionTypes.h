@@ -55,7 +55,7 @@ struct FBloodStainPlaybackOptions
 
 	/** Playback speed ratio (1.0 = real-time, negative for reverse) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Replay")
-	float PlaybackRate = 0.5f;
+	float PlaybackRate = 1.0f;
 
 	/** If true, loop playback after completion */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Replay")
