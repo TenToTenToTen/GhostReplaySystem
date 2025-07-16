@@ -200,8 +200,7 @@ public:
 	
 	/** @return The complete absolute file path in the project's standard save directory. */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
-	FString GetFullFilePath(const FString& FileName) const;
-
+	FString GetFullFilePath(const FString& FileName, const FString& LevelName) const;
 public:
 	/** Spawns a BloodStainActor to the ground using the file name and level name. */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|BloodStainActor")

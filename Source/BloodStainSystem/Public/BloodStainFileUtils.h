@@ -15,24 +15,22 @@
 
 /**
  * FBloodStainFileUtils
- *  - FRecordSavedData 의 바이너리 직렬화/역직렬화
- *  - Saved/BloodStain 폴더에 .bin 확장자로 저장/로드
+ *  - Serialize/Deserialize Binary of FRecordSavedData
+ *  - Save & Load from .bin extension file in Saved/BloodStain folder
  */
 namespace BloodStainFileUtils
 {
 	/** 
-	 * SaveData를 Project/Saved/BloodStain/LevelName/<FileName>.bin 으로 이진 저장
-	 * @param SaveData  작성할 데이터
-	 * @param FileName  확장자 없이 쓸 파일 이름
-	 * @param Options
-	 * @return 성공 여부
+	 * Binary Save SaveData to Project/Saved/BloodStain/LevelName/<FileName>.bin
+	 * @param FileName  without extension
+	 * @return Success or failure
 	 */
-	bool SaveToFile(const FRecordSaveData& SaveData, const FString& FileName, const FBloodStainFileOptions& Options = FBloodStainFileOptions());
+	bool SaveToFile(const FRecordSaveData& SaveData, const FString& LevelName, const FString& FileName, const FBloodStainFileOptions& Options = FBloodStainFileOptions());
 	/**
 	 * Project/Saved/BloodStain/<FileName>.bin 에서 이진 로드하여 OutData에 채움
 	 * @param OutData   읽어들인 데이터를 담을 구조체 (empty여도 덮어쓰기)
 	 * @param FileName  확장자 없이 쓸 파일 이름
-	 * @return 성공 여부
+	 * @return Success or failure
 	 */
 	bool LoadFromFile(const FString& FileName, const FString& LevelName, FRecordSaveData& OutData);
 
@@ -48,5 +46,5 @@ namespace BloodStainFileUtils
 	 */
 	int32 LoadAllFiles(TMap<FString, FRecordSaveData>& OutLoadedDataMap, const FString& LevelName);
 
-	FString GetFullFilePath(const FString& FileName);
+	FString GetFullFilePath(const FString& FileName, const FString& LevelName);
 };

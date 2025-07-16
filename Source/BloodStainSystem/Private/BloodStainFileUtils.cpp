@@ -19,9 +19,9 @@ namespace BloodStainFileUtils_Internal
 		return FPaths::ProjectSavedDir() / TEXT("BloodStain");
 	}
 
-	FString GetFullFilePath(const FString& FileName)
+	FString GetFullFilePath(const FString& FileName, const FString& LevelName)
 	{
-		FString Dir = GetSaveDirectory();
+		FString Dir = GetSaveDirectory() / LevelName;
 		IFileManager::Get().MakeDirectory(*Dir, /*Tree*/true);
 		return Dir / (FileName + TEXT(".bin"));
 	}
@@ -29,6 +29,7 @@ namespace BloodStainFileUtils_Internal
 
 bool BloodStainFileUtils::SaveToFile(
     const FRecordSaveData&       SaveData,
+    const FString&               LevelName,
     const FString&               FileName,
     const FBloodStainFileOptions& Options)
 {
@@ -69,7 +70,7 @@ bool BloodStainFileUtils::SaveToFile(
 	FileAr << LocalCopy.Header;
     FileAr.Serialize(Payload.GetData(), Payload.Num());
 
-    const FString Path = BloodStainFileUtils_Internal::GetFullFilePath(FileName);
+    const FString Path = BloodStainFileUtils_Internal::GetFullFilePath(FileName, LevelName);
     bool bOK = FFileHelper::SaveArrayToFile(FileAr, *Path);
     FileAr.FlushCache(); FileAr.Empty();
 
@@ -104,7 +105,7 @@ bool BloodStainFileUtils::SaveToFile(
 bool BloodStainFileUtils::LoadFromFile(const FString& FileName, const FString& LevelName, FRecordSaveData& OutData)
 {
     // 1) 파일 전체 읽기
-    const FString Path = BloodStainFileUtils_Internal::GetFullFilePath(LevelName / FileName);
+    const FString Path = BloodStainFileUtils_Internal::GetFullFilePath(FileName, LevelName);
     TArray<uint8> AllBytes;
     if (!FFileHelper::LoadFileToArray(AllBytes, *Path))
     {
@@ -135,7 +136,7 @@ bool BloodStainFileUtils::LoadFromFile(const FString& FileName, const FString& L
     }
     else
     {
-        if (!BloodStainCompressionUtils::DecompressBuffer(Compressed, RawBytes, FileHeader.Options.Compression, FileHeader.UncompressedSize))
+        if (!BloodStainCompressionUtils::DecompressBuffer(FileHeader.UncompressedSize, Compressed, RawBytes, FileHeader.Options.Compression))
         {
             UE_LOG(LogBloodStain, Error, TEXT("[BS] DecompressBuffer failed"));
             return false;
@@ -150,7 +151,7 @@ bool BloodStainFileUtils::LoadFromFile(const FString& FileName, const FString& L
 
 bool BloodStainFileUtils::LoadHeaderFromFile(const FString& FileName, const FString& LevelName, FRecordHeaderData& OutRecordHeaderData)
 {	
-	const FString Path = BloodStainFileUtils_Internal::GetFullFilePath(LevelName / FileName);
+	const FString Path = BloodStainFileUtils_Internal::GetFullFilePath(FileName, LevelName);
 	IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
 	TUniquePtr<IFileHandle> FileHandle(PlatformFile.OpenRead(*Path));
 
@@ -260,7 +261,7 @@ int32 BloodStainFileUtils::LoadAllFiles(TMap<FString, FRecordSaveData>& OutLoade
 	return OutLoadedDataMap.Num();
 }
 
-FString BloodStainFileUtils::GetFullFilePath(const FString& FileName)
+FString BloodStainFileUtils::GetFullFilePath(const FString& FileName, const FString& LevelName)
 {
-	return BloodStainFileUtils_Internal::GetFullFilePath(FileName);
+	return BloodStainFileUtils_Internal::GetFullFilePath(FileName, LevelName);
 }

@@ -194,10 +194,10 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 	
 		FRecordSaveData RecordSaveData = ConvertToSaveData(RecordSaveDataArray, GroupName);
 	
-		const FString FileName = FString::Printf(TEXT("/%s/%s-%s.sav"), *MapName, *GroupNameString, *UniqueTimestamp);
+		const FString FileName = FString::Printf(TEXT("/%s-%s.sav"), *GroupNameString, *UniqueTimestamp);
 
 		(new FAutoDeleteAsyncTask<FSaveRecordingTask>(
-			MoveTemp(RecordSaveData), FileName,FileSaveOptions
+			MoveTemp(RecordSaveData), MapName, FileName,FileSaveOptions
 		))->StartBackgroundTask();
 	}
 	
@@ -416,9 +416,9 @@ void UBloodStainSubsystem::LoadAllHeadersInLevel(const FString& LevelName)
 	BloodStainFileUtils::LoadHeadersForAllFiles(CachedHeaders, LevelStr);
 }
 
-FString UBloodStainSubsystem::GetFullFilePath(const FString& FileName) const
+FString UBloodStainSubsystem::GetFullFilePath(const FString& FileName, const FString& LevelName) const
 {
-	return BloodStainFileUtils::GetFullFilePath(FileName);
+	return BloodStainFileUtils::GetFullFilePath(FileName, LevelName);
 }
 
 ABloodStainActor* UBloodStainSubsystem::SpawnBloodStain(const FString& FileName, const FString& LevelName)

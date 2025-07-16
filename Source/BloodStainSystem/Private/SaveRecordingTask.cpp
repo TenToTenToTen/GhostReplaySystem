@@ -10,7 +10,7 @@
 
 void FSaveRecordingTask::DoWork()
 {
-	if (!BloodStainFileUtils::SaveToFile(SavedData, FileName, FileOptions))
+	if (!BloodStainFileUtils::SaveToFile(SavedData, LevelName, FileName, FileOptions))
 	{
 		UE_LOG(LogBloodStain, Log, TEXT("FSaveRecordingTask::DoWork() - SaveToFile failed"));
 	}

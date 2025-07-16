@@ -45,7 +45,7 @@ namespace BloodStainCompressionUtils
         return true;
     }
 
-    bool BloodStainCompressionUtils::DecompressBuffer(const TArray<uint8>& Compressed, TArray<uint8>& OutRaw, int64 UncompressedSize, FCompressionOption Opts)
+    bool BloodStainCompressionUtils::DecompressBuffer(int64 UncompressedSize, const TArray<uint8>& Compressed, TArray<uint8>& OutRaw, FCompressionOption Opts)
     {
         if (Opts.Method == ECompressionMethod::None)
         {

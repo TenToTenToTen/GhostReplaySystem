@@ -21,8 +21,8 @@ namespace BloodStainCompressionUtils
 	 * @param UncompressedSize The value of RawBuffer.Num(), measured right before saving, must be stored in the header or as a separate prefix.
 	 * @return success/failure
 	 */
-	bool DecompressBuffer(const TArray<uint8>& Compressed,
-								TArray<uint8>&	   OutRaw,
-								int64	 UncompressedSize,
-								FCompressionOption  Opts = FCompressionOption());
+	bool DecompressBuffer(int64 UncompressedSize,
+						  const TArray<uint8>& Compressed,
+						  TArray<uint8>& OutRaw,
+						  FCompressionOption  Opts = FCompressionOption());
 }
