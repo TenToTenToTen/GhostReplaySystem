@@ -11,7 +11,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Serialization/MemoryReader.h"
-#include "GhostData.h"    // FRecordSavedData, FRecordFrame 정의
+#include "GhostData.h"
 
 /**
  * FBloodStainFileUtils
@@ -21,7 +21,7 @@
 namespace BloodStainFileUtils
 {
 	/** 
-	 * SaveData를 Project/Saved/BloodStain/<FileName>.bin 으로 이진 저장
+	 * SaveData를 Project/Saved/BloodStain/LevelName/<FileName>.bin 으로 이진 저장
 	 * @param SaveData  작성할 데이터
 	 * @param FileName  확장자 없이 쓸 파일 이름
 	 * @param Options
@@ -49,26 +49,4 @@ namespace BloodStainFileUtils
 	int32 LoadAllFiles(TMap<FString, FRecordSaveData>& OutLoadedDataMap, const FString& LevelName);
 
 	FString GetFullFilePath(const FString& FileName);
-	
-	// // Raw-float 경로
-	// static bool SaveRaw(
-	// 	FRecordSavedData        SaveData,  // by-value 복사
-	// 	const FString&          FullPath,
-	// 	const FBloodStainFileOptions& Options,
-	// 	FBloodStainFileHeader   Header);   // by-value non-const
-	//
-	// static bool LoadRaw(
-	// 	FBitReader& Reader,
-	// 	FRecordSavedData& OutData, const FBloodStainFileHeader& Header);   // by-value
-	//
-	// // NetQuantize 경로
-	// static bool SaveQuantized(
-	// 	const FRecordSavedData&       SaveData,
-	// 	const FString&                FullPath,
-	// 	const FBloodStainFileOptions& Options,
-	// 	FBloodStainFileHeader         Header);
-	//
-	// static bool LoadQuantized(
-	// 	FBitReader& Reader,
-	// 	FRecordSavedData& OutData, const FBloodStainFileHeader& Header);
 };

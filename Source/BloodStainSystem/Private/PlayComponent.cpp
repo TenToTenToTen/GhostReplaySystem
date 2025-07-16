@@ -88,23 +88,28 @@ void UPlayComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
 		}
 	}
 
+	/* 이진 탐색으로 변경 : 문제 있으면 주석친 코드로 원상 복구하세요 */
 	const int32 PreviousFrame = CurrentFrame;
+	const int32 UpperBoundIndex = Algo::UpperBoundBy(Frames, Elapsed, [](const FRecordFrame& Frame){
+		return Frame.TimeStamp;
+	});
+	int32 NewFrameIndex = FMath::Clamp(UpperBoundIndex - 1, 0, Frames.Num() - 2);
 	
-	// Determine the frame index that brackets Elapsed
-	int32 Num = Frames.Num();
-	int32 NewFrameIndex = 0;
-	for (int32 i = 0; i < Num - 1; ++i)
-	{
-		if (Frames[i + 1].TimeStamp > Elapsed)
-		{
-			NewFrameIndex = i;
-			break;
-		}
-		if (i == Num - 2)
-		{
-			NewFrameIndex = Num - 2;
-		}
-	}
+	// // Determine the frame index that brackets Elapsed
+	// int32 Num = Frames.Num();
+	// int32 NewFrameIndex = 0;
+	// for (int32 i = 0; i < Num - 1; ++i)
+	// {
+	// 	if (Frames[i + 1].TimeStamp > Elapsed)
+	// 	{
+	// 		NewFrameIndex = i;
+	// 		break;	
+	// 	}
+	// 	if (i == Num - 2)
+	// 	{
+	// 		NewFrameIndex = Num - 2;
+	// 	}
+	// }
 	CurrentFrame = NewFrameIndex;
 	if (PreviousFrame != CurrentFrame)
 	{

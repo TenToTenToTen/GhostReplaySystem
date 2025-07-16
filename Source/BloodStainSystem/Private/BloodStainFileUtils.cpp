@@ -38,11 +38,7 @@ bool BloodStainFileUtils::SaveToFile(
     // QuantizationArchive를 써서, FTransform 필드는 자동으로 양자화됩니다
 	FBufferArchive BufferAr;
 
-	BloodStainFileUtils_Internal::SerializeSaveData(
-		BufferAr,
-		LocalCopy,
-		LocalOptions.Quantization
-	);
+	BloodStainFileUtils_Internal::SerializeSaveData(BufferAr, LocalCopy,LocalOptions.Quantization);
 
     TArray<uint8> RawBytes;
     RawBytes.Append(BufferAr.GetData(), BufferAr.Num());
@@ -55,8 +51,7 @@ bool BloodStainFileUtils::SaveToFile(
     }
     else
     {
-        if (!BloodStainCompressionUtils::CompressBuffer(
-                RawBytes, Payload, Options.Compression))
+        if (!BloodStainCompressionUtils::CompressBuffer(RawBytes, Payload, Options.Compression))
         {
             UE_LOG(LogBloodStain, Error, TEXT("[BS] CompressBuffer failed"));
             return false;
@@ -98,8 +93,8 @@ bool BloodStainFileUtils::SaveToFile(
                 BoneCount = RecordActorData.RecordedFrames[0].ComponentTransforms.Num();
             }
 
-            UE_LOG(LogBloodStain, Log, TEXT("[BS] Saved recording to %s"), *Path);
-            UE_LOG(LogBloodStain, Log, TEXT("[BS] ▶ Duration: %.2f sec | Frames: %d | Sockets: %d"), 
+            UE_LOG(LogBloodStain, Log, TEXT("[BloodStain] Saved recording to %s"), *Path);
+            UE_LOG(LogBloodStain, Log, TEXT("[BloodStain] ▶ Duration: %.2f sec | Frames: %d | Sockets: %d"), 
                 Duration, NumFrames, BoneCount);    
         }
     }
@@ -118,7 +113,7 @@ bool BloodStainFileUtils::LoadFromFile(const FString& FileName, const FString& L
     }
 
     // 2) 헤더 역직렬화
-    FMemoryReader MemR(AllBytes, /*bIsPersistent=*/true);
+    FMemoryReader MemR(AllBytes, true);
     FBloodStainFileHeader FileHeader;
     MemR << FileHeader;  // 읽고 커서가 헤더 끝으로 이동
 	MemR << OutData.Header;
@@ -140,8 +135,7 @@ bool BloodStainFileUtils::LoadFromFile(const FString& FileName, const FString& L
     }
     else
     {
-        if (!BloodStainCompressionUtils::DecompressBuffer(
-                Compressed, RawBytes, FileHeader.Options.Compression, FileHeader.UncompressedSize))
+        if (!BloodStainCompressionUtils::DecompressBuffer(Compressed, RawBytes, FileHeader.Options.Compression, FileHeader.UncompressedSize))
         {
             UE_LOG(LogBloodStain, Error, TEXT("[BS] DecompressBuffer failed"));
             return false;
@@ -149,18 +143,14 @@ bool BloodStainFileUtils::LoadFromFile(const FString& FileName, const FString& L
     }
 
 	FMemoryReader MemoryReader(RawBytes, true);
-	BloodStainFileUtils_Internal::DeserializeSaveData(
-		MemoryReader,
-		OutData,
-		FileHeader.Options.Quantization
-	);
+	BloodStainFileUtils_Internal::DeserializeSaveData(MemoryReader,OutData,FileHeader.Options.Quantization);
+	
     return true;
 }
 
 bool BloodStainFileUtils::LoadHeaderFromFile(const FString& FileName, const FString& LevelName, FRecordHeaderData& OutRecordHeaderData)
 {	
 	const FString Path = BloodStainFileUtils_Internal::GetFullFilePath(LevelName / FileName);
-
 	IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
 	TUniquePtr<IFileHandle> FileHandle(PlatformFile.OpenRead(*Path));
 
