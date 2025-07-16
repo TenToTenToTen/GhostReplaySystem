@@ -9,6 +9,7 @@
 #include "GhostData.h"
 #include "OptionTypes.h"
 #include "Components/ActorComponent.h"
+//#include "Animation/AnimSequence.h"
 #include "PlayComponent.generated.h"
 
 class UWorld;
@@ -19,6 +20,7 @@ class USkeleton;
 class UStaticMeshComponent;
 class UMeshComponent;
 class UMaterialInterface;
+class UAnimSequence;
 
 struct FIntervalTreeNode
 {
