@@ -40,8 +40,7 @@ bool BloodStainFileUtils::SaveToFile(
 
     TArray<uint8> RawBytes;
     RawBytes.Append(BufferAr.GetData(), BufferAr.Num());
-
-    // 2) (옵션에 따라) 압축 → Payload
+	
     TArray<uint8> Payload;
     if (Options.Compression.Method == ECompressionMethod::None)
     {
@@ -110,7 +109,7 @@ bool BloodStainFileUtils::LoadFromFile(const FString& FileName, const FString& L
     // Header Deserialization
     FMemoryReader MemR(AllBytes, true);
     FBloodStainFileHeader FileHeader;
-    MemR << FileHeader;  // 읽고 커서가 헤더 끝으로 이동
+    MemR << FileHeader;
 	MemR << OutData.Header;
 
     int64 Offset = MemR.Tell();

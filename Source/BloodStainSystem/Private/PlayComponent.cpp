@@ -137,8 +137,7 @@ void UPlayComponent::UpdatePlaybackToTime(float ElapsedTime)
 	const float Alpha = (FrameDuration > KINDA_SMALL_NUMBER)
 		? FMath::Clamp((ElapsedTime - Prev.TimeStamp) / FrameDuration, 0.0f, 1.0f)
 		: 1.0f;
-    
-	// 4. 보간된 트랜스폼을 적용합니다.
+	
 	ApplyComponentTransforms(Prev, Next, Alpha);
 	ApplySkeletalBoneTransforms(Prev, Next, Alpha);
 }
@@ -289,8 +288,7 @@ void UPlayComponent::ApplySkeletalBoneTransforms(const FRecordFrame& Prev, const
 			if (PrevBones && NextBones)
 			{
 				const int32 NumBones = FMath::Min(PrevBones->BoneTransforms.Num(), NextBones->BoneTransforms.Num());
-                
-				// 모든 뼈대에 대해 보간 및 적용
+				
 				for (int32 BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex)
 				{
 					const FTransform& PrevT = PrevBones->BoneTransforms[BoneIndex];

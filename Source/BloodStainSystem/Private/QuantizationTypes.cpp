@@ -5,9 +5,6 @@
 
 #include "QuantizationTypes.h"
 
-static constexpr float SCL_MINS[3]   = { 0.f, 0.f, 0.f };
-static constexpr float SCL_RANGES[3] = { 10.f, 10.f, 10.f };
-
 FQuantizedTransform_Lowest::FQuantizedTransform_Lowest(const FTransform& T, const FLocRange& BoneRange,const FScaleRange& ScaleRange)
 {
 	FVector Mins = BoneRange.PosMin;
