@@ -6,7 +6,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "BloodActor.h"
+#include "BloodStainActor.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "GhostData.h"
 #include "BloodStainFileOptions.h" 
@@ -27,15 +27,16 @@ public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	
 	/**
+	 * If the group is already recording, join the recording group
 	 * @param	TargetActor	Record Target Actor
 	 * @param	Options	 RecordOptions
 	 * @param	GroupName	Record Group Name
 	 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Record")
 	bool StartRecording(AActor* TargetActor, const FBloodStainRecordOptions& Options, FName GroupName = NAME_None);
-
 	
 	/**
+	 * If the group is already recording, join the recording group
 	 * @param	TargetActors	Record Target Actors	
 	 * @param	GroupName	Record Group Name
 	 * @param	Options	 RecordOptions
@@ -45,7 +46,7 @@ public:
 	
 	/**
 	* @param	GroupName	Record Group Name
-	* @param bSaveRecordingData	if true, Save to Local File
+	* @param	bSaveRecordingData	if true, Save to Local File
 	 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Record")
 	void StopRecording(FName GroupName = NAME_None, bool bSaveRecordingData = true);
@@ -59,7 +60,7 @@ public:
 	
 	/** 재생 시작 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
-	bool StartReplayByBloodStain(ABloodActor* BloodStainActor, FGuid& OutGuid);
+	bool StartReplayByBloodStain(ABloodStainActor* BloodStainActor, FGuid& OutGuid);
 
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
 	bool StartReplayFromFile(const FString& FileName, const FString& LevelName, const FBloodStainPlaybackOptions& InPlaybackOptions, FGuid& OutGuid);
@@ -104,11 +105,11 @@ public:
 	UMaterialInterface* GetDefaultMaterial() const { return GhostMaterial; }
 
 public:
-	UFUNCTION(BlueprintCallable, Category="BloodStain")
-	ABloodActor* SpawnBloodStain(const FString& FileName, const FString& LevelName);
-	
-	/** 재생 끝난 혈흔 액터 해제 (액터 파괴 또는 풀링 전용 메타콜) */
-	void RemoveBloodStain(ABloodActor* StainActor);
+	/**
+	 * 
+	 */
+	UFUNCTION(BlueprintCallable, Category="BloodStain|BloodStainActor")
+	ABloodStainActor* SpawnBloodStain(const FString& FileName, const FString& LevelName);
 
 	UFUNCTION(BlueprintCallable, Category="BloodStain")
 	void SpawnAllBloodStainInLevel();
@@ -135,7 +136,7 @@ public:
 
 private:
 	FRecordSaveData ConvertToSaveData(TArray<FRecordActorSaveData>& RecordActorDataArray, const FName& GroupName);
-	ABloodActor* SpawnBloodStain_Internal(const FVector& Location, const FRotator& Rotation, const FString& FileName, const FString& LevelName);
+	ABloodStainActor* SpawnBloodStain_Internal(const FVector& Location, const FRotator& Rotation, const FString& FileName, const FString& LevelName);
 
 	bool StartReplay_Internal(const FRecordSaveData& RecordSaveData, const FBloodStainPlaybackOptions& InPlaybackOptions, FGuid& OutGuid);
 
@@ -156,7 +157,7 @@ public:
 protected:
 	/** 플레이어 사망 시 스폰할 BloodStainActor 클래스 */
 	UPROPERTY()
-	TSubclassOf<ABloodActor> BloodStainActorClass;
+	TSubclassOf<ABloodStainActor> BloodStainActorClass;
 	
 private:
 
@@ -183,10 +184,6 @@ private:
 	 */
 	UPROPERTY()
 	TMap<FString, FRecordHeaderData> CachedHeaders;
-
-	/** 현재 월드에 존재하는 혈흔 액터 리스트 */
-	UPROPERTY()
-	TArray<TWeakObjectPtr<ABloodActor>> ActiveBloodStains;
 	
 	UPROPERTY()
 	TObjectPtr<UMaterialInterface> GhostMaterial;

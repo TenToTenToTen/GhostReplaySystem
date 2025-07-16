@@ -7,7 +7,7 @@
 #include "CoreMinimal.h"
 #include "OptionTypes.h"
 #include "Engine/DecalActor.h"
-#include "BloodActor.generated.h"
+#include "BloodStainActor.generated.h"
 
 class USphereComponent;
 class UPrimitiveComponent;
@@ -20,12 +20,12 @@ class UUserWidget;
  * 상호작용하면 Subsystem을 통해 Play함수 호출, 매개변수는 ReplayData 경로
  */
 UCLASS()
-class BLOODSTAINSYSTEM_API ABloodActor : public ADecalActor
+class BLOODSTAINSYSTEM_API ABloodStainActor : public ADecalActor
 {
 	GENERATED_BODY()
 
 public:
-	ABloodActor();
+	ABloodStainActor();
 
 	void Initialize(const FString& InReplayFileName, const FString& InLevelName);
 	
@@ -36,34 +36,34 @@ public:
 	void OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
 	
 	// Interaction Logic (e.g. called when the E key is pressed)
-	UFUNCTION(Category = "BloodActor", BlueprintCallable)
+	UFUNCTION(Category = "BloodStainActor", BlueprintCallable)
 	void Interact();
 
 public:	
-	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category="BloodActor")
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category="BloodStainActor")
 	FString ReplayFileName;
 	
-	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category="BloodActor")
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category="BloodStainActor")
 	FString LevelName;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="BloodActor")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="BloodStainActor")
 	FBloodStainPlaybackOptions PlaybackOptions;
 
 protected:
 	UPROPERTY()
 	TObjectPtr<UUserWidget> InteractionWidgetInstance;
 
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "BloodActor|UI")
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "BloodStainActor|UI")
 	TSubclassOf<UUserWidget> InteractionWidgetClass;
 	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="BloodActor")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="BloodStainActor")
 	bool bAllowMultiplePlayback = true;
 	
 	/** Last Played Playback Key. Use for Control Playing BloodStain */
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category="BloodActor")
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category="BloodStainActor")
 	FGuid LastPlaybackKey;
 	
-	UPROPERTY(BlueprintReadOnly, Category = "BloodActor", meta=(AllowPrivateAccess = "true"))
+	UPROPERTY(BlueprintReadOnly, Category = "BloodStainActor", meta=(AllowPrivateAccess = "true"))
 	TObjectPtr<USphereComponent> SphereComponent;
 	
 private:

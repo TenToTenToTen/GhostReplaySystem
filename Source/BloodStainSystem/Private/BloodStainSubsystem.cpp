@@ -6,7 +6,7 @@
 
 #include "BloodStainSubsystem.h"
 
-#include "BloodActor.h"
+#include "BloodStainActor.h"
 #include "BloodStainFileUtils.h"
 #include "BloodStainSystem.h"
 #include "PlayComponent.h"
@@ -25,16 +25,16 @@ FName UBloodStainSubsystem::DefaultGroupName = TEXT("BloodStainReplay");
 
 UBloodStainSubsystem::UBloodStainSubsystem()
 {
-	static ConstructorHelpers::FClassFinder<ABloodActor> BloodActorClassFinder(TEXT("/BloodStainSystem/BP_BloodActor.BP_BloodActor_C"));
+	static ConstructorHelpers::FClassFinder<ABloodStainActor> BloodStainActorClassFinder(TEXT("/BloodStainSystem/BP_BloodStainActor.BP_BloodStainActor_C"));
 
-	if (BloodActorClassFinder.Succeeded())
+	if (BloodStainActorClassFinder.Succeeded())
 	{
-		BloodStainActorClass = BloodActorClassFinder.Class;
+		BloodStainActorClass = BloodStainActorClassFinder.Class;
 	}
 	else
 	{
 		// 생성자에서는 Fatal 대신 Warning이나 Error를 사용하는 것이 더 안정적일 수 있습니다.
-		UE_LOG(LogBloodStain, Fatal, TEXT("Failed to find BloodActorClass at path. Subsystem may not function."));
+		UE_LOG(LogBloodStain, Fatal, TEXT("Failed to find BloodStainActorClass at path. Subsystem may not function."));
 	}
 }
 
@@ -263,7 +263,7 @@ void UBloodStainSubsystem::StopRecordComponent(URecordComponent* RecordComponent
 	}
 }
 
-bool UBloodStainSubsystem::StartReplayByBloodStain(ABloodActor* BloodStainActor, FGuid& OutGuid)
+bool UBloodStainSubsystem::StartReplayByBloodStain(ABloodStainActor* BloodStainActor, FGuid& OutGuid)
 {
 	if (!BloodStainActor)
 	{
@@ -425,7 +425,7 @@ void UBloodStainSubsystem::LoadAllHeadersInLevel(const FString& LevelName)
 	BloodStainFileUtils::LoadHeadersForAllFiles(CachedHeaders, LevelStr);
 }
 
-ABloodActor* UBloodStainSubsystem::SpawnBloodStain(const FString& FileName, const FString& LevelName)
+ABloodStainActor* UBloodStainSubsystem::SpawnBloodStain(const FString& FileName, const FString& LevelName)
 {
 	FRecordHeaderData RecordHeaderData;
 
@@ -452,12 +452,6 @@ ABloodActor* UBloodStainSubsystem::SpawnBloodStain(const FString& FileName, cons
 
 	UE_LOG(LogBloodStain, Warning, TEXT("Failed to LineTrace to Floor."));
 	return nullptr;
-}
-
-void UBloodStainSubsystem::RemoveBloodStain(ABloodActor* StainActor)
-{
-	ActiveBloodStains.Remove(TWeakObjectPtr<ABloodActor>(StainActor));
-	StainActor->Destroy();
 }
 
 void UBloodStainSubsystem::SpawnAllBloodStainInLevel()
@@ -525,7 +519,7 @@ FRecordSaveData UBloodStainSubsystem::ConvertToSaveData(TArray<FRecordActorSaveD
 	return RecordSaveData;
 }
 
-ABloodActor* UBloodStainSubsystem::SpawnBloodStain_Internal(const FVector& Location, const FRotator& Rotation, const FString& FileName, const FString& LevelName)
+ABloodStainActor* UBloodStainSubsystem::SpawnBloodStain_Internal(const FVector& Location, const FRotator& Rotation, const FString& FileName, const FString& LevelName)
 {
 	// 파일 유효성 검사
 	if (!IsFileHeaderLoaded(FileName))
@@ -544,7 +538,7 @@ ABloodActor* UBloodStainSubsystem::SpawnBloodStain_Internal(const FVector& Locat
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-	ABloodActor* BloodStain = World->SpawnActor<ABloodActor>(BloodStainActorClass, Location, Rotation, Params);
+	ABloodStainActor* BloodStain = World->SpawnActor<ABloodStainActor>(BloodStainActorClass, Location, Rotation, Params);
 
 	if (!BloodStain)
 	{
@@ -554,7 +548,6 @@ ABloodActor* UBloodStainSubsystem::SpawnBloodStain_Internal(const FVector& Locat
 
 	// FileName 세팅 및 서브시스템 등록
 	BloodStain->Initialize(FileName, LevelName);
-	ActiveBloodStains.Add(BloodStain);
 
 	return BloodStain;
 }

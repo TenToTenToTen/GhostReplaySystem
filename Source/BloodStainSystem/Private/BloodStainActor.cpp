@@ -2,7 +2,7 @@
 * Copyright 2025 TenToTen, All Rights Reserved.
 */
 
-#include "BloodActor.h"
+#include "BloodStainActor.h"
 #include "GameFramework/Pawn.h"
 #include "Engine/GameInstance.h" 
 #include "BloodStainSubsystem.h"
@@ -10,11 +10,11 @@
 #include "Components/SphereComponent.h"
 #include "Blueprint/UserWidget.h"
 
-FName ABloodActor::SphereComponentName(TEXT("InteractionSphere"));
+FName ABloodStainActor::SphereComponentName(TEXT("InteractionSphere"));
 
-ABloodActor::ABloodActor()
+ABloodStainActor::ABloodStainActor()
 {
-	SphereComponent = CreateDefaultSubobject<USphereComponent>(ABloodActor::SphereComponentName);
+	SphereComponent = CreateDefaultSubobject<USphereComponent>(ABloodStainActor::SphereComponentName);
 
 	SphereComponent->SetupAttachment(GetDecal());
 	
@@ -23,20 +23,20 @@ ABloodActor::ABloodActor()
 	SphereComponent->SetCanEverAffectNavigation(false);
 	SphereComponent->SetGenerateOverlapEvents(true);
 
-	SphereComponent->OnComponentBeginOverlap.AddDynamic(this, &ABloodActor::OnOverlapBegin);
-	SphereComponent->OnComponentEndOverlap.AddDynamic(this, &ABloodActor::OnOverlapEnd);
+	SphereComponent->OnComponentBeginOverlap.AddDynamic(this, &ABloodStainActor::OnOverlapBegin);
+	SphereComponent->OnComponentEndOverlap.AddDynamic(this, &ABloodStainActor::OnOverlapEnd);
 	
 	InteractionWidgetClass = nullptr;
 	InteractionWidgetInstance = nullptr;
 }
 
-void ABloodActor::Initialize(const FString& InReplayFileName, const FString& InLevelName)
+void ABloodStainActor::Initialize(const FString& InReplayFileName, const FString& InLevelName)
 {
 	ReplayFileName = InReplayFileName;
 	LevelName = InLevelName;
 }
 
-void ABloodActor::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,
+void ABloodStainActor::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,
 	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
 	// 오버랩된 액터가 로컬 플레이어의 폰인지 확인합니다.
@@ -62,7 +62,7 @@ void ABloodActor::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* Ot
 	}
 }
 
-void ABloodActor::OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
+void ABloodStainActor::OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
 {
 	APawn* PlayerPawn = Cast<APawn>(OtherActor);
 	if (PlayerPawn && PlayerPawn->IsLocallyControlled())
@@ -81,7 +81,7 @@ void ABloodActor::OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* Othe
 	}
 }
 
-void ABloodActor::Interact()
+void ABloodStainActor::Interact()
 {
 	if (UWorld* World = GetWorld())
 	{
