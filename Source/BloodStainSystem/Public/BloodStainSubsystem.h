@@ -104,6 +104,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
 	UMaterialInterface* GetDefaultMaterial() const { return GhostMaterial; }
 
+	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
+	bool IsPlaying(const FGuid& InPlaybackKey) const;
+
 public:
 	/**
 	 * 
@@ -111,7 +114,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BloodStain|BloodStainActor")
 	ABloodStainActor* SpawnBloodStain(const FString& FileName, const FString& LevelName);
 
-	UFUNCTION(BlueprintCallable, Category="BloodStain")
+	UFUNCTION(BlueprintCallable, Category="BloodStain|BloodStainActor")
 	void SpawnAllBloodStainInLevel();
 	
 public:
@@ -132,7 +135,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Record")
 	void NotifyComponentDetached(AActor* TargetActor, UMeshComponent* DetachedComponent);
 
-	bool IsPlaying(const FGuid& InPlaybackKey) const;
+	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
+	void SetFileSaveOptions(const FBloodStainFileOptions& InOptions);
 
 private:
 	FRecordSaveData ConvertToSaveData(TArray<FRecordActorSaveData>& RecordActorDataArray, const FName& GroupName);
@@ -145,14 +149,8 @@ private:
 	
 public:
 	/** 파일 저장·로드 옵션 (Quantization, Compression, Checksum 등) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category="File IO")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category="BloodStain|File")
 	FBloodStainFileOptions FileSaveOptions;
-
-	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
-	void SetFileSaveOptions(const FBloodStainFileOptions& InOptions);
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BloodStain|Record")
-	float LineTraceLength = 500.f;
 	
 protected:
 	/** 플레이어 사망 시 스폰할 BloodStainActor 클래스 */
@@ -192,4 +190,5 @@ private:
 	TObjectPtr<UReplayTerminatedActorManager> ReplayTerminatedActorManager;
 
 	static FName DefaultGroupName;
+	static float LineTraceLength;
 };

@@ -21,6 +21,7 @@
 
 class FSaveRecordingTask;
 
+float UBloodStainSubsystem::LineTraceLength = 500.f;
 FName UBloodStainSubsystem::DefaultGroupName = TEXT("BloodStainReplay");
 
 UBloodStainSubsystem::UBloodStainSubsystem()
