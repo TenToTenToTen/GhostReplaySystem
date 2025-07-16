@@ -4,7 +4,6 @@
 
 
 #include "BloodStainRecordDataUtils.h"
-
 #include "BloodStainSystem.h"
 #include "GhostData.h"
 
