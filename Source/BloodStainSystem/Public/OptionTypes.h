@@ -8,23 +8,28 @@
 #include "CoreMinimal.h"
 #include "OptionTypes.generated.h"
 
-/** 녹화 옵션 구조체 */
+/** @brief Recording options for the BloodStain system.
+ * 
+ *	includes settings for maximum recording duration, sampling interval, and replay options.
+ */
 USTRUCT(BlueprintType)
 struct FBloodStainRecordOptions
 {
 	GENERATED_BODY()
 
-	/** 최대 녹화 길이(초) */
+	/** Maximum recording duration in seconds */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Record")
 	float MaxRecordTime = 5.f;
 
-	/** 프레임마다 기록 간격(초) */
+	/** Interval between samples in seconds (default = 0.1, ~10fps) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Record")
-	float SamplingInterval = 0.1f; // 10fps
+	float SamplingInterval = 0.1f;
 
+	/** If true, track mesh attachment changes in record component's tick */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Replay")
 	bool bTrackAttachmentChanges = true;
 
+	/** Save immediately if all recording actors in group is empty */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Replay")
 	bool bSaveImmediatelyIfGroupEmpty = false;
 	
@@ -39,20 +44,24 @@ struct FBloodStainRecordOptions
 };
 
 
-/** 녹화 옵션 구조체 */
+/** @brief Playback options for the BloodStain system
+ * 
+ *	includes settings for playback speed, looping behavior, and material usage.
+ */
 USTRUCT(BlueprintType)
 struct FBloodStainPlaybackOptions
 {
 	GENERATED_BODY()
 
-	/** 재생 속도 비율(1.0=실시간) */
+	/** Playback speed ratio (1.0 = real-time, negative for reverse) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Replay")
 	float PlaybackRate = 0.5f;
 
-	/** 재생 완료 시 자동 슬롯 클린업 여부 */
+	/** If true, loop playback after completion */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Replay")
 	bool bIsLooping = false;
 
+	/** If true, use ghost material instead of original recorded one */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Replay")
 	bool bUseGhostMaterial = true;
 
@@ -65,22 +74,3 @@ struct FBloodStainPlaybackOptions
 		return Ar;
 	}
 };
-
-/** Replay Options */
-// USTRUCT(BlueprintType)
-// struct FBloodStainReplayOptions
-// {
-// 	GENERATED_BODY()
-//
-// 	/** 재생 시간(초). 0 이면 전체 재생 */
-// 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Replay")
-// 	float ReplayDuration = 0.f;
-//
-// 	/** 재생 속도 비율(1.0=실시간) */
-// 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Replay")
-// 	float PlaybackRate = 1.f;
-//
-// 	/** 재생 완료 시 자동 슬롯 클린업 여부 */
-// 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Replay")
-// 	bool bIsLooping = true;
-// };

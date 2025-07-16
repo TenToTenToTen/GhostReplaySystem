@@ -15,18 +15,15 @@ class BLOODSTAINSYSTEM_API AReplayActor : public AActor
 	GENERATED_BODY()
 	
 public:	
-	// Sets default values for this actor's properties
 	AReplayActor();
 
 	UPROPERTY()
 	TObjectPtr<USceneComponent> SceneRoot;
 	
 protected:
-	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
 public:	
-	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
 };

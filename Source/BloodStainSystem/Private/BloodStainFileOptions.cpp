@@ -16,8 +16,6 @@ FArchive& operator<<(FArchive& Ar, FBloodStainFileOptions& Options)
 {
 	Ar << Options.Compression;
 	Ar << Options.Quantization;
-	Ar << Options.bIncludeChecksum;
-	Ar << Options.bUseNetQuantize;
 	return Ar;
 }
 

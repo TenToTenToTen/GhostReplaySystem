@@ -12,30 +12,45 @@
 class AReplayActor;
 class URecordComponent;
 
+/** @brief Recording group for one or more actors, saved as a single file.
+ * 
+ *	manages the spawn point, recording options, and active recorders.
+ */
 USTRUCT()
 struct FBloodStainRecordGroup
 {
 	GENERATED_BODY()
-	
+
+	/** Transform at which this group will be spawned for Replay */
 	UPROPERTY()
 	FTransform SpawnPointTransform;
-	
+
+	/** Recording options applied to this group */
 	UPROPERTY()
 	FBloodStainRecordOptions RecordOptions;
-	
+
+	/** Map of actors currently being recorded to their URecordComponent instances */
 	UPROPERTY()
 	TMap<TObjectPtr<AActor>, TObjectPtr<URecordComponent>> ActiveRecorders;
 };
 
+/** @brief Playback group: tracks active replay actors for a single replay session.
+ */
 USTRUCT()
 struct FBloodStainPlaybackGroup
 {
 	GENERATED_BODY()
 
+	/** Set of currently active replay actors */
 	UPROPERTY()
 	TSet<TObjectPtr<AReplayActor>> ActiveReplayers;
 };
 
+/** @brief Material parameters: serializes stored vector and scalar parameters per slot 
+ * 
+ *	Used to store material parameters for each mesh component in the recorded data.
+ *	Can be extended to include other parameter types as needed.
+ */
 USTRUCT()
 struct FMaterialParameters
 {
@@ -54,24 +69,32 @@ struct FMaterialParameters
 		return Ar;
 	}
 };
-// 각 컴포넌트의 정보를 담을 구조체
+
+/** @brief Metadata for components added or removed during recording
+ * 
+ */
 USTRUCT(BlueprintType)
 struct FComponentRecord
 {
 	GENERATED_BODY()
 
+	/** Component name, used to find or create the component on replay */
 	UPROPERTY(BlueprintReadWrite, Category = "BloodStain")
-	FString ComponentName; // 컴포넌트 이름 (재생 시 찾거나 생성할 때 사용)
-	
-	UPROPERTY(BlueprintReadWrite, Category = "BloodStain")
-	FString ComponentClassPath; // 컴포넌트 클래스 경로 (예: "/Script/Engine.StaticMeshComponent")
+	FString ComponentName;
 
+	/** Component class path, e.g., "/Script/Engine.StaticMeshComponent" */
 	UPROPERTY(BlueprintReadWrite, Category = "BloodStain")
-	FString AssetPath; // 메시 컴포넌트의 경우, 사용된 메시 에셋의 경로 (예: "/Game/Meshes/MyStaticMesh.MyStaticMesh")
+	FString ComponentClassPath;
 
+	/** Asset path for mesh components, e.g., "/Game/Meshes/MyStaticMesh.MyStaticMesh" */
+	UPROPERTY(BlueprintReadWrite, Category = "BloodStain")
+	FString AssetPath;
+
+	/** Array of material slot paths applied to this component */
 	UPROPERTY(BlueprintReadWrite, Category = "BloodStain")
 	TArray<FString> MaterialPaths;
 
+	/** Map of slot index to saved material parameters */
 	UPROPERTY()
 	TMap<int32, FMaterialParameters> MaterialParameters;
 	
@@ -86,21 +109,23 @@ struct FComponentRecord
 	}
 };
 
-/** 컴포넌트의 생명 주기 [생성 프레임, 소멸 프레임] 저장 */
+/** @brief Component interval: stores lifecycle [startFrame, endFrame) for a component
+ * 
+ */
 USTRUCT()
 struct FComponentInterval
 {
 	GENERATED_BODY()
 
-	/** 컴포넌트 메타데이터 */
+	/** Metadata for this component */
 	UPROPERTY()
 	FComponentRecord Meta;
 
-	/** 부착된 프레임 인덱스(포함) */
+	/** Frame index at which this component was attached (inclusive) */
 	UPROPERTY()
 	int32 StartFrame = 0;
 
-	/** 탈착된 프레임 인덱스(비포함) */
+	/** Frame index at which this component was detached (exclusive) */
 	UPROPERTY()
 	int32 EndFrame = INT32_MAX;
 	
@@ -118,13 +143,14 @@ struct FComponentInterval
 	}
 };
 
-
-// 본 이름과 트랜스폼 맵을 래핑하는 새로운 USTRUCT
+/** @brief Array of Local-space transforms for all bones in a skeletal mesh component
+ */
 USTRUCT(BlueprintType)
 struct FBoneComponentSpace
 {
 	GENERATED_BODY()
 
+	/** Array of transforms for each bone in local component space */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "BloodStain")
 	TArray<FTransform> BoneTransforms;
 
@@ -135,6 +161,11 @@ struct FBoneComponentSpace
 	}
 };
 
+/** @brief Data recorded for a single frame, including transforms and component events
+ *
+ * Contains all transforms for components and skeletal meshes attached in a single actor
+ * as well as added/removed components.
+ */
 USTRUCT(BlueprintType)
 struct FRecordFrame
 {
@@ -144,24 +175,28 @@ struct FRecordFrame
 		,FrameIndex(0)
 	{
 	}
+
+	/** Timestamp of this frame in seconds */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "BloodStain")
 	float TimeStamp;
-	
+
+	/** Map of components' name to their transforms at this frame */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "BloodStain")
 	TMap<FString, FTransform> ComponentTransforms;
 
+	/** Map of skeletal mesh components' names to their bone transforms */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "BloodStain")
 	TMap<FString, FBoneComponentSpace> SkeletalMeshBoneTransforms;
 
-	/* Added Components list in this frame */
+	/** Components added on this frame */
 	UPROPERTY()
 	TArray<FComponentRecord> AddedComponents;
 
-	/* Removed Components list in this frame */
+	/** Component names removed on this frame */
 	UPROPERTY()
 	TArray<FString> RemovedComponentNames;
 
-	/* Original Frame Index from the Recorded Data */
+	/** Original frame index from the recorded data */
 	UPROPERTY()
 	int32 FrameIndex;
 	
@@ -177,6 +212,7 @@ struct FRecordFrame
 	}
 };
 
+/** @brief Location range: min/max position, used only for Standard_Low quantization */
 USTRUCT()
 struct FLocRange
 {
@@ -200,6 +236,7 @@ struct FLocRange
 	}
 };
 
+/** @brief Scale range: min/max scale, used only for Standard_Low quantization */
 USTRUCT()
 struct FScaleRange
 {
@@ -224,29 +261,40 @@ struct FScaleRange
 	}
 };
 
+/** @brief Actor save data: stores all recording info for one actor, separating component vs. bone transform ranges
+ *
+ *  Tracks all mesh components under this actor including attached actors.
+ */
 USTRUCT(BlueprintType)
 struct FRecordActorSaveData
 {
 	GENERATED_BODY()
 
+	/** Name of the primary (root) component for this actor */
 	UPROPERTY()
 	FName PrimaryComponentName;
 
+	/** Lifecycle intervals for each component */
 	UPROPERTY()
 	TArray<FComponentInterval> ComponentIntervals;
 
+	/** Combined min/max location for all components on this actor */
 	UPROPERTY()
 	FLocRange ComponentRanges;
 
+	/** Combined min/max scale for all components on this actor */
 	UPROPERTY()
 	FScaleRange ComponentScaleRanges; 
-	
+
+	/** Per-skeletal-mesh-component min/max location ranges for all its bones */
 	UPROPERTY()
 	TMap<FString, FLocRange> BoneRanges;
 
+	/** Per-skeletal-mesh-component min/max scale ranges for all its bones */
 	UPROPERTY()
 	TMap<FString, FScaleRange> BoneScaleRanges;
-	
+
+	/** All recorded frames containing component transforms, bone transforms, and events */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "BloodStain")
 	TArray<FRecordFrame> RecordedFrames;
 
@@ -264,6 +312,7 @@ struct FRecordActorSaveData
 	}
 };
 
+/** @brief Header for a recording session, storing metadata about the group */
 USTRUCT(BlueprintType)
 struct FRecordHeaderData
 {
@@ -277,17 +326,17 @@ struct FRecordHeaderData
 	UPROPERTY()
 	FName GroupName;
 	
-	/** BloodStain Spawn Transform */
+	/** Transform at which the group will be spawned*/
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "BloodStain")
 	FTransform SpawnPointTransform;
 	
-	/** 최대 녹화 길이(초) */
+	/** Maximum recording duration in seconds */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="BloodStain|Header")
 	float MaxRecordTime;
 
-	/** 프레임마다 기록 간격(초) */
+	/** Sampling interval between frames in seconds (0.1 sec - 10fps) */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="BloodStain|Header")
-	float SamplingInterval; // 10fps
+	float SamplingInterval;
 		
 	friend FArchive& operator<<(FArchive& Ar, FRecordHeaderData& Data)
 	{
@@ -299,6 +348,7 @@ struct FRecordHeaderData
 	}
 };
 
+/** @brief Total Save data containing header and per-actor recordings */
 USTRUCT(BlueprintType)
 struct FRecordSaveData
 {
@@ -315,8 +365,7 @@ struct FRecordSaveData
 		if (RecordActorDataArray.Num() == 0)
 		{
 			return false;
-		}
-		
+		}		
 		return true;		
 	}
 	
