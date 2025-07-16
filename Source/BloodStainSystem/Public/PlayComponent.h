@@ -36,6 +36,12 @@ public:
 
 protected:
 
+	/** 재생 상태와 현재 시간을 계산합니다. 재생이 끝나야 하면 false를 반환합니다. */
+	bool CalculatePlaybackTime(float& OutElapsedTime);
+
+	/** 계산된 시간을 기반으로 리플레이 프레임을 업데이트하고 보간을 적용합니다. */
+	void UpdatePlaybackToTime(float ElapsedTime);
+	
 	/** 한 쌍의 Frame(Prev, Next)과 Alpha 를 받아 Mesh 에 적용합니다. */
 	void ApplyComponentTransforms(const FRecordFrame& Prev, const FRecordFrame& Next, float Alpha) const;
 	void ApplySkeletalBoneTransforms(const FRecordFrame& Prev, const FRecordFrame& Next, float Alpha) const;

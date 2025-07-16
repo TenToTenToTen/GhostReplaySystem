@@ -49,79 +49,97 @@ void UPlayComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
 	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_TickComponent); 
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	const TArray<FRecordFrame>& Frames = ReplayData.RecordedFrames;
-	if (Frames.Num() < 2)
+	float ElapsedTime = 0.0f;
+
+	// 1. 재생 시간을 계산하고, 리플레이가 계속되어야 하는지 확인합니다.
+	if (!CalculatePlaybackTime(ElapsedTime))
 	{
 		FinishReplay();
 		return;
 	}
 	
-	const float LastTime = Frames.Last().TimeStamp;
-	// Compute elapsed time since start, scaled by playback rate
-	float Elapsed = (static_cast<float>(GetWorld()->GetTimeSeconds()) - PlaybackStartTime) * PlaybackOptions.PlaybackRate;
+	// 2. 계산된 시간에 맞춰 리플레이 상태를 업데이트합니다.
+	UpdatePlaybackToTime(ElapsedTime);
+}
+
+bool UPlayComponent::CalculatePlaybackTime(float& OutElapsedTime)
+{
+	const TArray<FRecordFrame>& Frames = ReplayData.RecordedFrames;
+	constexpr int32 MinFramesRequired = 2;
+	if (Frames.Num() < MinFramesRequired)
+	{
+		return false;
+	}
+
+	const float Duration = Frames.Last().TimeStamp;
+	if (Duration <= 0.0f)
+	{
+		return false;
+	}
+
+	// 현재 월드 시간을 기준으로 경과 시간을 계산합니다.
+	OutElapsedTime = (GetWorld()->GetTimeSeconds() - PlaybackStartTime) * PlaybackOptions.PlaybackRate;
 
 	if (PlaybackOptions.bIsLooping)
 	{
-		// Loop playback within [0, LastTime)
-		Elapsed = FMath::Fmod(Elapsed, LastTime);
-		if (Elapsed < 0.0f || (PlaybackOptions.PlaybackRate < 0 && Elapsed == 0.f))
+		// 루프 재생: 시간을 [0, Duration) 범위로 래핑합니다.
+		OutElapsedTime = FMath::Fmod(OutElapsedTime, Duration);
+		if (OutElapsedTime < 0.0f)
 		{
-			Elapsed += LastTime;
+			OutElapsedTime += Duration;
 		}
 	}
 	else
 	{
-		// If outside of range, finish replay
-		if (PlaybackOptions.PlaybackRate < 0)
+		// 단일 재생: 시간이 범위를 벗어났는지 확인합니다.
+		// 역재생 시에는 음수 값으로 시작하므로, Duration을 더해 [0, Duration] 범위로 매핑합니다.
+		if (PlaybackOptions.PlaybackRate < 0.0f)
 		{
-			if (Elapsed > 0.f || Elapsed < -LastTime)
-			{
-				FinishReplay();
-				return;
-			}
-			Elapsed += LastTime;
+			OutElapsedTime += Duration;
 		}
-		else if (Elapsed < 0.0f || Elapsed > LastTime)
+
+		if (OutElapsedTime < 0.0f || OutElapsedTime > Duration)
 		{
-			FinishReplay();
-			return;
+			return false;
 		}
 	}
 
-	/* 이진 탐색으로 변경 : 문제 있으면 주석친 코드로 원상 복구하세요 */
+	return true;
+}
+
+void UPlayComponent::UpdatePlaybackToTime(float ElapsedTime)
+{
+	const TArray<FRecordFrame>& Frames = ReplayData.RecordedFrames;
+	if (Frames.Num() < 2)
+	{
+		return;
+	}
 	const int32 PreviousFrame = CurrentFrame;
-	const int32 UpperBoundIndex = Algo::UpperBoundBy(Frames, Elapsed, [](const FRecordFrame& Frame){
+
+	// 1. 이진 탐색으로 현재 시간에 맞는 프레임 인덱스를 찾습니다.
+	// UpperBound는 조건을 만족하는 첫 원소의 인덱스를 반환하므로, 그 이전이 현재 구간의 시작 프레임입니다.
+	const int32 UpperBoundIndex = Algo::UpperBoundBy(Frames, ElapsedTime, [](const FRecordFrame& Frame) {
 		return Frame.TimeStamp;
 	});
-	int32 NewFrameIndex = FMath::Clamp(UpperBoundIndex - 1, 0, Frames.Num() - 2);
+	const int32 NewFrameIndex = FMath::Clamp(UpperBoundIndex - 1, 0, Frames.Num() - 2);
 	
-	// // Determine the frame index that brackets Elapsed
-	// int32 Num = Frames.Num();
-	// int32 NewFrameIndex = 0;
-	// for (int32 i = 0; i < Num - 1; ++i)
-	// {
-	// 	if (Frames[i + 1].TimeStamp > Elapsed)
-	// 	{
-	// 		NewFrameIndex = i;
-	// 		break;	
-	// 	}
-	// 	if (i == Num - 2)
-	// 	{
-	// 		NewFrameIndex = Num - 2;
-	// 	}
-	// }
 	CurrentFrame = NewFrameIndex;
 	if (PreviousFrame != CurrentFrame)
 	{
+		// 2. 프레임이 변경되었을 때만 컴포넌트 활성화/비활성화를 처리합니다.
 		SeekFrame(CurrentFrame);
 	}
-	
-	// Interpolate between CurrentFrame and CurrentFrame+1
+    
+	// 3. 현재 프레임과 다음 프레임 사이를 보간합니다.
 	const FRecordFrame& Prev = Frames[CurrentFrame];
 	const FRecordFrame& Next = Frames[CurrentFrame + 1];
-	const float Alpha = (Next.TimeStamp - Prev.TimeStamp > KINDA_SMALL_NUMBER)
-		? FMath::Clamp((Elapsed - Prev.TimeStamp) / (Next.TimeStamp - Prev.TimeStamp), 0.0f, 1.0f)
+    
+	const float FrameDuration = Next.TimeStamp - Prev.TimeStamp;
+	const float Alpha = (FrameDuration > KINDA_SMALL_NUMBER)
+		? FMath::Clamp((ElapsedTime - Prev.TimeStamp) / FrameDuration, 0.0f, 1.0f)
 		: 1.0f;
+    
+	// 4. 보간된 트랜스폼을 적용합니다.
 	ApplyComponentTransforms(Prev, Next, Alpha);
 	ApplySkeletalBoneTransforms(Prev, Next, Alpha);
 }
@@ -502,11 +520,17 @@ TUniquePtr<FIntervalTreeNode> UPlayComponent::BuildIntervalTree(const TArray<FCo
 	{
 		/* 현재 Mid에 겹치는 Interval만 추가, 겹치지 않는 것은 좌우 Node로 분류*/
 		if (I->EndFrame < Mid)
-			LeftList.Add(I);
+		{
+			LeftList.Add(I);			
+		}
 		else if (I->StartFrame > Mid)
-			RightList.Add(I);
+		{
+			RightList.Add(I);			
+		}
 		else
-			Node->Intervals.Add(I);
+		{
+			Node->Intervals.Add(I);			
+		}
 	}
 
 	// 3) 재귀
