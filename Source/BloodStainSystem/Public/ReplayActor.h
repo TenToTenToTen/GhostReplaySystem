@@ -19,11 +19,4 @@ public:
 
 	UPROPERTY()
 	TObjectPtr<USceneComponent> SceneRoot;
-	
-protected:
-	virtual void BeginPlay() override;
-
-public:	
-	virtual void Tick(float DeltaTime) override;
-
 };
