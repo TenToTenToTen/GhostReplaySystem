@@ -3,11 +3,12 @@
 	"Version": 1,
 	"VersionName": "1.0",
 	"FriendlyName": "BloodStainSystem",
-	"Description": "A BloodStain System for M1 (MVP) - Single Player Only",
+	"Description": "A Ghost Replay System supports all types of mesh component - Single Player Only",
 	"Category": "Other",
 	"CreatedBy": "TTT",
 	"CreatedByURL": "",
 	"DocsURL": "",
+	"FabURL": "",
 	"MarketplaceURL": "",
 	"SupportURL": "",
 	"EngineVersion": "5.5.0",
@@ -17,7 +18,11 @@
 		{
 			"Name": "BloodStainSystem",
 			"Type": "Runtime",
-			"LoadingPhase": "Default"
+			"LoadingPhase": "Default",
+			"PlatformAllowList": [ 
+				"Win64", 
+				"Mac" 
+			]
 		}
 	]
 }
