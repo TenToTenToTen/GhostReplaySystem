@@ -369,7 +369,6 @@ bool UBloodStainSubsystem::FindOrLoadRecordHeader(const FString& FileName, const
 		return true;
 	}
 
-	// 2) 캐시에 없으면 파일에서 로드
 	FRecordHeaderData Loaded;
 	if (!BloodStainFileUtils::LoadHeaderFromFile(FileName, LevelName, Loaded))
 	{
@@ -377,7 +376,6 @@ bool UBloodStainSubsystem::FindOrLoadRecordHeader(const FString& FileName, const
 		return false;
 	}
 
-	// 3) 캐시에 저장 & 반환
 	CachedHeaders.Add(FileName, Loaded);
 	OutRecordHeaderData = MoveTemp(Loaded);
 	return true;
@@ -385,14 +383,12 @@ bool UBloodStainSubsystem::FindOrLoadRecordHeader(const FString& FileName, const
 
 bool UBloodStainSubsystem::FindOrLoadRecordBodyData(const FString& FileName, const FString& LevelName, FRecordSaveData& OutData)
 {
-	// 1) 캐시 확인
 	if (FRecordSaveData* Cached = CachedRecordings.Find(FileName))
 	{
 		OutData = *Cached;
 		return true;
 	}
 
-	// 2) 캐시에 없으면 파일에서 로드
 	FRecordSaveData Loaded;
 	if (!BloodStainFileUtils::LoadFromFile(FileName, LevelName, Loaded))
 	{
@@ -400,7 +396,6 @@ bool UBloodStainSubsystem::FindOrLoadRecordBodyData(const FString& FileName, con
 		return false;
 	}
 
-	// 3) 캐시에 저장 & 반환
 	CachedRecordings.Add(FileName, Loaded);
 	OutData = MoveTemp(Loaded);
 	return true;
@@ -601,7 +596,6 @@ bool UBloodStainSubsystem::StartReplay_Internal(const FRecordSaveData& RecordSav
 	}
 	OutGuid = UniqueID;
 	BloodStainPlaybackGroups.Add(UniqueID, BloodStainPlaybackGroup);
-	// OnReplayStarted.Broadcast(TargetActor, Replayer);
 	return true;
 }
 
