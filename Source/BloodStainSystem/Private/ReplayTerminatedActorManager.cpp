@@ -46,6 +46,11 @@ void UReplayTerminatedActorManager::ClearRecordGroup(const FName& GroupName)
 	RecordGroups.Remove(GroupName);
 }
 
+bool UReplayTerminatedActorManager::ContainsGroup(const FName& GroupName) const
+{
+	return RecordGroups.Contains(GroupName);
+}
+
 void UReplayTerminatedActorManager::CollectRecordGroups(float DeltaTime)
 {
 	TArray<FName> ToRemoveGroupNames;
@@ -108,6 +113,13 @@ TArray<FRecordActorSaveData> UReplayTerminatedActorManager::CookQueuedFrames(con
 	}
 
 	auto RecordGroupData = RecordGroups[GroupName];
+
+	if (RecordGroupData.RecordComponentData.Num() == 0)
+	{
+		UE_LOG(LogBloodStain, Warning, TEXT("There is no Record Data in Group for %s"), *GroupName.ToString());
+		RecordGroups.Remove(GroupName);
+		return Result;
+	}
 	
 	for (FRecordComponentData& RecordComponentData : RecordGroupData.RecordComponentData)
 	{
@@ -118,10 +130,5 @@ TArray<FRecordActorSaveData> UReplayTerminatedActorManager::CookQueuedFrames(con
 	}
 	
 	return Result;
-}
-
-bool UReplayTerminatedActorManager::ContainsGroup(const FName& GroupName) const
-{
-	return RecordGroups.Contains(GroupName);
 }
 
