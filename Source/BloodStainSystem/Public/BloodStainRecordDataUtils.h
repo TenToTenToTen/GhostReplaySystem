@@ -13,6 +13,9 @@ struct FRecordActorSaveData;
 
 namespace BloodStainRecordDataUtils
 {
+	/**
+	 * Cook QueuedFrameData to SaveData
+	 */
 	bool CookQueuedFrames(float SamplingInterval, TCircularQueue<FRecordFrame>* FrameQueuePtr, FRecordActorSaveData& OutGhostSaveData, TArray<FComponentActiveInterval>& OutComponentIntervals);
 	void BuildInitialComponentStructure(int32 FirstFrameIndex, FRecordActorSaveData& OutGhostSaveData, TArray<FComponentActiveInterval>& OutComponentIntervals);
 };

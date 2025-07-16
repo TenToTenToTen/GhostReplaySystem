@@ -8,7 +8,6 @@
 
 namespace BloodStainCompressionUtils
 {
-
     static FName CompressionFormat(ECompressionMethod Method)
     {
         switch (Method)
@@ -20,7 +19,7 @@ namespace BloodStainCompressionUtils
         }
     }
 
-    bool CompressBuffer(const TArray<uint8>& InBuffer, TArray<uint8>& OutCompressed, const FCompressionOption& Opts)
+    bool BloodStainCompressionUtils::CompressBuffer(const TArray<uint8>& InBuffer, TArray<uint8>& OutCompressed, FCompressionOption Opts)
     {
         if (Opts.Method == ECompressionMethod::None)
         {
@@ -46,7 +45,7 @@ namespace BloodStainCompressionUtils
         return true;
     }
 
-    bool DecompressBuffer(const TArray<uint8>& Compressed, TArray<uint8>& OutRaw, const FCompressionOption& Opts, int64 UncompressedSize)
+    bool BloodStainCompressionUtils::DecompressBuffer(const TArray<uint8>& Compressed, TArray<uint8>& OutRaw, int64 UncompressedSize, FCompressionOption Opts)
     {
         if (Opts.Method == ECompressionMethod::None)
         {
@@ -62,4 +61,4 @@ namespace BloodStainCompressionUtils
         );
     }
 
-} // namespace BloodStainCompressionUtils
+}
