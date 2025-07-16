@@ -8,12 +8,12 @@
 	"CreatedBy": "TTT",
 	"CreatedByURL": "",
 	"DocsURL": "",
-	"FabURL": "",
+	"FabURL": "com.epicgames.launcher://ue/Fab/product//4a157b34-d445-4663-aeab-a275b5ab5974",
 	"MarketplaceURL": "",
 	"SupportURL": "",
 	"EngineVersion": "5.5.0",
 	"CanContainContent": true,
-	"Installed": true,
+	"Installed": true, 	
 	"Modules": [
 		{
 			"Name": "BloodStainSystem",
