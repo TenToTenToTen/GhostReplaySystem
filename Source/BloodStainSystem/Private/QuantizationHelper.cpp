@@ -2,10 +2,9 @@
 * Copyright 2025 TenToTen, All Rights Reserved.
 */
 
-
 #include "QuantizationHelper.h"
-#include "BloodStainFileUtils.h"    // FRecordSaveData 등 정의
-#include "BloodStainFileOptions.h"  // FQuantizationOptions
+#include "BloodStainFileUtils.h"
+#include "BloodStainFileOptions.h"
 #include "QuantizationTypes.h"
 
 namespace BloodStainFileUtils_Internal
@@ -89,7 +88,7 @@ void ComputeRanges(FRecordSaveData& SaveData)
     }
     
 }
-void SerializeQuantizedTransform(FArchive& Ar, const FTransform& Transform, const FQuantizationOption& QuantOpts, const FLocRange* Range, const FScaleRange* ScaleRange)
+void SerializeQuantizedTransform(FArchive& Ar, const FTransform& Transform, const FQuantizationOption& QuantOpts, const FLocRange* LocRange, const FScaleRange* ScaleRange)
 {
     switch (QuantOpts.Method)
     {
@@ -107,21 +106,21 @@ void SerializeQuantizedTransform(FArchive& Ar, const FTransform& Transform, cons
         break;
     case ETransformQuantizationMethod::Standard_Low:
         {
-            // Only use Range if QuantizationOption is Standard_Low
-            FQuantizedTransform_Lowest Q(Transform, *Range, *ScaleRange);
+            /** Only use Location / Scale Range if Quantization Option is Standard_Low */
+            FQuantizedTransform_Lowest Q(Transform, *LocRange, *ScaleRange);
             Ar << Q;
             break;
         }
     case ETransformQuantizationMethod::None:
     default:
         {
-            // 기본 FTransform 직렬화
+            /** Basic Serialization for FTransform By Default*/
             Ar << const_cast<FTransform&>(Transform);
         }
     }
 }
 
-FTransform DeserializeQuantizedTransform(FArchive& Ar, const FQuantizationOption& Opts, const FLocRange* Range, const FScaleRange* ScaleRange)
+FTransform DeserializeQuantizedTransform(FArchive& Ar, const FQuantizationOption& Opts, const FLocRange* LocRange, const FScaleRange* ScaleRange)
 {
     switch (Opts.Method)
     {
@@ -141,7 +140,7 @@ FTransform DeserializeQuantizedTransform(FArchive& Ar, const FQuantizationOption
         {
             FQuantizedTransform_Lowest Q;
             Ar << Q;
-            return Q.ToTransform(*Range, *ScaleRange);
+            return Q.ToTransform(*LocRange, *ScaleRange);
         }
     default:
         {
@@ -156,13 +155,11 @@ void SerializeSaveData(FArchive& RawAr, FRecordSaveData& SaveData, FQuantization
 {
     ComputeRanges(SaveData);
 
-    // 2) Actor 배열 길이
     int32 NumActors = SaveData.RecordActorDataArray.Num();
     RawAr << NumActors;
 
     for (FRecordActorSaveData& ActorData : SaveData.RecordActorDataArray)
     {
-        // Actor 식별자
         RawAr << ActorData.PrimaryComponentName;
         RawAr << ActorData.ComponentIntervals;
         RawAr << ActorData.ComponentRanges;
@@ -170,19 +167,17 @@ void SerializeSaveData(FArchive& RawAr, FRecordSaveData& SaveData, FQuantization
         RawAr << ActorData.BoneRanges;
         RawAr << ActorData.BoneScaleRanges;        
 
-        // Frame 개수
         int32 NumFrames = ActorData.RecordedFrames.Num();
         RawAr << NumFrames;
 
         for (FRecordFrame& Frame : ActorData.RecordedFrames)
         {
-            // 타임스탬프, 추가/제거 이벤트
             RawAr << Frame.TimeStamp;
             RawAr << Frame.AddedComponents;
             RawAr << Frame.RemovedComponentNames;
             RawAr << Frame.FrameIndex;
 
-            // ComponentTransforms
+            // Component's World Transforms
             int32 NumComps = Frame.ComponentTransforms.Num();
             RawAr << NumComps;
             for (auto& Pair : Frame.ComponentTransforms)
@@ -194,7 +189,7 @@ void SerializeSaveData(FArchive& RawAr, FRecordSaveData& SaveData, FQuantization
                 SerializeQuantizedTransform(RawAr, Pair.Value, QuantOpts, Range, ScaleRange);
             }
 
-            // SkeletalMeshBoneTransforms
+            // Skeletal Mesh Component's BoneTransforms
             int32 NumBoneMaps = Frame.SkeletalMeshBoneTransforms.Num();
             RawAr << NumBoneMaps;
             for (auto& BonePair : Frame.SkeletalMeshBoneTransforms)
@@ -219,7 +214,6 @@ void SerializeSaveData(FArchive& RawAr, FRecordSaveData& SaveData, FQuantization
 
 void DeserializeSaveData(FArchive& DataAr, FRecordSaveData& OutData, const FQuantizationOption& QuantOpts)
 {
-    // 2) Actor 배열 길이
     int32 NumActors = 0;
     DataAr << NumActors;
     OutData.RecordActorDataArray.Empty(NumActors);
@@ -246,7 +240,7 @@ void DeserializeSaveData(FArchive& DataAr, FRecordSaveData& OutData, const FQuan
             DataAr << Frame.RemovedComponentNames;
             DataAr << Frame.FrameIndex; 
 
-            // ComponentTransforms
+            // Component's Transforms
             int32 NumComps = 0;
             DataAr << NumComps;
             for (int32 c = 0; c < NumComps; ++c)
@@ -254,20 +248,22 @@ void DeserializeSaveData(FArchive& DataAr, FRecordSaveData& OutData, const FQuan
                 FString Key;
                 DataAr << Key;
                 const FLocRange* Range = &ActorData.ComponentRanges;
-                const FScaleRange* ScaleRange = &ActorData.ComponentScaleRanges; // <<-- 스케일 범위 전달
+                const FScaleRange* ScaleRange = &ActorData.ComponentScaleRanges;
                 FTransform T = DeserializeQuantizedTransform(DataAr, QuantOpts, Range, ScaleRange);
                 Frame.ComponentTransforms.Add(Key, T);
             }
 
-            // SkeletalMeshBoneTransforms
+            // Skeletal Mesh Component's Bone Transforms
             int32 NumBoneMaps = 0;
             DataAr << NumBoneMaps;
             for (int32 bm = 0; bm < NumBoneMaps; ++bm)
             {
                 FString Key;
-                DataAr << Key;
                 int32 BoneCount = 0;
+                
+                DataAr << Key;                
                 DataAr << BoneCount;
+                
                 FBoneComponentSpace Space;
                 Space.BoneTransforms.Empty(BoneCount);
                 const FLocRange* Range = ActorData.BoneRanges.Find(Key);

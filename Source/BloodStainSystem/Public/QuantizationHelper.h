@@ -27,32 +27,35 @@ namespace BloodStainFileUtils_Internal
 	
 	/** 
 	 * Serializes a single FTransform to an archive using the specified quantization options.
-	 * @param Ar The archive to write to.
 	 * @param Transform The source transform to serialize.
 	 * @param QuantOpts The quantization method and precision to use.
-	 * @param Range The location range, required for 'Standard_Low' quantization.
+	 * @param LocRange The location range, required for 'Standard_Low' quantization.
 	 * @param ScaleRange The scale range, required for 'Standard_Low' quantization.
 	 */
-	void SerializeQuantizedTransform(FArchive& Ar, const FTransform& Transform, const FQuantizationOption& QuantOpts, const FLocRange* Range = nullptr, const FScaleRange* ScaleRange = nullptr);
+	void SerializeQuantizedTransform(FArchive& Ar, const FTransform& Transform, const FQuantizationOption& QuantOpts, const FLocRange* LocRange = nullptr, const FScaleRange* ScaleRange = nullptr);
 
 	/**
 	 * Deserializes a quantized transform from an archive and reconstructs the FTransform.
-	 * @param Ar The archive to read from.
 	 * @param QuantOpts The quantization options used during serialization.
-	 * @param Range The location range, required for 'Standard_Low' quantization.
-	 * @param ScaleRange The scale range, required for 'Standard_Low' quantization.
+	 * @param LocRange The location range, only required for 'Standard_Low' option.
+	 * @param ScaleRange The scale range, only required for 'Standard_Low' option.
 	 * @return The reconstructed FTransform.
 	 */
-	FTransform DeserializeQuantizedTransform(FArchive& Ar, const FQuantizationOption& QuantOpts, const FLocRange* Range = nullptr, const FScaleRange* ScaleRange = nullptr);
+	FTransform DeserializeQuantizedTransform(FArchive& Ar, const FQuantizationOption& QuantOpts, const FLocRange* LocRange = nullptr, const FScaleRange* ScaleRange = nullptr);
 
 	/**
-	 * FRecordSaveData 전체를 RawAr에 직렬화합니다.
-	 * 내부의 모든 FTransform은 QuantOpts에 따라 양자화됩니다.
+	 * Serializes an entire FRecordSaveData object to a raw byte archive.
+	 * Automatically computes ranges and quantizes all FTransform data according to the options.
+	 * @param SaveData The source replay data to serialize. Its range members will be modified.
+	 * @param QuantOpts The quantization options to apply to all transforms.
 	 */
 	void SerializeSaveData(FArchive& RawAr,FRecordSaveData& SaveData, FQuantizationOption& QuantOpts);
 
 	/**
-	 * Raw 데이터(양자화+직렬화된)를 DataAr에서 읽어 FRecordSaveData로 역직렬화합니다.
+	 * Deserializes raw byte data from an archive into an FRecordSaveData object.
+	 * Reconstructs all quantized transforms back to their original FTransform format.
+	 * @param OutData The FRecordSaveData object to populate with the deserialized data.
+	 * @param QuantOpts The quantization options used when the data was originally saved.
 	 */
 	void DeserializeSaveData(FArchive& DataAr, FRecordSaveData& OutData, const FQuantizationOption& QuantOpts);
 }
