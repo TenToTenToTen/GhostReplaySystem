@@ -298,6 +298,10 @@ struct FRecordActorSaveData
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "BloodStain")
 	TArray<FRecordFrame> RecordedFrames;
 
+	bool IsValid() const
+	{
+		return RecordedFrames.Num() > 0 ? true : false;
+	}
 	
 	friend FArchive& operator<<(FArchive& Ar, FRecordActorSaveData& Data)
 	{

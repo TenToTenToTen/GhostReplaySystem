@@ -34,7 +34,6 @@ UBloodStainSubsystem::UBloodStainSubsystem()
 	}
 	else
 	{
-		// 생성자에서는 Fatal 대신 Warning이나 Error를 사용하는 것이 더 안정적일 수 있습니다.
 		UE_LOG(LogBloodStain, Fatal, TEXT("Failed to find BloodStainActorClass at path. Subsystem may not function."));
 	}
 }
@@ -74,7 +73,6 @@ bool UBloodStainSubsystem::StartRecording(AActor* TargetActor, FBloodStainRecord
 		return false;
 	}
 
-	// 2) 컴포넌트 생성 & 등록
 	URecordComponent* Recorder = NewObject<URecordComponent>(
 		TargetActor,URecordComponent::StaticClass(), NAME_None,RF_Transient);
 	
@@ -84,11 +82,8 @@ bool UBloodStainSubsystem::StartRecording(AActor* TargetActor, FBloodStainRecord
 		return false;
 	}
 	
-	// Actor 생명주기에 포함
 	TargetActor->AddInstanceComponent(Recorder);
-	// Tick Activation
 	Recorder->RegisterComponent();
-	// Option Initialization
 	Recorder->Initialize(GroupName, Options);
 
 	RecordGroup.ActiveRecorders.Add(TargetActor, Recorder);
@@ -162,7 +157,7 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 		for (const FRecordActorSaveData& RecordActorSaveData : ReplayTerminatedActorManager->CookQueuedFrames(GroupName))
 		{
 			// Valid Data 검증 안해도 괜찮으려나
-			if (RecordActorSaveData.RecordedFrames.Num() == 0)
+			if (!RecordActorSaveData.IsValid())
 			{
 				UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording Warning: Frame num is 0"));
 				continue;
@@ -222,9 +217,7 @@ void UBloodStainSubsystem::StopRecordComponent(URecordComponent* RecordComponent
 		return;
 	}
 	const FName& GroupName = RecordComponent->GetRecordGroupName();
-	// 주의사항
-	// 즉시 ActiveRecords에서 없애줄 필요가 있음
-	// Destroyed에 즉시 추가해줘야됨.
+
 	if (!BloodStainRecordGroups.Contains(GroupName))
 	{
 		UE_LOG(LogBloodStain, Log, TEXT("[BloodStain] StopRecording stopped. Group [%s] is not exist"), GetData(GroupName.ToString()));	
@@ -293,7 +286,6 @@ void UBloodStainSubsystem::StopReplay(FGuid PlaybackKey)
 
 	for (AReplayActor* GhostActor : BloodStainPlaybackGroup.ActiveReplayers)
 	{
-		// StopReplayPlayComponent 으로 하면 재귀 발생함.
 		GhostActor->Destroy();
 	}
 	
@@ -342,7 +334,6 @@ void UBloodStainSubsystem::StopReplayPlayComponent(AReplayActor* GhostActor)
 	
 	GhostActor->Destroy();
 	
-	// OnReplayStopped.Broadcast(GhostActor, Replayer);
 	UE_LOG(LogBloodStain, Log, TEXT("[BloodStain] StopReplay for %s"), *GhostActor->GetName());
 
 	if (BloodStainPlaybackGroup.ActiveReplayers.Num() == 0)
@@ -436,7 +427,7 @@ ABloodStainActor* UBloodStainSubsystem::SpawnBloodStain(const FString& FileName,
 	EndLocation.Z -= LineTraceLength;
 	FHitResult HitResult;
 	FCollisionResponseParams ResponseParams;
-	//충돌 대상에서 Pawn 제외
+	
 	ResponseParams.CollisionResponse.SetResponse(ECC_Pawn, ECR_Ignore);
 	bool bHit = GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_WorldStatic, FCollisionQueryParams::DefaultQueryParam, ResponseParams);
 	if (bHit)
@@ -453,7 +444,9 @@ ABloodStainActor* UBloodStainSubsystem::SpawnBloodStain(const FString& FileName,
 void UBloodStainSubsystem::SpawnAllBloodStainInLevel()
 {
 	FString LevelName = UGameplayStatics::GetCurrentLevelName(GetWorld());
-	// TODO - 고민, Cached를 완전히 지워버리고 있음.
+	
+	// TODO - Currently deleting all cached datas
+	
 	const int32 LoadedCount = BloodStainFileUtils::LoadHeadersForAllFiles(CachedHeaders, LevelName);
 	
 	if (LoadedCount > 0)
@@ -517,7 +510,6 @@ FRecordSaveData UBloodStainSubsystem::ConvertToSaveData(TArray<FRecordActorSaveD
 
 ABloodStainActor* UBloodStainSubsystem::SpawnBloodStain_Internal(const FVector& Location, const FRotator& Rotation, const FString& FileName, const FString& LevelName)
 {
-	// 파일 유효성 검사
 	if (!IsFileHeaderLoaded(FileName))
 	{
 		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] Invalid file '%s'"), *FileName);
@@ -542,7 +534,6 @@ ABloodStainActor* UBloodStainSubsystem::SpawnBloodStain_Internal(const FVector& 
 		return nullptr;
 	}
 
-	// FileName 세팅 및 서브시스템 등록
 	BloodStain->Initialize(FileName, LevelName);
 
 	return BloodStain;
@@ -557,7 +548,7 @@ bool UBloodStainSubsystem::StartReplay_Internal(const FRecordSaveData& RecordSav
 		return false;
 	}
 
-	// TODO - RecordSaveData가 Valid한지 체크
+	// TODO - Check if RecordSaveData is valid
 
 	const FRecordHeaderData& Header = RecordSaveData.Header;
 	const TArray<FRecordActorSaveData>& RecordActorDataArray = RecordSaveData.RecordActorDataArray;
@@ -568,7 +559,7 @@ bool UBloodStainSubsystem::StartReplay_Internal(const FRecordSaveData& RecordSav
 
 	for (const FRecordActorSaveData& RecordActorData : RecordActorDataArray)
 	{
-		// TODO SpawnPoint 각 Actor별로 분리
+		// TODO : to separate all SpawnPoint data per Actors
 		FTransform StartTransform = Header.SpawnPointTransform;
 		AReplayActor* GhostActor = GetWorld()->SpawnActor<AReplayActor>(AReplayActor::StaticClass(), StartTransform);
 	
