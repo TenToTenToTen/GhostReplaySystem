@@ -149,7 +149,7 @@ private:
 	
 public:
 	/** 파일 저장·로드 옵션 (Quantization, Compression, Checksum 등) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category="BloodStain|File")
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Config, Category="BloodStain|File")
 	FBloodStainFileOptions FileSaveOptions;
 	
 protected:
