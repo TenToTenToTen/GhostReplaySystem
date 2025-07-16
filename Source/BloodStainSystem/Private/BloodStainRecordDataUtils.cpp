@@ -3,7 +3,6 @@
 */
 
 
-
 #include "BloodStainRecordDataUtils.h"
 
 #include "BloodStainSystem.h"
@@ -21,7 +20,7 @@ bool BloodStainRecordDataUtils::CookQueuedFrames(float SamplingInterval, TCircul
 	const int32 FirstIndex = First.FrameIndex;
 	const float BaseTime = First.TimeStamp;
 
-	// 1. 원본 프레임들 복사 + 시간 정규화
+	// Copy original frame datas and do normalize timestamps [0, duration)
 	TArray<FRecordFrame> RawFrames;
 	FRecordFrame Tmp;
 	while (FrameQueuePtr->Dequeue(Tmp))
@@ -36,7 +35,7 @@ bool BloodStainRecordDataUtils::CookQueuedFrames(float SamplingInterval, TCircul
 		return false;
 	}
 
-	// 2. 보간 프레임 설정
+	// Set up the interpolation
 	const float FrameInterval = SamplingInterval;
 	const int32 NumInterpFrames = FMath::FloorToInt(RawFrames.Last().TimeStamp / FrameInterval);
 
@@ -46,7 +45,6 @@ bool BloodStainRecordDataUtils::CookQueuedFrames(float SamplingInterval, TCircul
 	{
 		float TargetTime = i * FrameInterval;
 
-		// 3. 보간을 위한 A, B 프레임 찾기
 		int32 PrevIndex = 0;
 		while (PrevIndex + 1 < RawFrames.Num() && RawFrames[PrevIndex + 1].TimeStamp < TargetTime)
 		{
@@ -62,7 +60,7 @@ bool BloodStainRecordDataUtils::CookQueuedFrames(float SamplingInterval, TCircul
 		NewFrame.AddedComponents = A.AddedComponents;
 		NewFrame.RemovedComponentNames = A.RemovedComponentNames;
 
-		// 4. ComponentTransform 보간
+		// Interpolate two frames' transforms of components 
 		for (const auto& Pair : A.ComponentTransforms)
 		{
 			const FString& Name = Pair.Key;
@@ -79,7 +77,7 @@ bool BloodStainRecordDataUtils::CookQueuedFrames(float SamplingInterval, TCircul
 			NewFrame.ComponentTransforms.Add(Name, Interp);
 		}
 
-		// 5. BoneTransform 보간
+		// Interpolate two frames' transforms of bone transforms
 		for (const auto& BonePairA : A.SkeletalMeshBoneTransforms)
 		{
 			const FString& CompName = BonePairA.Key;
@@ -124,27 +122,24 @@ void BloodStainRecordDataUtils::BuildInitialComponentStructure(int32 FirstFrameI
 
 	// StartIdx : first index where EndFrame > FirstFrameIndex 
 	const int32 StartIdx = Algo::UpperBoundBy(OutComponentIntervals, FirstFrameIndex, &FComponentActiveInterval::EndFrame);
-	// Sorted[0..StartIdx-1] 은 FirstFrameIndex 이전에 이미 탈착된 구간
 
-	// 3) 그 이후 구간만 순회하며 StartFrame ≤ FirstFrameIndex 필터
 	for (int32 i = StartIdx; i < OutComponentIntervals.Num(); ++i)
 	{
 		FComponentActiveInterval& Interval = OutComponentIntervals[i];
-		// if (I.StartFrame <= FirstFrameIndex)
-		// [StartFrame, EndFrame] 구간을 [0, NumSavedFrames) 구간으로 변환
+
+		Interval.StartFrame = FMath::Max(0, Interval.StartFrame - FirstFrameIndex);
+		if (Interval.EndFrame == INT32_MAX)
 		{
-			Interval.StartFrame = FMath::Max(0, Interval.StartFrame - FirstFrameIndex);
-			if (Interval.EndFrame == INT32_MAX)
-			{
-				Interval.EndFrame = NumSavedFrames;
-			}
-			else
-			{
-				Interval.EndFrame = FMath::Min(Interval.EndFrame - FirstFrameIndex, NumSavedFrames);
-			}
-			
-			OutGhostSaveData.ComponentIntervals.Add(Interval);
-			UE_LOG(LogBloodStain, Log, TEXT("BuildInitialComponentStructure: %s added to initial structure"), *Interval.Meta.ComponentName);
+			Interval.EndFrame = NumSavedFrames;
 		}
+		else
+		{
+			Interval.EndFrame = FMath::Min(Interval.EndFrame - FirstFrameIndex, NumSavedFrames);
+		}
+
+		OutGhostSaveData.ComponentIntervals.Add(Interval);
+		UE_LOG(LogBloodStain, Log, TEXT("BuildInitialComponentStructure: %s added to initial structure"),
+		       *Interval.Meta.ComponentName);
+		
 	}
 }

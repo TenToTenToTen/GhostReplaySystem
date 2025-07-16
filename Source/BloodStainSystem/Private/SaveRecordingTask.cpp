@@ -3,7 +3,6 @@
 */
 
 
-
 #include "SaveRecordingTask.h"
 #include "BloodStainFileUtils.h"
 #include "BloodStainsystem.h"

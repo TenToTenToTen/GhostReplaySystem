@@ -51,14 +51,14 @@ void UPlayComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
 
 	float ElapsedTime = 0.0f;
 
-	// 1. 재생 시간을 계산하고, 리플레이가 계속되어야 하는지 확인합니다.
+	// Calculate Playing time and see if replay has to be continued
 	if (!CalculatePlaybackTime(ElapsedTime))
 	{
 		FinishReplay();
 		return;
 	}
 	
-	// 2. 계산된 시간에 맞춰 리플레이 상태를 업데이트합니다.
+	// Update the playback stat including transform interpolation
 	UpdatePlaybackToTime(ElapsedTime);
 }
 
@@ -77,12 +77,12 @@ bool UPlayComponent::CalculatePlaybackTime(float& OutElapsedTime)
 		return false;
 	}
 
-	// 현재 월드 시간을 기준으로 경과 시간을 계산합니다.
+	// Caculate elapsed time based on the current world time
 	OutElapsedTime = (GetWorld()->GetTimeSeconds() - PlaybackStartTime) * PlaybackOptions.PlaybackRate;
 
 	if (PlaybackOptions.bIsLooping)
 	{
-		// 루프 재생: 시간을 [0, Duration) 범위로 래핑합니다.
+		// Looping playback: wrap the time to the [0, Duration) range.
 		OutElapsedTime = FMath::Fmod(OutElapsedTime, Duration);
 		if (OutElapsedTime < 0.0f)
 		{
@@ -91,8 +91,8 @@ bool UPlayComponent::CalculatePlaybackTime(float& OutElapsedTime)
 	}
 	else
 	{
-		// 단일 재생: 시간이 범위를 벗어났는지 확인합니다.
-		// 역재생 시에는 음수 값으로 시작하므로, Duration을 더해 [0, Duration] 범위로 매핑합니다.
+		// Single playback: check if the time is out of bounds.
+		// For reverse playback, values start as negative, so add Duration to map to the [0, Duration] range.
 		if (PlaybackOptions.PlaybackRate < 0.0f)
 		{
 			OutElapsedTime += Duration;
@@ -116,8 +116,7 @@ void UPlayComponent::UpdatePlaybackToTime(float ElapsedTime)
 	}
 	const int32 PreviousFrame = CurrentFrame;
 
-	// 1. 이진 탐색으로 현재 시간에 맞는 프레임 인덱스를 찾습니다.
-	// UpperBound는 조건을 만족하는 첫 원소의 인덱스를 반환하므로, 그 이전이 현재 구간의 시작 프레임입니다.
+	// Find the correct frame index for the current time using a binary search.
 	const int32 UpperBoundIndex = Algo::UpperBoundBy(Frames, ElapsedTime, [](const FRecordFrame& Frame) {
 		return Frame.TimeStamp;
 	});
@@ -126,11 +125,11 @@ void UPlayComponent::UpdatePlaybackToTime(float ElapsedTime)
 	CurrentFrame = NewFrameIndex;
 	if (PreviousFrame != CurrentFrame)
 	{
-		// 2. 프레임이 변경되었을 때만 컴포넌트 활성화/비활성화를 처리합니다.
+		// Only handle component activation/deactivation when the frame index changes.
 		SeekFrame(CurrentFrame);
 	}
-    
-	// 3. 현재 프레임과 다음 프레임 사이를 보간합니다.
+
+	// Interpolate between the current and next frames, then apply the transforms.
 	const FRecordFrame& Prev = Frames[CurrentFrame];
 	const FRecordFrame& Next = Frames[CurrentFrame + 1];
     
@@ -173,10 +172,10 @@ void UPlayComponent::Initialize(FGuid InPlaybackKey, const FRecordHeaderData& In
 
 	TMap<FString, TObjectPtr<UObject>> AssetCache;
 
-	// 3. 수집된 고유 경로들을 순회하며 에셋을 미리 로드하고 캐시에 저장
+	// Iterate through the collected unique paths to pre-load assets and store them in the cache.
 	for (const FString& Path : UniqueAssetPaths)
 	{
-		// FSoftObjectPath를 사용하면 UStaticMesh, USkeletalMesh, UMaterialInterface 등 타입을 구분할 필요 없이 로드 가능
+		// Using FSoftObjectPath allows loading without needing to distinguish between UStaticMesh, USkeletalMesh, UMaterialInterface, etc.
 		FSoftObjectPath AssetRef(Path);
 		UObject* LoadedAsset = AssetRef.TryLoad();
 		if (LoadedAsset)
@@ -185,8 +184,8 @@ void UPlayComponent::Initialize(FGuid InPlaybackKey, const FRecordHeaderData& In
 		}
 		else
 		{
-			// StaticLoadObject는 블루프린트 클래스 같은 특정 타입을 로드할 때도 유용합니다.
-			// 여기서는 SoftObjectPath로 대부분 커버 가능합니다.
+			// StaticLoadObject can also be useful for loading specific types like Blueprint classes.
+			// SoftObjectPath covers most cases.
 			UE_LOG(LogBloodStain, Warning, TEXT("Initialize: Failed to pre-load asset at path: %s"), *Path);
 		}
 	}
@@ -209,7 +208,7 @@ void UPlayComponent::Initialize(FGuid InPlaybackKey, const FRecordHeaderData& In
 		}
 	}
 	
-	/* 특정 점에 걸치는 Alive component 쿼리용 Interval Tree 초기화 */
+	// Initialize the Interval Tree for querying active components at a specific point(frame) in time.
 	TArray<FComponentActiveInterval*> Ptrs;
 	for (auto& I : ReplayData.ComponentIntervals)
 	{
@@ -224,14 +223,14 @@ void UPlayComponent::FinishReplay() const
 {
 	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_FinishReplay);
 	
-	// Subsystem에 종료 요청
+	// Request termination from the subsystem.
 	if (UWorld* World = GetWorld())
 	{
 		if (UGameInstance* GI = World->GetGameInstance())
 		{
 			if (UBloodStainSubsystem* Sub = GI->GetSubsystem<UBloodStainSubsystem>())
 			{
-				// Owner는 AReplayActor
+				// The owner is an AReplayActor.
 				if (AReplayActor* RA = Cast<AReplayActor>(GetOwner()))
 				{
 					Sub->StopReplayPlayComponent(RA);
@@ -249,11 +248,12 @@ FGuid UPlayComponent::GetPlaybackKey() const
 void UPlayComponent::ApplyComponentTransforms(const FRecordFrame& Prev, const FRecordFrame& Next, float Alpha) const
 {
 	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_ApplyComponentTransforms);
-	
+
+	// Interpolate transforms for all components in the current frame in world space.
 	for (const auto& Pair : Next.ComponentTransforms)
 	{
 		const FString& ComponentName = Pair.Key;
-		const FTransform& NextT = Pair.Value; // NextT는 월드 트랜스폼
+		const FTransform& NextT = Pair.Value;
 
 		if (USceneComponent* TargetComponent = ReconstructedComponents.FindRef(ComponentName))
 		{
@@ -311,9 +311,9 @@ void UPlayComponent::ApplySkeletalBoneTransforms(const FRecordFrame& Prev, const
 
 
 /**
- * @brief FComponentRecord를 기반으로 메시 컴포넌트를 생성하고 월드에 등록합니다.
- * @param Record 생성할 컴포넌트의 정보
- * @return 성공 시 생성된 컴포넌트, 실패 시 nullptr
+ * @brief Creates a mesh component based on an FComponentRecord and registers it with the world.
+ * @param Record Information about the component to be created.
+ * @return The created component on success, nullptr on failure.
  */	
 USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecord& Record, const TMap<FString, TObjectPtr<UObject>>& AssetCache) const
 {
@@ -325,7 +325,7 @@ USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecor
 		return nullptr;
 	}
 
-	// 1. FComponentRecord로부터 컴포넌트 클래스를 로드합니다.
+	// Load the component class from the FComponentRecord.
 	UClass* ComponentClass = FindObject<UClass>(nullptr, *Record.ComponentClassPath);
 	if (!ComponentClass ||
 		!(ComponentClass->IsChildOf(UStaticMeshComponent::StaticClass()) || ComponentClass->IsChildOf(USkeletalMeshComponent::StaticClass())))
@@ -334,7 +334,7 @@ USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecor
 		return nullptr;
 	}
 
-	// 2. Owner 액터에 새 컴포넌트를 생성합니다.
+	// Create a new component on the Owner actor.
 	USceneComponent* NewComponent = nullptr;
 	
 	if (ComponentClass->IsChildOf(USkeletalMeshComponent::StaticClass()))
@@ -360,7 +360,7 @@ USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecor
 	
     if (!Record.AssetPath.IsEmpty())
     {
-        // AssetRef.TryLoad() 대신 캐시에서 바로 가져옵니다.
+    	// Get the asset directly from the cache instead of using AssetRef.TryLoad().
         if (const TObjectPtr<UObject>* FoundAsset = AssetCache.Find(Record.AssetPath))
         {
             if (UStaticMeshComponent* StaticMeshComp = Cast<UStaticMeshComponent>(NewComponent))
@@ -387,20 +387,20 @@ USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecor
 			}
 		}
 	}
-	// 3-2. 머티리얼을 순서대로 적용합니다.
+	// Apply materials in order.
 	for (int32 MatIndex = 0; MatIndex < Record.MaterialPaths.Num(); ++MatIndex)
 	{
-		// 옵션에 따라 고스트 머티리얼을 강제 적용하는 경우 (기존 로직)
+		// Force the ghost material if the option is enabled
 		if ((PlaybackOptions.bUseGhostMaterial || Record.MaterialPaths[MatIndex].IsEmpty()) && DefaultMaterial)
 		{
 			NewMeshComponent->SetMaterial(MatIndex, DefaultMaterial);
-			continue; // 다음 머티리얼 슬롯으로 넘어감
+			continue; // Move to the next material slot.
 		}
 
-		// 원본 머티리얼 경로가 비어있지 않은 경우
+		// If the original material path is not empty and bUseGhostMaterial is false.
 		if (!Record.MaterialPaths[MatIndex].IsEmpty())
 		{
-			// StaticLoadObject 대신 캐시에서 바로 가져옵니다.
+			// Get the material directly from the cache instead of using StaticLoadObject.
 			UMaterialInterface* OriginalMaterial = nullptr;
 			if (const TObjectPtr<UObject>* FoundMaterial = AssetCache.Find(Record.MaterialPaths[MatIndex]))
 			{
@@ -413,15 +413,13 @@ USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecor
 				continue;
 			}
 			
-			// 현재 머티리얼 인덱스에 해당하는 저장된 동적 파라미터가 있는지 확인합니다.
+			// Check if there are saved dynamic parameters for the current material index.
 			if (Record.MaterialParameters.Contains(MatIndex))
 			{
-				// 파라미터가 있다면, 원본 머티리얼을 부모로 하는 MID를 생성
 				UMaterialInstanceDynamic* DynMaterial = NewMeshComponent->CreateAndSetMaterialInstanceDynamicFromMaterial(MatIndex, OriginalMaterial);
 
 				if (DynMaterial)
 				{
-					// 저장된 파라미터 값들을 가져와서 새로 만든 MID에 하나씩 적용
 					const FMaterialParameters& SavedParams = Record.MaterialParameters[MatIndex];
 					
 					for (const auto& Pair : SavedParams.VectorParams)
@@ -437,13 +435,12 @@ USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecor
 			}
 			else
 			{
-				// 저장된 파라미터가 없다면,  원본 머티리얼을 그대로 적용
+				// If no parameters are saved, apply the original material directly.
 				NewMeshComponent->SetMaterial(MatIndex, OriginalMaterial);
 			}
 		}
 	}
 
-	// 4. 컴포넌트를 등록하고 루트에 부착합니다.
 	NewComponent->RegisterComponent();
 	NewComponent->AttachToComponent(Owner->GetRootComponent(), FAttachmentTransformRules::KeepWorldTransform);
 
@@ -464,14 +461,13 @@ void UPlayComponent::SeekFrame(int32 FrameIndex)
 	TArray<FComponentActiveInterval*> AliveComps;
 	QueryIntervalTree(IntervalRoot.Get(), FrameIndex, AliveComps);
 
-	// TSet으로 변환하여 빠른 조회를 위함 (O(1) 평균 시간 복잡도)
 	TSet<FString> AliveComponentNames;
 	for (const FComponentActiveInterval* Interval : AliveComps)
 	{
 		AliveComponentNames.Add(Interval->Meta.ComponentName);
 	}
 
-	// 2. 미리 생성된 모든 컴포넌트를 순회하며 상태를 업데이트합니다.
+	// Iterate through all pre-created components and update their state.
 	for (auto& Pair : ReconstructedComponents)
 	{
 		const FString& ComponentName = Pair.Key;
@@ -479,11 +475,11 @@ void UPlayComponent::SeekFrame(int32 FrameIndex)
 
 		if (!Component) continue;
 
-		// 현재 프레임에 활성화되어야 하는지 확인
+		// Check if the component should be active at the current frame.
 		const bool bShouldBeActive = AliveComponentNames.Contains(ComponentName);
 		const bool bIsCurrentlyActive = Component->IsVisible();
 
-		// 상태가 변경되어야 할 때만 함수를 호출하여 불필요한 비용을 줄입니다.
+		// Only call functions if the state needs to change.
 		if (bShouldBeActive != bIsCurrentlyActive)
 		{
 			Component->SetVisibility(bShouldBeActive);
@@ -492,8 +488,8 @@ void UPlayComponent::SeekFrame(int32 FrameIndex)
 	}
 }
 
-/*
- * 균형 이진 트리 전제. 각 중점 왼쪽과 오른쪽에 위치한 Interval list 분류 및 트리 구성
+/**
+ * Assumes a balanced binary tree. Classifies intervals into left/right of the center and builds the tree.
  */
 TUniquePtr<FIntervalTreeNode> UPlayComponent::BuildIntervalTree(const TArray<FComponentActiveInterval*>& InComponentIntervals)
 {
@@ -503,7 +499,7 @@ TUniquePtr<FIntervalTreeNode> UPlayComponent::BuildIntervalTree(const TArray<FCo
 		return nullptr;		
 	}
 
-	// 1) 중점(center) 결정: 모든 start/end의 중간값
+	// Determine the center point of the intervals as the median.
 	TArray<int32> Endpoints;
 	for (FComponentActiveInterval* I : InComponentIntervals)
 	{
@@ -513,13 +509,12 @@ TUniquePtr<FIntervalTreeNode> UPlayComponent::BuildIntervalTree(const TArray<FCo
 	Endpoints.Sort();
 	int32 Mid = Endpoints[Endpoints.Num()/2];
 
-	// 2) 현재 노드에 걸치는 구간 분류
 	TArray<FComponentActiveInterval*> LeftList, RightList;
 	TUniquePtr<FIntervalTreeNode> Node = MakeUnique<FIntervalTreeNode>();
 	Node->Center = Mid;
 	for (FComponentActiveInterval* I : InComponentIntervals)
 	{
-		/* 현재 Mid에 겹치는 Interval만 추가, 겹치지 않는 것은 좌우 Node로 분류*/
+		// Only add intervals that overlap the Mid to this node; classify non-overlapping ones for left/right children.
 		if (I->EndFrame < Mid)
 		{
 			LeftList.Add(I);			
@@ -534,7 +529,6 @@ TUniquePtr<FIntervalTreeNode> UPlayComponent::BuildIntervalTree(const TArray<FCo
 		}
 	}
 
-	// 3) 재귀
 	Node->Left  = BuildIntervalTree(LeftList);
 	Node->Right = BuildIntervalTree(RightList);
 	return Node;
@@ -548,14 +542,13 @@ void UPlayComponent::QueryIntervalTree(FIntervalTreeNode* Node, int32 FrameIndex
 		return;
 	}
 
-	// 1. 이 노드의 리스트에서 커버되는 구간 수집
+	// Collect intervals from this node's list that cover the query point.
 	for (auto* I : Node->Intervals)
 	{
 		if (I->StartFrame <= FrameIndex && FrameIndex < I->EndFrame)
 			OutComponentIntervals.Add(I);
 	}
 
-	// 2. 좌/우 서브트리 결정
 	if (FrameIndex < Node->Center)
 	{
 		QueryIntervalTree(Node->Left.Get(), FrameIndex, OutComponentIntervals);		

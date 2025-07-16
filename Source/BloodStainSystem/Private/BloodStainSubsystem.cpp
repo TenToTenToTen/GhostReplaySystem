@@ -156,7 +156,7 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 		
 		for (const FRecordActorSaveData& RecordActorSaveData : ReplayTerminatedActorManager->CookQueuedFrames(GroupName))
 		{
-			// Valid Data 검증 안해도 괜찮으려나
+			// TODO : Check if RecordActorSaveData is valid
 			if (!RecordActorSaveData.IsValid())
 			{
 				UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording Warning: Frame num is 0"));
@@ -173,7 +173,7 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 		
 		const FString MapName = UGameplayStatics::GetCurrentLevelName(GetWorld());
 		const FString GroupNameString = GroupName.ToString();
-		const FString UniqueTimestamp = FDateTime::Now().ToString(TEXT("%Y%m%d-%H%M%S%s")); // %s는 밀리초까지 포함
+		const FString UniqueTimestamp = FDateTime::Now().ToString(TEXT("%Y%m%d-%H%M%S%s"));
 
 		FTransform RootTransform = FTransform::Identity;
 		for (const FRecordActorSaveData& SaveData : RecordSaveDataArray)

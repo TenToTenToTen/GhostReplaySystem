@@ -3,7 +3,6 @@
 */
 
 
-
 #include "RecordComponent.h"
 #include "BloodStainRecordDataUtils.h"
 #include "BloodStainSubsystem.h"
@@ -217,11 +216,9 @@ void URecordComponent::FillMaterialData(const UMeshComponent* InMeshComponent, F
 		{
 			if (UMaterialInstanceDynamic* DynamicMaterial = Cast<UMaterialInstanceDynamic>(Material))
 			{
-				// MID인 경우 -> 부모를 가져와서 경로 저장, 이후 파라미터로 복구
 				UMaterialInterface* ParentMaterial = DynamicMaterial->Parent;
 				OutRecord.MaterialPaths.Add(ParentMaterial ? ParentMaterial->GetPathName() : TEXT(""));
 
-				// MID 동적 파라미터 저장
 				FMaterialParameters MatParams;
 
 				TArray<FMaterialParameterInfo> VectorParamInfos;
@@ -255,7 +252,7 @@ void URecordComponent::FillMaterialData(const UMeshComponent* InMeshComponent, F
 			}
 			else
 			{
-				//  MID가 아닌 경우 디스크에 저장된 에셋 사용
+				//  Use the asset from a disk if it's not MID
 				OutRecord.MaterialPaths.Add(Material->GetPathName());
 			}
 		}
@@ -277,7 +274,7 @@ void URecordComponent::CollectOwnedMeshComponents()
         TArray<UMeshComponent*> OwnerMeshComponents;
         Owner->GetComponents<UMeshComponent>(OwnerMeshComponents);
 
-    	// TODO - GetComponents의 순서가 보장되는지 불분명함. 기준이 어떤지 정확히 파악하고 수정이 필요할 수 있음.
+    	// TODO - to clear out the exact order of GetComponents()
     	for (UMeshComponent* MeshComp : OwnerMeshComponents)
     	{
     		if (Cast<UCameraProxyMeshComponent>(MeshComp))
