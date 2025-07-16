@@ -2,13 +2,13 @@
 * Copyright 2025 TenToTen, All Rights Reserved.
 */
 
-
-
 #include "ReplayTerminatedActorManager.h"
 
 #include "BloodStainRecordDataUtils.h"
 #include "BloodStainSystem.h"
+#include "RecordComponent.h"
 #include "Engine/World.h"
+
 
 void UReplayTerminatedActorManager::Tick(float DeltaTime)
 {

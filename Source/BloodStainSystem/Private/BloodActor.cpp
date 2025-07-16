@@ -5,9 +5,11 @@
 #include "BloodActor.h"
 
 #include "BloodStainSubsystem.h"
-#include "Blueprint/UserWidget.h"
+#include "Engine/GameInstance.h"
+#include "GameFramework/Pawn.h"
 #include "Components/DecalComponent.h"
 #include "Components/SphereComponent.h"
+#include "Blueprint/UserWidget.h"
 
 FName ABloodActor::SphereComponentName(TEXT("InteractionSphere"));
 

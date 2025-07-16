@@ -6,17 +6,18 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "RecordComponent.h"
+#include "GhostData.h"
 #include "UObject/Object.h"
 #include "Tickable.h"
+#include "Containers/CircularQueue.h"
 #include "ReplayTerminatedActorManager.generated.h"
+
+struct FRecordActorSaveData;
+
 
 DECLARE_DELEGATE(FOnRecordGroupRemove);
 
-struct FRecordActorSaveData;
-/**
- * 
- */
+
 UCLASS()
 class BLOODSTAINSYSTEM_API UReplayTerminatedActorManager : public UObject, public FTickableGameObject
 {
@@ -33,12 +34,13 @@ public:
 	void AddToRecordGroup(const FName& GroupName, URecordComponent* RecordComponent);
 	void ClearRecordGroup(const FName& GroupName);
 
-	FOnRecordGroupRemove OnRecordGroupRemoveByCollecting;
-
 private:
-
 	void CollectRecordGroups(float DeltaTime);
+
+public:
+	FOnRecordGroupRemove OnRecordGroupRemoveByCollecting;
 	
+private:	
 	struct FRecordComponentData
 	{
 		FName ActorName = NAME_None;
