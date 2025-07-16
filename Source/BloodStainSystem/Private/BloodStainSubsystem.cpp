@@ -375,7 +375,7 @@ bool UBloodStainSubsystem::FindOrLoadRecordHeader(const FString& FileName, const
 
 	// 2) 캐시에 없으면 파일에서 로드
 	FRecordHeaderData Loaded;
-	if (!FBloodStainFileUtils::LoadHeaderFromFile(FileName, LevelName, Loaded))
+	if (!BloodStainFileUtils::LoadHeaderFromFile(FileName, LevelName, Loaded))
 	{
 		UE_LOG(LogBloodStain, Error, TEXT("[BloodStain] Failed to load file's Header %s"), *FileName);
 		return false;
@@ -398,7 +398,7 @@ bool UBloodStainSubsystem::FindOrLoadRecordBodyData(const FString& FileName, con
 
 	// 2) 캐시에 없으면 파일에서 로드
 	FRecordSaveData Loaded;
-	if (!FBloodStainFileUtils::LoadFromFile(FileName, LevelName, Loaded))
+	if (!BloodStainFileUtils::LoadFromFile(FileName, LevelName, Loaded))
 	{
 		UE_LOG(LogBloodStain, Error, TEXT("[BloodStain] Failed to load file %s"), *FileName);
 		return false;
@@ -422,7 +422,7 @@ void UBloodStainSubsystem::LoadAllHeadersInLevel(const FString& LevelName)
 	{
 		LevelStr = UGameplayStatics::GetCurrentLevelName(GetWorld());
 	}
-	FBloodStainFileUtils::LoadHeadersForAllFiles(CachedHeaders, LevelStr);
+	BloodStainFileUtils::LoadHeadersForAllFiles(CachedHeaders, LevelStr);
 }
 
 ABloodActor* UBloodStainSubsystem::SpawnBloodStain(const FString& FileName, const FString& LevelName)
@@ -464,7 +464,7 @@ void UBloodStainSubsystem::SpawnAllBloodStainInLevel()
 {
 	FString LevelName = UGameplayStatics::GetCurrentLevelName(GetWorld());
 	// TODO - 고민, Cached를 완전히 지워버리고 있음.
-	const int32 LoadedCount = FBloodStainFileUtils::LoadHeadersForAllFiles(CachedHeaders, LevelName);
+	const int32 LoadedCount = BloodStainFileUtils::LoadHeadersForAllFiles(CachedHeaders, LevelName);
 	
 	if (LoadedCount > 0)
 	{

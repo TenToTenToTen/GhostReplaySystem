@@ -19,13 +19,15 @@ namespace BloodStainFileUtils_Internal
 		return FPaths::ProjectSavedDir() / TEXT("BloodStain");
 	}
 
-	FString GetFullFilePath(const FString& FileNameWithExt)
+	FString GetFullFilePath(const FString& FileName)
 	{
-		return GetSaveDirectory() / FileNameWithExt;
+		FString Dir = GetSaveDirectory();
+		IFileManager::Get().MakeDirectory(*Dir, /*Tree*/true);
+		return Dir / (FileName + TEXT(".bin"));
 	}
 }
 
-bool FBloodStainFileUtils::SaveToFile(
+bool BloodStainFileUtils::SaveToFile(
     const FRecordSaveData&       SaveData,
     const FString&               FileName,
     const FBloodStainFileOptions& Options)
@@ -72,7 +74,7 @@ bool FBloodStainFileUtils::SaveToFile(
 	FileAr << LocalCopy.Header;
     FileAr.Serialize(Payload.GetData(), Payload.Num());
 
-    const FString Path = GetFullFilePath(FileName);
+    const FString Path = BloodStainFileUtils_Internal::GetFullFilePath(FileName);
     bool bOK = FFileHelper::SaveArrayToFile(FileAr, *Path);
     FileAr.FlushCache(); FileAr.Empty();
 
@@ -104,10 +106,10 @@ bool FBloodStainFileUtils::SaveToFile(
     return bOK;
 }
 
-bool FBloodStainFileUtils::LoadFromFile(const FString& FileName, const FString& LevelName, FRecordSaveData& OutData)
+bool BloodStainFileUtils::LoadFromFile(const FString& FileName, const FString& LevelName, FRecordSaveData& OutData)
 {
     // 1) 파일 전체 읽기
-    const FString Path = GetFullFilePath(LevelName / FileName);
+    const FString Path = BloodStainFileUtils_Internal::GetFullFilePath(LevelName / FileName);
     TArray<uint8> AllBytes;
     if (!FFileHelper::LoadFileToArray(AllBytes, *Path))
     {
@@ -155,11 +157,9 @@ bool FBloodStainFileUtils::LoadFromFile(const FString& FileName, const FString& 
     return true;
 }
 
-bool FBloodStainFileUtils::LoadHeaderFromFile(const FString& FileName, const FString& LevelName, FRecordHeaderData& OutRecordHeaderData)
-{
-	// TODO - AllByte 읽어오는거 바꾸기
-	
-	const FString Path = GetFullFilePath(LevelName / FileName);
+bool BloodStainFileUtils::LoadHeaderFromFile(const FString& FileName, const FString& LevelName, FRecordHeaderData& OutRecordHeaderData)
+{	
+	const FString Path = BloodStainFileUtils_Internal::GetFullFilePath(LevelName / FileName);
 
 	IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
 	TUniquePtr<IFileHandle> FileHandle(PlatformFile.OpenRead(*Path));
@@ -196,7 +196,7 @@ bool FBloodStainFileUtils::LoadHeaderFromFile(const FString& FileName, const FSt
 }
 
 
-int32 FBloodStainFileUtils::LoadHeadersForAllFiles(TMap<FString, FRecordHeaderData>& OutLoadedHeaders, const FString& LevelName)
+int32 BloodStainFileUtils::LoadHeadersForAllFiles(TMap<FString, FRecordHeaderData>& OutLoadedHeaders, const FString& LevelName)
 {
 	// 1. 기존 맵 데이터를 초기화합니다.
 	OutLoadedHeaders.Empty();
@@ -233,7 +233,7 @@ int32 FBloodStainFileUtils::LoadHeadersForAllFiles(TMap<FString, FRecordHeaderDa
 	return OutLoadedHeaders.Num();
 }
 
-int32 FBloodStainFileUtils::LoadAllFiles(TMap<FString, FRecordSaveData>& OutLoadedDataMap, const FString& LevelName)
+int32 BloodStainFileUtils::LoadAllFiles(TMap<FString, FRecordSaveData>& OutLoadedDataMap, const FString& LevelName)
 {
 	// 1. 기존 맵 데이터를 초기화합니다.
 	OutLoadedDataMap.Empty();
@@ -268,11 +268,4 @@ int32 FBloodStainFileUtils::LoadAllFiles(TMap<FString, FRecordSaveData>& OutLoad
 	}
 
 	return OutLoadedDataMap.Num();
-}
-
-FString FBloodStainFileUtils::GetFullFilePath(const FString& FileName)
-{
-	FString Dir = FPaths::ProjectSavedDir() / TEXT("BloodStain");
-	IFileManager::Get().MakeDirectory(*Dir, /*Tree*/true);
-	return Dir / (FileName + TEXT(".bin"));
 }
