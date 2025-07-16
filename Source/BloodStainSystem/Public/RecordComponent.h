@@ -8,7 +8,6 @@
 #include "CoreMinimal.h"
 #include "GhostData.h"
 #include "Components/ActorComponent.h"
-#include "OptionTypes.h"
 #include "Containers/CircularQueue.h"
 #include "RecordComponent.generated.h"
 
@@ -33,7 +32,7 @@ public:
 	/** 이 컴포넌트의 모든 설정을 한 번에 초기화 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Record")
 	void Initialize(const FName& InGroupName, const FBloodStainRecordOptions& InOptions);
-	void CollectMeshComponents();
+
 	bool SaveQueuedFrames();
 	
 public:
@@ -43,12 +42,20 @@ public:
 	/* Called when a component detached from the owner */
 	void OnComponentDetached(UMeshComponent* DetachedComponent);
 	
-	virtual bool ShouldRecord();
-
 	FRecordActorSaveData GetGhostSaveData() { return GhostSaveData; }
-	int32 GetCurrentFrameIndex() const { return CurrentFrameIndex;}
-
 	FName GetRecordGroupName() const { return GroupName; }
+
+private:
+	void CollectMeshComponents();
+
+	/** Create FComponentRecord Data from meshcomponent */
+	bool CreateRecordFromMeshComponent(UMeshComponent* InMeshComponent, FComponentRecord& OutRecord);
+
+	void FillMaterialData(const UMeshComponent* InMeshComponent, FComponentRecord& OutRecord);
+	
+	/** Checks for newly attached or detached actors since the last frame and updates the recording state accordingly. */
+	void HandleAttachedActorChanges();
+	void HandleAttachedActorChangesByBit();
 
 protected:
 
@@ -59,30 +66,14 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Record")
 	FBloodStainRecordOptions RecordOptions;
 
+	FRecordActorSaveData GhostSaveData;
+	
 	float TimeSinceLastRecord = 0.0f;
 	float StartTime;
-	FRecordActorSaveData GhostSaveData;
-	UPROPERTY()
-	TSet<TObjectPtr<USceneComponent>> RecordComponents;
-	
-	
-
-private:
-	/** Create FComponentRecord Data from meshcomponent */
-	bool CreateRecordFromMeshComponent(UMeshComponent* InMeshComponent, FComponentRecord& OutRecord);
-	void FillMaterialData(const UMeshComponent* InMeshComponent, FComponentRecord& OutRecord);
+	int32 CurrentFrameIndex = 0;
+	int32 MaxRecordFrames;
 	/** Records All frames up to MaxFrames */
 	TUniquePtr<TCircularQueue<FRecordFrame>> FrameQueuePtr;
-	int32 MaxRecordFrames;
-
-	/*
-	 * Component Event Tracker 
-	 */
-	
-	/** Attached / Detached Component list to record in next frame */
-	TArray<FComponentRecord> PendingAddedComponents;
-	TArray<FString> PendingRemovedComponentNames;
-
 	
 	/** Component Intervals for each component, used to track when components were attached/detached */
 	UPROPERTY()
@@ -90,17 +81,17 @@ private:
 
 	/** 이름 → ComponentIntervals 인덱스 맵 (Detach 시 O(log N) 접근용) */
 	TMap<FString, int32> IntervalIndexMap;
-	
-	/** Current Frame Index */
-	int32 CurrentFrameIndex = 0;
 
+	
+	UPROPERTY()
+	TSet<TObjectPtr<USceneComponent>> OwnedComponentsForRecord;
+	
+	/** Attached / Detached Component list to record in next frame */
+	TArray<FComponentRecord> PendingAddedComponents;
+	TArray<FString> PendingRemovedComponentNames;
+	
 	/** Previous Attached Actors */
 	TArray<TObjectPtr<AActor>> PreviousAttachedActors;
-
-	/** Checks for newly attached or detached actors since the last frame and updates the recording state accordingly. */
-	void HandleAttachedActorChanges();
-
-	void HandleAttachedActorChangesByBit();
 
 private:
 	TMap<FString, TSharedPtr<FComponentRecord>> MetaDataCache;

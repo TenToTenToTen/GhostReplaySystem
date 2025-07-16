@@ -9,13 +9,13 @@
 #include "BloodStainSubsystem.h"
 #include "BloodStainSystem.h"
 #include "GhostData.h"
-#include "Camera/CameraComponent.h"
-#include "Components/SkeletalMeshComponent.h"
 #include "Engine/StaticMesh.h"
-#include "Materials/MaterialInterface.h"
 #include "Engine/SkeletalMesh.h"
-#include "Materials/MaterialInstanceDynamic.h"
 #include "Engine/GameInstance.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialInterface.h"
+#include "Camera/CameraComponent.h"
 
 DECLARE_CYCLE_STAT(TEXT("RecordComp TickComponent"), STAT_RecordComponent_TickComponent, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("RecordComp Initialize"), STAT_RecordComponent_Initialize, STATGROUP_BloodStain);
@@ -29,7 +29,7 @@ DECLARE_CYCLE_STAT(TEXT("RecordComp HandleAttachedChanges"), STAT_RecordComponen
 DECLARE_CYCLE_STAT(TEXT("RecordComp HandleAttachedChangesByBit"), STAT_RecordComponent_HandleAttachedChangesByBit, STATGROUP_BloodStain);
 
 URecordComponent::URecordComponent()
-	: StartTime(0), MaxRecordFrames(0), CurrentFrameIndex(0)
+	: StartTime(0), CurrentFrameIndex(0), MaxRecordFrames(0)
 {
 	PrimaryComponentTick.bCanEverTick = true;
 }
@@ -39,7 +39,6 @@ void URecordComponent::BeginPlay()
 	Super::BeginPlay();
 }
 
-// Called every frame
 void URecordComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_TickComponent); 
@@ -72,7 +71,7 @@ void URecordComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 		}
 		
 		// InitialComponentStructure에 있는 컴포넌트들만 월드 트랜스폼을 기록
-		for (TObjectPtr<USceneComponent>& SceneComp : RecordComponents)
+		for (TObjectPtr<USceneComponent>& SceneComp : OwnedComponentsForRecord)
 		{
 			FString ComponentName = FString::Printf(TEXT("%s_%u"), *SceneComp->GetName(), SceneComp->GetUniqueID());
 			if (USkeletalMeshComponent* SkeletalComp = Cast<USkeletalMeshComponent>(SceneComp))
@@ -129,95 +128,6 @@ void URecordComponent::Initialize(const FName& InGroupName, const FBloodStainRec
 	CollectMeshComponents();
 }
 
-void URecordComponent::CollectMeshComponents()
-{
-	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_CollectMeshComponents);
-    if (AActor* Owner = GetOwner())
-    {
-    	ComponentIntervals.Empty();
-        RecordComponents.Empty();
-
-        // 1. Owner 액터 자체의 메시 컴포넌트 수집
-        TArray<UMeshComponent*> OwnerMeshComponents;
-        Owner->GetComponents<UMeshComponent>(OwnerMeshComponents);
-
-    	// GetComponents의 순서가 보장되는지 불분명함. 기준이 어떤지 정확히 파악하고 수정이 필요할 수 있음.
-    	for (UMeshComponent* MeshComp : OwnerMeshComponents)
-    	{
-    		if (Cast<UCameraProxyMeshComponent>(MeshComp))
-    		{
-    			continue;
-    		}
-    		if (USkeletalMeshComponent* SkeletalMeshComp = Cast<USkeletalMeshComponent>(MeshComp))
-    		{
-    			if (SkeletalMeshComp->GetSkeletalMeshAsset())
-    			{
-	    			GhostSaveData.PrimaryComponentName = FName(FString::Printf(TEXT("%s_%u"), *SkeletalMeshComp->GetName(), SkeletalMeshComp->GetUniqueID()));
-    				break;
-    			}
-    		}
-    		else if (UStaticMeshComponent* StaticMeshComp = Cast<UStaticMeshComponent>(MeshComp))
-    		{
-    			GhostSaveData.PrimaryComponentName = FName(FString::Printf(TEXT("%s_%u"), *StaticMeshComp->GetName(), StaticMeshComp->GetUniqueID()));
-    			break;
-    		}
-    	}
-    	
-        for (UMeshComponent* MeshComp : OwnerMeshComponents)
-        {
-            if (Cast<UCameraProxyMeshComponent>(MeshComp))
-            {
-                continue;
-            }
-
-        	if (Cast<USkeletalMeshComponent>(MeshComp) || Cast<UStaticMeshComponent>(MeshComp))
-        	{
-        		FComponentRecord Record;
-        		if (CreateRecordFromMeshComponent(MeshComp, Record))
-        		{
-        			FComponentInterval Interval = {Record, 0, INT32_MAX};
-        			int32 NewIdx = ComponentIntervals.Add(Interval);
-        			IntervalIndexMap.Add(Record.ComponentName, NewIdx);
-        			RecordComponents.Add(MeshComp);
-        		}
-        	}
-        }
-
-        // 2. Owner 액터에 부착된 모든 액터 (하위의 하위까지 재귀적으로)의 메시 컴포넌트 수집
-        TArray<AActor*> AllAttachedActors;
-        // 세 번째 인자를 true로 설정하여 재귀적으로 모든 하위 액터를 가져옵니다.
-        Owner->GetAttachedActors(AllAttachedActors, true, true);
-    	PreviousAttachedActors = AllAttachedActors;
-    	
-        for (AActor* AttachedActor : AllAttachedActors)
-        {
-            TArray<UMeshComponent*> AttachedActorMeshComponents;
-            AttachedActor->GetComponents<UMeshComponent>(AttachedActorMeshComponents);
-
-            for (UMeshComponent* MeshComp : AttachedActorMeshComponents)
-            {
-                if (Cast<UCameraProxyMeshComponent>(MeshComp))
-                {
-                    continue;
-                }
-            	
-				if (Cast<UStaticMeshComponent>(MeshComp) || Cast<USkeletalMeshComponent>(MeshComp))
-                {
-					FComponentRecord Record;
-					if (CreateRecordFromMeshComponent(MeshComp, Record))
-					{
-						FComponentInterval Interval = {Record, 0, INT32_MAX};
-						int32 NewIdx = ComponentIntervals.Add(Interval);
-						IntervalIndexMap.Add(Record.ComponentName, NewIdx);
-						RecordComponents.Add(MeshComp);
-					}
-                }
-            }
-        }
-        UE_LOG(LogBloodStain, Warning, TEXT("Collected %d mesh components for %s."), RecordComponents.Num(), *Owner->GetName());
-    }
-}
-
 bool URecordComponent::SaveQueuedFrames()
 {
 	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_SaveQueuedFrames);
@@ -238,7 +148,7 @@ void URecordComponent::OnComponentAttached(UMeshComponent* NewComponent)
 	}
 	
 	// 1. 기록할 컴포넌트 목록에 즉시 추가하여 다음 틱부터 트랜스폼을 기록
-	RecordComponents.Add(NewComponent);
+	OwnedComponentsForRecord.Add(NewComponent);
 
 	// 2. '추가' 이벤트를 기록하기 위해 ComponentRecord 생성 및 Pending 목록에 추가
 	FComponentRecord Record;
@@ -264,7 +174,7 @@ void URecordComponent::OnComponentDetached(UMeshComponent* DetachedComponent)
 	}
 
 	// 1. 기록할 컴포넌트 목록에서 제거하여 더 이상 트랜스폼을 기록하지 않음
-	RecordComponents.Remove(DetachedComponent);
+	OwnedComponentsForRecord.Remove(DetachedComponent);
 
 	// 2. '제거' 이벤트를 기록하기 위해 고유 이름만 Pending 목록에 추가
 	const FString ComponentName = FString::Printf(TEXT("%s_%u"), *DetachedComponent->GetName(), DetachedComponent->GetUniqueID());
@@ -278,11 +188,6 @@ void URecordComponent::OnComponentDetached(UMeshComponent* DetachedComponent)
 	}
 	// UE_LOG(LogBloodStain, Log, TEXT("Component Detached and pending for record: %s"), *PrimaryComponentName);
 	
-}
-
-bool URecordComponent::ShouldRecord()
-{
-	return true;
 }
 
 /**
@@ -349,6 +254,95 @@ void URecordComponent::FillMaterialData(const UMeshComponent* InMeshComponent, F
 			OutRecord.MaterialPaths.Add(TEXT(""));
 		}
 	}
+}
+
+void URecordComponent::CollectMeshComponents()
+{
+	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_CollectMeshComponents);
+    if (AActor* Owner = GetOwner())
+    {
+    	ComponentIntervals.Empty();
+        OwnedComponentsForRecord.Empty();
+
+        // 1. Owner 액터 자체의 메시 컴포넌트 수집
+        TArray<UMeshComponent*> OwnerMeshComponents;
+        Owner->GetComponents<UMeshComponent>(OwnerMeshComponents);
+
+    	// GetComponents의 순서가 보장되는지 불분명함. 기준이 어떤지 정확히 파악하고 수정이 필요할 수 있음.
+    	for (UMeshComponent* MeshComp : OwnerMeshComponents)
+    	{
+    		if (Cast<UCameraProxyMeshComponent>(MeshComp))
+    		{
+    			continue;
+    		}
+    		if (USkeletalMeshComponent* SkeletalMeshComp = Cast<USkeletalMeshComponent>(MeshComp))
+    		{
+    			if (SkeletalMeshComp->GetSkeletalMeshAsset())
+    			{
+	    			GhostSaveData.PrimaryComponentName = FName(FString::Printf(TEXT("%s_%u"), *SkeletalMeshComp->GetName(), SkeletalMeshComp->GetUniqueID()));
+    				break;
+    			}
+    		}
+    		else if (UStaticMeshComponent* StaticMeshComp = Cast<UStaticMeshComponent>(MeshComp))
+    		{
+    			GhostSaveData.PrimaryComponentName = FName(FString::Printf(TEXT("%s_%u"), *StaticMeshComp->GetName(), StaticMeshComp->GetUniqueID()));
+    			break;
+    		}
+    	}
+    	
+        for (UMeshComponent* MeshComp : OwnerMeshComponents)
+        {
+            if (Cast<UCameraProxyMeshComponent>(MeshComp))
+            {
+                continue;
+            }
+
+        	if (Cast<USkeletalMeshComponent>(MeshComp) || Cast<UStaticMeshComponent>(MeshComp))
+        	{
+        		FComponentRecord Record;
+        		if (CreateRecordFromMeshComponent(MeshComp, Record))
+        		{
+        			FComponentInterval Interval = {Record, 0, INT32_MAX};
+        			int32 NewIdx = ComponentIntervals.Add(Interval);
+        			IntervalIndexMap.Add(Record.ComponentName, NewIdx);
+        			OwnedComponentsForRecord.Add(MeshComp);
+        		}
+        	}
+        }
+
+        // 2. Owner 액터에 부착된 모든 액터 (하위의 하위까지 재귀적으로)의 메시 컴포넌트 수집
+        TArray<AActor*> AllAttachedActors;
+        // 세 번째 인자를 true로 설정하여 재귀적으로 모든 하위 액터를 가져옵니다.
+        Owner->GetAttachedActors(AllAttachedActors, true, true);
+    	PreviousAttachedActors = AllAttachedActors;
+    	
+        for (AActor* AttachedActor : AllAttachedActors)
+        {
+            TArray<UMeshComponent*> AttachedActorMeshComponents;
+            AttachedActor->GetComponents<UMeshComponent>(AttachedActorMeshComponents);
+
+            for (UMeshComponent* MeshComp : AttachedActorMeshComponents)
+            {
+                if (Cast<UCameraProxyMeshComponent>(MeshComp))
+                {
+                    continue;
+                }
+            	
+				if (Cast<UStaticMeshComponent>(MeshComp) || Cast<USkeletalMeshComponent>(MeshComp))
+                {
+					FComponentRecord Record;
+					if (CreateRecordFromMeshComponent(MeshComp, Record))
+					{
+						FComponentInterval Interval = {Record, 0, INT32_MAX};
+						int32 NewIdx = ComponentIntervals.Add(Interval);
+						IntervalIndexMap.Add(Record.ComponentName, NewIdx);
+						OwnedComponentsForRecord.Add(MeshComp);
+					}
+                }
+            }
+        }
+        UE_LOG(LogBloodStain, Warning, TEXT("Collected %d mesh components for %s."), OwnedComponentsForRecord.Num(), *Owner->GetName());
+    }
 }
 
 bool URecordComponent::CreateRecordFromMeshComponent(UMeshComponent* InMeshComponent, FComponentRecord& OutRecord)
