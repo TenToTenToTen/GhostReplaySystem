@@ -14,10 +14,7 @@ class UPrimitiveComponent;
 class UUserWidget;
 
 /**
- * BloodStianActor 혈흔 보여주고 상호작용 관련된 것 처리 해주는 Actor
- * BloodStainSubsystem을 통해서 Spawn 되고 Spawn할때 ReplayData의 경로를 전달 받아야하고
- * Spawn위치는 BloodStainSubSystem에 의해 정해질텐데 그 위치는 RecordComponent가 같이 전달해줘야할 것 같음.
- * 상호작용하면 Subsystem을 통해 Play함수 호출, 매개변수는 ReplayData 경로
+ * Demo Actor used for triggering replay
  */
 UCLASS()
 class BLOODSTAINSYSTEM_API ABloodStainActor : public ADecalActor
@@ -39,29 +36,33 @@ public:
 	UFUNCTION(Category = "BloodStainActor", BlueprintCallable)
 	void Interact();
 
-public:	
+public:
+	/** Replay Target File Name without Directory Path */
 	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category="BloodStainActor")
 	FString ReplayFileName;
-	
+
+	/** Replay Target Level Name */
 	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category="BloodStainActor")
 	FString LevelName;
 
+	/** Replay Playback Option */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="BloodStainActor")
 	FBloodStainPlaybackOptions PlaybackOptions;
 
 protected:
+	/** Whether to allow multiple playback. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="BloodStainActor")
+	uint8 bAllowMultiplePlayback : 1 = true;
+	
+	/** Last Played Playback Key. Use for Control Playing BloodStain */
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category="BloodStainActor")
+	FGuid LastPlaybackKey;
+
 	UPROPERTY()
 	TObjectPtr<UUserWidget> InteractionWidgetInstance;
 
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "BloodStainActor|UI")
 	TSubclassOf<UUserWidget> InteractionWidgetClass;
-	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="BloodStainActor")
-	bool bAllowMultiplePlayback = true;
-	
-	/** Last Played Playback Key. Use for Control Playing BloodStain */
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category="BloodStainActor")
-	FGuid LastPlaybackKey;
 	
 	UPROPERTY(BlueprintReadOnly, Category = "BloodStainActor", meta=(AllowPrivateAccess = "true"))
 	TObjectPtr<USphereComponent> SphereComponent;
