@@ -20,7 +20,6 @@
 #include "Components/PoseableMeshComponent.h"
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
-#include "Stats/Stats2.h"
 
 DECLARE_CYCLE_STAT(TEXT("PlayComp TickComponent"), STAT_PlayComponent_TickComponent, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("PlayComp Initialize"), STAT_PlayComponent_Initialize, STATGROUP_BloodStain);

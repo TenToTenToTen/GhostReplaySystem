@@ -17,8 +17,8 @@ class BLOODSTAINSYSTEM_API FSaveRecordingTask : public FNonAbandonableTask
 {
 public:
 	FRecordSaveData SavedData;
-	FString FileName;
 	FString LevelName;
+	FString FileName;
 	FBloodStainFileOptions FileOptions;
 	
 	FSaveRecordingTask(FRecordSaveData&& InData, const FString& InLevelName, const FString& InFileName, const FBloodStainFileOptions& InOptions)
