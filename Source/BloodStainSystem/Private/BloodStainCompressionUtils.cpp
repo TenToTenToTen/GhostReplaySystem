@@ -20,44 +20,47 @@ namespace BloodStainCompressionUtils_Internal
     }
 }
 
-bool BloodStainCompressionUtils::CompressBuffer(const TArray<uint8>& InBuffer, TArray<uint8>& OutCompressed, FCompressionOption Opts)
+namespace BloodStainCompressionUtils
 {
-    if (Opts.Method == ECompressionMethod::None)
+    bool CompressBuffer(const TArray<uint8>& InBuffer, TArray<uint8>& OutCompressed, FCompressionOption Opts)
     {
-        OutCompressed = InBuffer;
+        if (Opts.Method == ECompressionMethod::None)
+        {
+            OutCompressed = InBuffer;
+            return true;
+        }
+
+        FName Format = BloodStainCompressionUtils_Internal::CompressionFormat(Opts.Method);
+        int32 MaxSize = FCompression::CompressMemoryBound(Format, InBuffer.Num());
+        OutCompressed.SetNumUninitialized(MaxSize);
+
+        int64 CompressedSize = MaxSize;
+        if (!FCompression::CompressMemory(
+            Format,
+            OutCompressed.GetData(), CompressedSize,
+            InBuffer.GetData(), InBuffer.Num(),
+            COMPRESS_NoFlags))
+        {
+            return false;
+        }
+
+        OutCompressed.SetNum(int32(CompressedSize));
         return true;
     }
 
-    FName Format = BloodStainCompressionUtils_Internal::CompressionFormat(Opts.Method);
-    int32 MaxSize = FCompression::CompressMemoryBound(Format, InBuffer.Num());
-    OutCompressed.SetNumUninitialized(MaxSize);
-
-    int64 CompressedSize = MaxSize;
-    if (!FCompression::CompressMemory(
-        Format,
-        OutCompressed.GetData(), CompressedSize,
-        InBuffer.GetData(), InBuffer.Num(),
-        COMPRESS_NoFlags))
+    bool DecompressBuffer(int64 UncompressedSize, const TArray<uint8>& Compressed, TArray<uint8>& OutRaw, FCompressionOption Opts)
     {
-        return false;
+        if (Opts.Method == ECompressionMethod::None)
+        {
+            OutRaw = Compressed;
+            return true;
+        }
+
+        OutRaw.SetNumUninitialized(UncompressedSize);
+        return FCompression::UncompressMemory(
+            BloodStainCompressionUtils_Internal::CompressionFormat(Opts.Method),
+            OutRaw.GetData(), UncompressedSize,
+            Compressed.GetData(), Compressed.Num()
+        );
     }
-
-    OutCompressed.SetNum(int32(CompressedSize));
-    return true;
-}
-
-bool BloodStainCompressionUtils::DecompressBuffer(int64 UncompressedSize, const TArray<uint8>& Compressed, TArray<uint8>& OutRaw, FCompressionOption Opts)
-{
-    if (Opts.Method == ECompressionMethod::None)
-    {
-        OutRaw = Compressed;
-        return true;
-    }
-
-    OutRaw.SetNumUninitialized(UncompressedSize);
-    return FCompression::UncompressMemory(
-        BloodStainCompressionUtils_Internal::CompressionFormat(Opts.Method),
-        OutRaw.GetData(), UncompressedSize,
-        Compressed.GetData(), Compressed.Num()
-    );
 }
