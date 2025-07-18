@@ -154,6 +154,16 @@ struct FBoneComponentSpace
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "BloodStain")
 	TArray<FTransform> BoneTransforms;
 
+	FBoneComponentSpace()
+	{
+		
+	}
+
+	explicit FBoneComponentSpace(const TArray<FTransform>& InBoneTransforms)
+		: BoneTransforms(InBoneTransforms)
+	{
+	}
+
 	friend FArchive& operator<<(FArchive& Ar, FBoneComponentSpace& BoneComponentSpace)
 	{
 		Ar << BoneComponentSpace.BoneTransforms;
