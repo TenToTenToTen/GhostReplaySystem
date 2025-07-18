@@ -114,8 +114,9 @@ void SerializeQuantizedTransform(FArchive& Ar, const FTransform& Transform, cons
     case ETransformQuantizationMethod::None:
     default:
         {
-            /** Basic Serialization for FTransform By Default*/
-            Ar << const_cast<FTransform&>(Transform);
+            /** Basic Serialization for FTransform By Default */
+            FTransform NonConstT = Transform;
+            Ar << NonConstT;
         }
     }
 }
@@ -185,8 +186,11 @@ void SerializeSaveData(FArchive& RawAr, FRecordSaveData& SaveData, FQuantization
                 RawAr << Pair.Key;
 
                 const FLocRange* Range = &ActorData.ComponentRanges;
-                const FScaleRange* ScaleRange = &ActorData.ComponentScaleRanges; // <<-- 스케일 범위 전달
-                SerializeQuantizedTransform(RawAr, Pair.Value, QuantOpts, Range, ScaleRange);
+                const FScaleRange* ScaleRange = &ActorData.ComponentScaleRanges;
+                if (ensure(Range && ScaleRange))
+                {
+                    SerializeQuantizedTransform(RawAr, Pair.Value, QuantOpts, Range, ScaleRange);
+                }
             }
 
             // Skeletal Mesh Component's BoneTransforms
@@ -202,9 +206,12 @@ void SerializeSaveData(FArchive& RawAr, FRecordSaveData& SaveData, FQuantization
 
                 const FLocRange* Range = ActorData.BoneRanges.Find(BonePair.Key);
                 const FScaleRange* ScaleRange = ActorData.BoneScaleRanges.Find(BonePair.Key);
-                for (const FTransform& BoneT : Space.BoneTransforms)
+                if (ensure(Range && ScaleRange))
                 {
-                    SerializeQuantizedTransform(RawAr, BoneT, QuantOpts, Range, ScaleRange);
+                    for (const FTransform& BoneT : Space.BoneTransforms)
+                    {
+                        SerializeQuantizedTransform(RawAr, BoneT, QuantOpts, Range, ScaleRange);
+                    }
                 }
             }
         }
@@ -266,6 +273,7 @@ void DeserializeSaveData(FArchive& DataAr, FRecordSaveData& OutData, const FQuan
                 
                 FBoneComponentSpace Space;
                 Space.BoneTransforms.Empty(BoneCount);
+                
                 const FLocRange* Range = ActorData.BoneRanges.Find(Key);
                 const FScaleRange* ScaleRange = ActorData.BoneScaleRanges.Find(Key);
                 

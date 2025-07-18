@@ -7,6 +7,7 @@
 
 #include "BloodStainActor.h"
 #include "BloodStainFileUtils.h"
+#include "BloodStainRecordDataUtils.h"
 #include "BloodStainSystem.h"
 #include "PlayComponent.h"
 #include "RecordComponent.h"
@@ -17,6 +18,8 @@
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
 #include "UObject/ConstructorHelpers.h"
+
+#include "Algo/BinarySearch.h" 
 
 class FSaveRecordingTask;
 
@@ -152,8 +155,9 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 			}
 			RecordSaveDataArray.Add(RecordSaveData);
 		}
-		
-		for (const FRecordActorSaveData& RecordActorSaveData : ReplayTerminatedActorManager->CookQueuedFrames(GroupName))
+
+		TArray<FRecordActorSaveData> TerminatedActorSaveDataArray = ReplayTerminatedActorManager->CookQueuedFrames(GroupName);
+		for (const FRecordActorSaveData& RecordActorSaveData : TerminatedActorSaveDataArray)
 		{
 			// TODO : Check if RecordActorSaveData is valid
 			if (!RecordActorSaveData.IsValid())
@@ -169,6 +173,12 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 			UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording Failed: There is no Valid Recorder Group[%s]"), GetData(GroupName.ToString()));
 			return;
 		}
+
+		auto& Opts = BloodStainRecordGroup.RecordOptions;
+		BloodStainRecordDataUtils::ClipActorSaveDataByGroup(
+		RecordSaveDataArray, /* For Testing Value */ 3.0f ,Opts.SamplingInterval
+		);
+		
 		
 		const FString MapName = UGameplayStatics::GetCurrentLevelName(GetWorld());
 		const FString GroupNameString = GroupName.ToString();

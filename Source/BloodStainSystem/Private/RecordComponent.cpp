@@ -47,7 +47,7 @@ void URecordComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 	TimeSinceLastRecord += DeltaTime;
 	if (TimeSinceLastRecord >= RecordOptions.SamplingInterval)
 	{
-		TimeSinceLastRecord = 0.0f;
+		TimeSinceLastRecord -= RecordOptions.SamplingInterval;
 
 		FRecordFrame NewFrame;
 		NewFrame.FrameIndex = CurrentFrameIndex++;

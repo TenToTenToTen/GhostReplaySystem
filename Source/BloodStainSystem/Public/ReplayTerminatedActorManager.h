@@ -45,7 +45,8 @@ private:
 public:
 	FOnRecordGroupRemove OnRecordGroupRemoveByCollecting;
 	
-private:	
+private:
+	/** Data that each Record Component is saving */
 	struct FRecordComponentData
 	{
 		FName ActorName = NAME_None;

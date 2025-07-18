@@ -32,7 +32,11 @@ struct FCompressionOption
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Compression")
 	ECompressionMethod Method = ECompressionMethod::Zlib;
 
-	friend FArchive& operator<<(FArchive& Ar, FCompressionOption& Options);
+	friend FArchive& operator<<(FArchive& Ar, FCompressionOption& Options)
+	{
+		Ar << Options.Method;
+		return Ar;
+	}
 };
 
 
@@ -87,7 +91,12 @@ struct FBloodStainFileOptions
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="File|Quantization")
 	FQuantizationOption Quantization;
 	
-	friend FArchive& operator<<(FArchive& Ar, FBloodStainFileOptions& Options);
+	friend FArchive& operator<<(FArchive& Ar, FBloodStainFileOptions& Options)
+	{
+		Ar << Options.Compression;
+		Ar << Options.Quantization;
+		return Ar;
+	}
 };
 
 /**
@@ -109,5 +118,12 @@ struct FBloodStainFileHeader
 	/** Size of the uncompressed payload in bytes */
 	int64 UncompressedSize = 0;
 
-    friend FArchive& operator<<(FArchive& Ar, FBloodStainFileHeader& Header);
+    friend FArchive& operator<<(FArchive& Ar, FBloodStainFileHeader& Header)
+	{
+		Ar << Header.Magic;
+		Ar << Header.Version;
+		Ar << Header.Options;
+		Ar << Header.UncompressedSize;
+		return Ar;
+	}
 };

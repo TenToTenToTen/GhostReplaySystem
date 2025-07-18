@@ -21,6 +21,9 @@ struct FBloodStainRecordGroup
 {
 	GENERATED_BODY()
 
+	UPROPERTY()
+	float GroupStartTime = 0.f;
+
 	/** Transform at which this group will be spawned for Replay */
 	UPROPERTY()
 	FTransform SpawnPointTransform;
@@ -131,13 +134,11 @@ struct FComponentActiveInterval
 
 	FComponentActiveInterval()
 	{
-		
 	}
 	
 	explicit FComponentActiveInterval(FComponentRecord Meta, int32 StartFrame, int32 EndFrame)
 		: Meta(Meta), StartFrame(StartFrame), EndFrame(EndFrame)
 	{
-		
 	}
 	
 	bool operator==(const FComponentActiveInterval& Other) const
@@ -319,6 +320,12 @@ struct FRecordActorSaveData
 	/** All recorded frames containing component transforms, bone transforms, and events */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "BloodStain")
 	TArray<FRecordFrame> RecordedFrames;
+
+	UPROPERTY()
+	float FirstRecordedFrameTime = 0.f;
+
+	UPROPERTY()
+	float LastRecordedFrameTime = 0.f;
 
 	bool IsValid() const
 	{
