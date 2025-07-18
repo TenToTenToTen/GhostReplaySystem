@@ -47,7 +47,7 @@ void UBloodStainSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	ReplayTerminatedActorManager->OnRecordGroupRemoveByCollecting.BindUObject(this, &UBloodStainSubsystem::CleanupInvalidRecordGroups);
 }
 
-bool UBloodStainSubsystem::StartRecording(AActor* TargetActor, FBloodStainRecordOptions Options, FName GroupName)
+bool UBloodStainSubsystem::StartRecording(AActor* TargetActor, FBloodStainRecordOptions RecordOptions)
 {
 	if (!TargetActor)
 	{
@@ -55,19 +55,19 @@ bool UBloodStainSubsystem::StartRecording(AActor* TargetActor, FBloodStainRecord
 		return false;
 	}
 
-	if (GroupName == NAME_None)
+	if (RecordOptions.RecordingGroupName == NAME_None)
 	{
-		GroupName = DefaultGroupName;
+		RecordOptions.RecordingGroupName = DefaultGroupName;
 	}
 
-	if (!BloodStainRecordGroups.Contains(GroupName))
+	if (!BloodStainRecordGroups.Contains(RecordOptions.RecordingGroupName))
 	{
 		FBloodStainRecordGroup RecordGroup;
-		RecordGroup.RecordOptions = Options;
-		BloodStainRecordGroups.Add(GroupName, RecordGroup);
+		RecordGroup.RecordOptions = RecordOptions;
+		BloodStainRecordGroups.Add(RecordOptions.RecordingGroupName, RecordGroup);
 	}
 	
-	FBloodStainRecordGroup& RecordGroup = BloodStainRecordGroups[GroupName];
+	FBloodStainRecordGroup& RecordGroup = BloodStainRecordGroups[RecordOptions.RecordingGroupName];
 	
 	if (RecordGroup.ActiveRecorders.Contains(TargetActor))
 	{
@@ -86,14 +86,14 @@ bool UBloodStainSubsystem::StartRecording(AActor* TargetActor, FBloodStainRecord
 	
 	TargetActor->AddInstanceComponent(Recorder);
 	Recorder->RegisterComponent();
-	Recorder->Initialize(GroupName, Options);
+	Recorder->Initialize(RecordOptions.RecordingGroupName, RecordOptions);
 
 	RecordGroup.ActiveRecorders.Add(TargetActor, Recorder);
 	
 	return true;
 }
 
-bool UBloodStainSubsystem::StartRecordingWithActors(TArray<AActor*> TargetActors, FBloodStainRecordOptions Options, FName GroupName)
+bool UBloodStainSubsystem::StartRecordingWithActors(TArray<AActor*> TargetActors, FBloodStainRecordOptions RecordOptions)
 {
 	if (TargetActors.Num() == 0)
 	{
@@ -105,7 +105,7 @@ bool UBloodStainSubsystem::StartRecordingWithActors(TArray<AActor*> TargetActors
 	
 	for (AActor* TargetActor : TargetActors)
 	{
-		if (StartRecording(TargetActor, Options, GroupName))
+		if (StartRecording(TargetActor, RecordOptions))
 		{
 			bRecordSucceed = true;
 		}
@@ -645,4 +645,53 @@ bool UBloodStainSubsystem::IsValidReplayGroup(const FName& GroupName)
 void UBloodStainSubsystem::SetFileSaveOptions(const FBloodStainFileOptions& InOptions)
 {
 	FileSaveOptions = InOptions;
+}
+
+void UBloodStainSubsystem::AddToPendingGroup(const FName& GroupName, AActor* Actor)
+{
+	if (!PendingGroups.Contains(GroupName))
+	{
+		PendingGroups.Add(GroupName, TSet<TWeakObjectPtr<AActor>>());
+	}
+	PendingGroups[GroupName].Add(Actor);
+}
+
+void UBloodStainSubsystem::AddToPendingGroupWithActors(const FName& GroupName, TArray<AActor*> Actors)
+{
+	for (AActor* Actor : Actors)
+	{
+		AddToPendingGroup(GroupName, Actor);
+	}
+}
+
+void UBloodStainSubsystem::RemoveFromPendingGroup(const FName& GroupName, AActor* Actor)
+{
+	if (PendingGroups.Contains(GroupName))
+	{
+		PendingGroups[GroupName].Remove(Actor);
+		if (PendingGroups[GroupName].Num() == 0)
+		{
+			PendingGroups.Remove(GroupName);
+		}
+	}
+}
+
+void UBloodStainSubsystem::RemoveFromPendingGroupWithActors(const FName& GroupName, TArray<AActor*> Actors)
+{
+	for (AActor* Actor : Actors)
+	{
+		RemoveFromPendingGroup(GroupName, Actor);
+	}
+}
+
+void UBloodStainSubsystem::StartRecordingWithPendingGroup(FBloodStainRecordOptions BloodStainRecordOptions)
+{
+	if (PendingGroups.Contains(BloodStainRecordOptions.RecordingGroupName))
+	{
+		for (TWeakObjectPtr<AActor>& Actor : PendingGroups[BloodStainRecordOptions.RecordingGroupName])
+		{
+			StartRecording(Actor.Get(), BloodStainRecordOptions);
+		} 
+		PendingGroups.Remove(BloodStainRecordOptions.RecordingGroupName);
+	}
 }

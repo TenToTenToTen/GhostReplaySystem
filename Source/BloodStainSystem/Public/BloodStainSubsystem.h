@@ -43,13 +43,12 @@ public:
 	 *  If the actor is already being recorded in the group, the function will fail.
 	 *  
 	 *  @param TargetActor    The actor to be recorded.
-	 *  @param Options        Configuration for recording (e.g., duration, sampling interval). Applied only if the group is new.
-	 *  @param GroupName      The name of the recording group. If NAME_None, the default group is used.
+	 *  @param RecordOptions        Configuration for recording (e.g., duration, sampling interval). Applied only if the group is new.
 	 *  @return True if recording starts successfully; false if the actor is null, already being recorded,
 	 *          or if the RecordComponent fails to be created.
 	 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Record")
-	bool StartRecording(AActor* TargetActor, FBloodStainRecordOptions Options = FBloodStainRecordOptions(), FName GroupName = NAME_None);
+	bool StartRecording(AActor* TargetActor, FBloodStainRecordOptions RecordOptions = FBloodStainRecordOptions());
 	
 	/**
 	 *  @brief Starts recording multiple actors into the same recording group using the same options.
@@ -58,12 +57,11 @@ public:
 	 *  Useful for conveniently starting a recording session with multiple actors.
 	 *  
 	 *  @param TargetActors   An array of actors to be recorded.
-	 *  @param Options        Recording configuration applied to the group (if new) and all actors.
-	 *  @param GroupName      The name of the recording group to which all actors will be added.
+	 *  @param RecordOptions        Recording configuration applied to the group (if new) and all actors.
 	 *  @return True if at least one actor in the array started recording successfully; false otherwise.
 	 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Record")
-	bool StartRecordingWithActors(TArray<AActor*> TargetActors, FBloodStainRecordOptions Options = FBloodStainRecordOptions(), FName GroupName = NAME_None);
+	bool StartRecordingWithActors(TArray<AActor*> TargetActors, FBloodStainRecordOptions RecordOptions = FBloodStainRecordOptions());
 	
 	/**
 	 *  @brief Stops the entire recording session for the specified group then saves the data.
@@ -290,4 +288,24 @@ private:
 
 	/** Distance to trace downwards to find the ground when spawning a BloodStainActor. */
 	static float LineTraceLength;
+
+	// Experimental
+public:
+	UFUNCTION(BlueprintCallable, Category="BloodStain|Experimental", meta=(ToolTip="This is Experimental Function"))
+	void AddToPendingGroup(const FName& GroupName, AActor* Actor);
+
+	UFUNCTION(BlueprintCallable, Category="BloodStain|Experimental", meta=(ToolTip="This is Experimental Function"))
+	void AddToPendingGroupWithActors(const FName& GroupName, TArray<AActor*> Actors);
+
+	UFUNCTION(BlueprintCallable, Category="BloodStain|Experimental", meta=(ToolTip="This is Experimental Function"))
+	void RemoveFromPendingGroup(const FName& GroupName, AActor* Actor);
+	
+	UFUNCTION(BlueprintCallable, Category="BloodStain|Experimental", meta=(ToolTip="This is Experimental Function"))
+	void RemoveFromPendingGroupWithActors(const FName& GroupName, TArray<AActor*> Actors);
+
+	UFUNCTION(BlueprintCallable, Category="BloodStain|Experimental", meta=(ToolTip="This is Experimental Function"))
+	void StartRecordingWithPendingGroup(FBloodStainRecordOptions BloodStainRecordOptions);
+
+private:
+	TMap<FName, TSet<TWeakObjectPtr<AActor>>> PendingGroups;
 };

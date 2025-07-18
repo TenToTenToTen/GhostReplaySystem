@@ -17,6 +17,13 @@ struct FBloodStainRecordOptions
 {
 	GENERATED_BODY()
 
+	/**
+	 * The name of the recording group to which all actors will be added.
+	 * If NAME_None, the default group is used.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Record")
+	FName RecordingGroupName = NAME_None;
+
 	/** Maximum recording duration in seconds */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Record")
 	float MaxRecordTime = 5.f;
@@ -35,6 +42,7 @@ struct FBloodStainRecordOptions
 	
 	friend FArchive& operator<<(FArchive& Ar, FBloodStainRecordOptions& Data)
 	{
+		Ar << Data.RecordingGroupName;
 		Ar << Data.MaxRecordTime;
 		Ar << Data.SamplingInterval;
 		Ar << Data.bTrackAttachmentChanges;
