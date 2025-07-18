@@ -128,6 +128,17 @@ struct FComponentActiveInterval
 	/** Frame index at which this component was detached (exclusive) */
 	UPROPERTY()
 	int32 EndFrame = INT32_MAX;
+
+	FComponentActiveInterval()
+	{
+		
+	}
+	
+	explicit FComponentActiveInterval(FComponentRecord Meta, int32 StartFrame, int32 EndFrame)
+		: Meta(Meta), StartFrame(StartFrame), EndFrame(EndFrame)
+	{
+		
+	}
 	
 	bool operator==(const FComponentActiveInterval& Other) const
 	{
@@ -180,11 +191,6 @@ USTRUCT(BlueprintType)
 struct FRecordFrame
 {
 	GENERATED_BODY()
-	FRecordFrame()
-		:TimeStamp(0.f)
-		,FrameIndex(0)
-	{
-	}
 
 	/** Timestamp of this frame in seconds */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "BloodStain")
@@ -209,6 +215,12 @@ struct FRecordFrame
 	/** Original frame index from the recorded data */
 	UPROPERTY()
 	int32 FrameIndex;
+
+	FRecordFrame()
+		:TimeStamp(0.f)
+		,FrameIndex(0)
+	{
+	}
 	
 	friend FArchive& operator<<(FArchive& Ar, FRecordFrame& Frame)
 	{
@@ -331,11 +343,6 @@ USTRUCT(BlueprintType)
 struct FRecordHeaderData
 {
 	GENERATED_BODY()
-
-	FRecordHeaderData()
-		: MaxRecordTime(5.f)
-		, SamplingInterval(0.1f)
-	{}
 	
 	UPROPERTY()
 	FName GroupName;
@@ -351,7 +358,12 @@ struct FRecordHeaderData
 	/** Sampling interval between frames in seconds (0.1 sec - 10fps) */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="BloodStain|Header")
 	float SamplingInterval;
-		
+
+	FRecordHeaderData()
+	: MaxRecordTime(5.f)
+	, SamplingInterval(0.1f)
+	{}
+	
 	friend FArchive& operator<<(FArchive& Ar, FRecordHeaderData& Data)
 	{
 		Ar << Data.GroupName;

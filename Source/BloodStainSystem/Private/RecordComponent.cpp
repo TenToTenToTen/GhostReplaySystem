@@ -202,7 +202,7 @@ void URecordComponent::OnComponentAttached(UMeshComponent* NewComponent)
 
 	if (CreateRecordFromMeshComponent(NewComponent, Record))
 	{
-		FComponentActiveInterval I = {Record, CurrentFrameIndex, INT32_MAX};
+		FComponentActiveInterval I = FComponentActiveInterval(Record, CurrentFrameIndex, INT32_MAX);
 		int32 NewIdx = ComponentActiveIntervals.Add(I);
 		IntervalIndexMap.Add(I.Meta.ComponentName, NewIdx);
 	}
@@ -343,7 +343,7 @@ void URecordComponent::CollectOwnedMeshComponents()
         		FComponentRecord Record;
         		if (CreateRecordFromMeshComponent(MeshComp, Record))
         		{
-        			FComponentActiveInterval Interval = {Record, 0, INT32_MAX};
+        			FComponentActiveInterval Interval = FComponentActiveInterval(Record, 0, INT32_MAX);
         			int32 NewIdx = ComponentActiveIntervals.Add(Interval);
         			IntervalIndexMap.Add(Record.ComponentName, NewIdx);
         			OwnedComponentsForRecord.Add(MeshComp);
@@ -371,7 +371,7 @@ void URecordComponent::CollectOwnedMeshComponents()
 					FComponentRecord Record;
 					if (CreateRecordFromMeshComponent(MeshComp, Record))
 					{
-						FComponentActiveInterval Interval = {Record, 0, INT32_MAX};
+						FComponentActiveInterval Interval = FComponentActiveInterval(Record, 0, INT32_MAX);
 						int32 NewIdx = ComponentActiveIntervals.Add(Interval);
 						IntervalIndexMap.Add(Record.ComponentName, NewIdx);
 						OwnedComponentsForRecord.Add(MeshComp);
