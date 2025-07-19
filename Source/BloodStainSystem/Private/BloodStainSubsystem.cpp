@@ -199,12 +199,12 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 		RootTransform.SetScale3D(RootTransform.GetScale3D() / RecordSaveDataArray.Num());
 		BloodStainRecordGroup.SpawnPointTransform = RootTransform;
 	
-		FRecordSaveData RecordSaveData = ConvertToSaveData(EndTime, RecordSaveDataArray, GroupName);
-		
 		if (BloodStainRecordGroup.RecordOptions.FileName == NAME_None)
 		{
 			BloodStainRecordGroup.RecordOptions.FileName = FName(FString::Printf(TEXT("/%s-%s.sav"), *GroupNameString, *UniqueTimestamp));
 		}
+		
+		FRecordSaveData RecordSaveData = ConvertToSaveData(EndTime, GroupName, BloodStainRecordGroup.RecordOptions.FileName, FName(MapName), RecordSaveDataArray);
 
 		OnBuildRecordingHeader.Broadcast(GroupName);
 
@@ -541,9 +541,12 @@ bool UBloodStainSubsystem::IsPlaying(const FGuid& InPlaybackKey) const
 	return BloodStainPlaybackGroups.Contains(InPlaybackKey);
 }
 
-FRecordSaveData UBloodStainSubsystem::ConvertToSaveData(float EndTime, TArray<FRecordActorSaveData>& RecordActorDataArray, const FName& GroupName)
+FRecordSaveData UBloodStainSubsystem::ConvertToSaveData(float EndTime, const FName& GroupName, const FName& FileName, const FName& LevelName, TArray<FRecordActorSaveData>& RecordActorDataArray)
 {
 	FRecordSaveData RecordSaveData;
+
+	RecordSaveData.Header.FileName = FileName;
+	RecordSaveData.Header.LevelName = LevelName;
 	RecordSaveData.Header.Tags = BloodStainRecordGroups[GroupName].RecordOptions.Tags;
 	RecordSaveData.Header.SpawnPointTransform = BloodStainRecordGroups[GroupName].SpawnPointTransform;
 	RecordSaveData.Header.MaxRecordTime = BloodStainRecordGroups[GroupName].RecordOptions.MaxRecordTime;

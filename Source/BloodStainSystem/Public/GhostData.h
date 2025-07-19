@@ -308,6 +308,12 @@ USTRUCT(BlueprintType)
 struct FRecordHeaderData
 {
 	GENERATED_BODY()
+	
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "BloodStain|Header")
+	FName FileName;
+	
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "BloodStain|Header")
+	FName LevelName;	
 
 	/** BloodStain GamePlayTags. use for filtering, searching */
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "BloodStain|Header")
@@ -341,13 +347,16 @@ struct FRecordHeaderData
 
 	friend FArchive& operator<<(FArchive& Ar, FRecordHeaderData& Data)
 	{
+		Ar << Data.FileName;
+		Ar << Data.LevelName;
+		
 		FGameplayTagContainer::StaticStruct()->SerializeItem(Ar, &Data.Tags, nullptr);
 	
 		Ar << Data.SpawnPointTransform;
 		Ar << Data.MaxRecordTime;
 		Ar << Data.SamplingInterval;
-		Ar << Data.GroupEndTime;
 		Ar << Data.ReplayCustomUserData;
+		Ar << Data.GroupEndTime;
 	
 		return Ar;
 	}

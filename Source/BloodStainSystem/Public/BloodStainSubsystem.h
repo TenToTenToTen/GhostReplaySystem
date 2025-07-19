@@ -239,7 +239,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
 	bool IsFileBodyLoaded(const FString& FileName);
 	
-	/** Gets a read-only reference to the map of cached replay headers. */
+	/**
+	 * Key is FileName
+	 * Gets a read-only reference to the map of cached replay headers. */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
 	const TMap<FString, FRecordHeaderData>& GetCachedHeaders();
 
@@ -288,7 +290,7 @@ private:
 	/** Internal helper to package actor-specific data into the final save format.
 	 *  Aggregates multiple FRecordActorSaveData instances into a single FRecordSaveData.
 	 */
-	FRecordSaveData ConvertToSaveData(float EndTime, TArray<FRecordActorSaveData>& RecordActorDataArray, const FName& GroupName);
+	FRecordSaveData ConvertToSaveData(float EndTime, const FName& GroupName, const FName& FileName, const FName& LevelName, TArray<FRecordActorSaveData>& RecordActorDataArray);
 
 	/** @return true if a recording group is still valid */
 	bool IsValidReplayGroup(const FName& GroupName);
@@ -326,11 +328,15 @@ private:
 	UPROPERTY(Transient)
 	TMap<FGuid, FBloodStainPlaybackGroup> BloodStainPlaybackGroups;
 
-	/** Cached replay data's headers */
+	/**
+	 * Key is FileName
+	 * Cached replay data's headers */
 	UPROPERTY()
 	TMap<FString, FRecordHeaderData> CachedHeaders;
 	
-	/** Cached full replay datas */
+	/**
+	 * Key is FileName
+	 * Cached full replay datas */
 	UPROPERTY()
 	TMap<FString, FRecordSaveData> CachedRecordings;
 
