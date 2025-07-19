@@ -214,12 +214,17 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 			MoveTemp(RecordSaveData), MapName, BloodStainRecordGroup.RecordOptions.FileName.ToString(), FileSaveOptions
 		))->StartBackgroundTask();
 	}
-	
-	for (const auto& [Actor, RecordComponent] : BloodStainRecordGroup.ActiveRecorders)
+
+	TArray<TObjectPtr<AActor>> Keys;
+	BloodStainRecordGroup.ActiveRecorders.GetKeys(Keys);
+	for (AActor* Actor : Keys)
 	{
-		RecordComponent->UnregisterComponent();
-		Actor->RemoveInstanceComponent(RecordComponent);
-		RecordComponent->DestroyComponent();
+		if (URecordComponent* RecordComponent = BloodStainRecordGroup.ActiveRecorders.FindRef(Actor))
+		{
+			RecordComponent->UnregisterComponent();
+			Actor->RemoveInstanceComponent(RecordComponent);
+			RecordComponent->DestroyComponent();
+		}
 	}
 	
 	BloodStainRecordGroups.Remove(GroupName);
