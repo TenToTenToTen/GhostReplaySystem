@@ -164,7 +164,7 @@ FRecordActorSaveData URecordComponent::CookQueuedFrames(const float& BaseTime)
 
 	FRecordActorSaveData Result = FRecordActorSaveData();
 	Result.PrimaryComponentName = PrimaryComponentName;
-	BloodStainRecordDataUtils::CookQueuedFrames(RecordOptions.SamplingInterval, FrameQueuePtr.Get(), Result, ComponentActiveIntervals, BaseTime);
+	BloodStainRecordDataUtils::CookQueuedFrames(RecordOptions.SamplingInterval, BaseTime, FrameQueuePtr.Get(), Result, ComponentActiveIntervals);
 
 	return Result;
 }

@@ -9,7 +9,7 @@
 
 namespace BloodStainRecordDataUtils
 {
-	bool CookQueuedFrames(float SamplingInterval, TCircularQueue<FRecordFrame>* FrameQueuePtr, FRecordActorSaveData& OutGhostSaveData, TArray<FComponentActiveInterval>& OutComponentIntervals, const float& BaseTime)
+	bool CookQueuedFrames(float SamplingInterval, const float& BaseTime, TCircularQueue<FRecordFrame>* FrameQueuePtr, FRecordActorSaveData& OutGhostSaveData, TArray<FComponentActiveInterval>& OutComponentIntervals)
 	{
 		FRecordFrame First;
 		if (!FrameQueuePtr->Peek(First))

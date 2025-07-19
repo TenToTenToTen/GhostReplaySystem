@@ -121,7 +121,7 @@ TArray<FRecordActorSaveData> UReplayTerminatedActorManager::CookQueuedFrames(con
 	
 	for (FRecordComponentData& RecordComponentData : RecordGroupData.RecordComponentData)
 	{
-		if (BloodStainRecordDataUtils::CookQueuedFrames(RecordGroupData.RecordOptions.SamplingInterval, RecordComponentData.FrameQueuePtr.Get(), RecordComponentData.GhostSaveData, RecordComponentData.ComponentIntervals, BaseTime))
+		if (BloodStainRecordDataUtils::CookQueuedFrames(RecordGroupData.RecordOptions.SamplingInterval, BaseTime, RecordComponentData.FrameQueuePtr.Get(), RecordComponentData.GhostSaveData, RecordComponentData.ComponentIntervals))
 		{
 			Result.Add(RecordComponentData.GhostSaveData);
 		}

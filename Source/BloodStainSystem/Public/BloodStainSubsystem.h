@@ -30,6 +30,7 @@ struct FBloodStainRecordGroup
 {
 	GENERATED_BODY()
 
+	// Based On World Time
 	UPROPERTY()
 	float GroupStartTime = 0.f;
 
@@ -287,7 +288,7 @@ private:
 	/** Internal helper to package actor-specific data into the final save format.
 	 *  Aggregates multiple FRecordActorSaveData instances into a single FRecordSaveData.
 	 */
-	FRecordSaveData ConvertToSaveData(TArray<FRecordActorSaveData>& RecordActorDataArray, const FName& GroupName);
+	FRecordSaveData ConvertToSaveData(float EndTime, TArray<FRecordActorSaveData>& RecordActorDataArray, const FName& GroupName);
 
 	/** @return true if a recording group is still valid */
 	bool IsValidReplayGroup(const FName& GroupName);

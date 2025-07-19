@@ -335,6 +335,7 @@ struct FRecordHeaderData
 	FRecordHeaderData()
 		: MaxRecordTime(5.f)
 		, SamplingInterval(0.1f)
+		, GroupEndTime(0)
 	{
 	}
 

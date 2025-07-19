@@ -136,9 +136,9 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 	
 	if (bSaveRecordingData)
 	{
-		BloodStainRecordGroup.GroupEndTime = GetWorld()->GetTimeSeconds() - BloodStainRecordGroup.GroupStartTime;
+		float EndTime = GetWorld()->GetTimeSeconds() - BloodStainRecordGroup.GroupStartTime;
 		const float EffectiveStartTime = BloodStainRecordGroups[GroupName].GroupEndTime - BloodStainRecordGroups[GroupName].RecordOptions.MaxRecordTime;
-		BloodStainRecordGroup.GroupStartTime = EffectiveStartTime > 0 ? EffectiveStartTime : 0;
+		float StartTime = EffectiveStartTime > 0 ? EffectiveStartTime : 0;
 		
 		TArray<FRecordActorSaveData> RecordSaveDataArray;
 		
@@ -156,7 +156,7 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 				continue;
 			}
 
-			FRecordActorSaveData RecordSaveData = RecordComponent->CookQueuedFrames(BloodStainRecordGroup.GroupStartTime);
+			FRecordActorSaveData RecordSaveData = RecordComponent->CookQueuedFrames(StartTime);
 			if (RecordSaveData.RecordedFrames.Num() == 0)
 			{
 				UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording Warning: Frame is 0: %s"), *Actor->GetName());
@@ -199,7 +199,7 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 		RootTransform.SetScale3D(RootTransform.GetScale3D() / RecordSaveDataArray.Num());
 		BloodStainRecordGroup.SpawnPointTransform = RootTransform;
 	
-		FRecordSaveData RecordSaveData = ConvertToSaveData(RecordSaveDataArray, GroupName);
+		FRecordSaveData RecordSaveData = ConvertToSaveData(EndTime, RecordSaveDataArray, GroupName);
 		
 		if (BloodStainRecordGroup.RecordOptions.FileName == NAME_None)
 		{
@@ -536,15 +536,14 @@ bool UBloodStainSubsystem::IsPlaying(const FGuid& InPlaybackKey) const
 	return BloodStainPlaybackGroups.Contains(InPlaybackKey);
 }
 
-FRecordSaveData UBloodStainSubsystem::ConvertToSaveData(TArray<FRecordActorSaveData>& RecordActorDataArray, const FName& GroupName)
+FRecordSaveData UBloodStainSubsystem::ConvertToSaveData(float EndTime, TArray<FRecordActorSaveData>& RecordActorDataArray, const FName& GroupName)
 {
 	FRecordSaveData RecordSaveData;
 	RecordSaveData.Header.Tags = BloodStainRecordGroups[GroupName].RecordOptions.Tags;
 	RecordSaveData.Header.SpawnPointTransform = BloodStainRecordGroups[GroupName].SpawnPointTransform;
 	RecordSaveData.Header.MaxRecordTime = BloodStainRecordGroups[GroupName].RecordOptions.MaxRecordTime;
 	RecordSaveData.Header.SamplingInterval = BloodStainRecordGroups[GroupName].RecordOptions.SamplingInterval;
-	RecordSaveData.Header.GroupEndTime = BloodStainRecordGroups[GroupName].GroupEndTime > BloodStainRecordGroups[GroupName].RecordOptions.MaxRecordTime ?
-									BloodStainRecordGroups[GroupName].RecordOptions.MaxRecordTime : BloodStainRecordGroups[GroupName].GroupEndTime;
+	RecordSaveData.Header.GroupEndTime = FMath::Min(EndTime, BloodStainRecordGroups[GroupName].RecordOptions.MaxRecordTime);
 	RecordSaveData.RecordActorDataArray = MoveTemp(RecordActorDataArray);
 	
 	return RecordSaveData;
