@@ -19,10 +19,9 @@ ABloodStainActor::ABloodStainActor()
 	SphereComponent->SetupAttachment(GetDecal());
 	
 	SphereComponent->InitSphereRadius(50.f);
-	SphereComponent->SetCollisionProfileName(TEXT("OverlapAll"));
 	SphereComponent->SetCanEverAffectNavigation(false);
-	SphereComponent->SetGenerateOverlapEvents(true);
-
+	SphereComponent->SetGenerateOverlapEvents(false);
+	
 	SphereComponent->OnComponentBeginOverlap.AddDynamic(this, &ABloodStainActor::OnOverlapBegin);
 	SphereComponent->OnComponentEndOverlap.AddDynamic(this, &ABloodStainActor::OnOverlapEnd);
 	
@@ -34,9 +33,13 @@ void ABloodStainActor::Initialize(const FString& InReplayFileName, const FString
 {
 	ReplayFileName = InReplayFileName;
 	LevelName = InLevelName;
+
+	SphereComponent->SetCollisionProfileName(TEXT("OverlapAll"));
+	SphereComponent->SetGenerateOverlapEvents(true);
+	SphereComponent->UpdateOverlaps();
 }
 
-void ABloodStainActor::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,
+void ABloodStainActor::OnOverlapBegin_Implementation(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,
 	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
 	APawn* PlayerPawn = Cast<APawn>(OtherActor);
@@ -57,7 +60,8 @@ void ABloodStainActor::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActo
 	}
 }
 
-void ABloodStainActor::OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
+void ABloodStainActor::OnOverlapEnd_Implementation(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,
+	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
 {
 	APawn* PlayerPawn = Cast<APawn>(OtherActor);
 	if (PlayerPawn && PlayerPawn->IsLocallyControlled())
@@ -83,4 +87,18 @@ void ABloodStainActor::Interact()
 			}
 		}
 	}
+}
+
+bool ABloodStainActor::GetHeaderData(FRecordHeaderData& OutRecordHeaderData)
+{
+	if (const UWorld* World = GetWorld())
+	{
+		if (UBloodStainSubsystem* Sub = World->GetGameInstance()->GetSubsystem<UBloodStainSubsystem>())
+		{
+			Sub->FindOrLoadRecordHeader(ReplayFileName, LevelName, OutRecordHeaderData);
+			return true;
+		}
+	}
+
+	return false;
 }

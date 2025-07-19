@@ -5,6 +5,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "GhostData.h"
 #include "OptionTypes.h"
 #include "Engine/DecalActor.h"
 #include "BloodStainActor.generated.h"
@@ -24,17 +25,22 @@ class BLOODSTAINSYSTEM_API ABloodStainActor : public ADecalActor
 public:
 	ABloodStainActor();
 
+	// virtual void BeginPlay() override;
+
 	void Initialize(const FString& InReplayFileName, const FString& InLevelName);
 	
-	UFUNCTION()
+	UFUNCTION(BlueprintNativeEvent, Category="BloodStainActor")
 	void OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
 	
-	UFUNCTION()
+	UFUNCTION(BlueprintNativeEvent, Category="BloodStainActor")
 	void OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
 	
 	// Interaction Logic (e.g. called when the E key is pressed)
-	UFUNCTION(Category = "BloodStainActor", BlueprintCallable)
+	UFUNCTION(BlueprintCallable, Category = "BloodStainActor")
 	void Interact();
+
+	UFUNCTION(BlueprintCallable, Category = "BloodStainActor")
+	bool GetHeaderData(FRecordHeaderData& OutRecordHeaderData);
 
 public:
 	/** Replay Target File Name without Directory Path */
@@ -58,7 +64,7 @@ protected:
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category="BloodStainActor")
 	FGuid LastPlaybackKey;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category="BloodStainActor")
 	TObjectPtr<UUserWidget> InteractionWidgetInstance;
 
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "BloodStainActor|UI")
