@@ -56,6 +56,16 @@ void UPlayComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
 		FinishReplay();
 		return;
 	}
+
+	const bool bShouldBeHidden = ReplayData.RecordedFrames.IsEmpty() || 
+								 ElapsedTime < ReplayData.RecordedFrames[0].TimeStamp || 
+								 ElapsedTime > ReplayData.RecordedFrames.Last().TimeStamp;
+	ReplayActor->SetActorHiddenInGame(bShouldBeHidden);
+
+	if (bShouldBeHidden)
+	{
+		return;
+	}
 	
 	// Update the playback stat including transform interpolation
 	UpdatePlaybackToTime(ElapsedTime);
@@ -70,7 +80,7 @@ bool UPlayComponent::CalculatePlaybackTime(float& OutElapsedTime)
 		return false;
 	}
 
-	const float Duration = Frames.Last().TimeStamp;
+	const float Duration = RecordHeaderData.GroupEndTime;
 	if (Duration <= 0.0f)
 	{
 		return false;
@@ -109,10 +119,6 @@ bool UPlayComponent::CalculatePlaybackTime(float& OutElapsedTime)
 void UPlayComponent::UpdatePlaybackToTime(float ElapsedTime)
 {
 	const TArray<FRecordFrame>& Frames = ReplayData.RecordedFrames;
-	if (Frames.Num() < 2)
-	{
-		return;
-	}
 	const int32 PreviousFrame = CurrentFrame;
 
 	// Find the correct frame index for the current time using a binary search.
@@ -143,7 +149,8 @@ void UPlayComponent::UpdatePlaybackToTime(float ElapsedTime)
 
 void UPlayComponent::Initialize(FGuid InPlaybackKey, const FRecordHeaderData& InRecordHeaderData, const FRecordActorSaveData& InReplayData, const FBloodStainPlaybackOptions& InPlaybackOptions)
 {
-	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_Initialize); 
+	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_Initialize);
+	ReplayActor = GetOwner();
 	PlaybackKey = InPlaybackKey;
 	RecordHeaderData = InRecordHeaderData;
     ReplayData = InReplayData;

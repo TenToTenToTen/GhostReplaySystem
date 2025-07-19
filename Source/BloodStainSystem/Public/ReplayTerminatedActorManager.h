@@ -7,6 +7,7 @@
 
 #include "CoreMinimal.h"
 #include "GhostData.h"
+#include "OptionTypes.h"
 #include "UObject/Object.h"
 #include "Tickable.h"
 #include "Containers/CircularQueue.h"
@@ -29,7 +30,7 @@ public:
 	virtual TStatId GetStatId() const override;
 
 	/** Cook Data from FrameQueue to GhostSaveData */
-	TArray<FRecordActorSaveData> CookQueuedFrames(const FName& GroupName);
+	TArray<FRecordActorSaveData> CookQueuedFrames(const FName& GroupName, const float& BaseTime);
 
 	/** if the group already exists, RecordComponent join the group */
 	void AddToRecordGroup(const FName& GroupName, URecordComponent* RecordComponent);

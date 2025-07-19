@@ -32,10 +32,10 @@ public:
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
-	void Initialize(const FBloodStainRecordOptions& InOptions);
+	void Initialize(const FBloodStainRecordOptions& InOptions, const float& InGroupStartTime);
 
 	// Cook Data from FrameQueue to GhostSaveData
-	FRecordActorSaveData CookQueuedFrames();
+	FRecordActorSaveData CookQueuedFrames(const float& BaseTime);
 	
 public:
 	/* Called when a new component attached to the owner */

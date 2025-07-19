@@ -143,7 +143,7 @@ void URecordComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	}
 }
 
-void URecordComponent::Initialize(const FBloodStainRecordOptions& InOptions)
+void URecordComponent::Initialize(const FBloodStainRecordOptions& InOptions, const float& InGroupStartTime)
 {
 	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_Initialize);
 	
@@ -152,22 +152,19 @@ void URecordComponent::Initialize(const FBloodStainRecordOptions& InOptions)
 	MaxRecordFrames = FMath::CeilToInt(RecordOptions.MaxRecordTime / RecordOptions.SamplingInterval);
 	uint32 CapacityPlusOne = FMath::Max<uint32>(MaxRecordFrames + 1, 2);
 	FrameQueuePtr = MakeUnique<TCircularQueue<FRecordFrame>>(CapacityPlusOne);
-	
-	if (const UWorld* World = GetWorld())
-	{
-		StartTime = World->GetTimeSeconds();
-	}
+
+	StartTime = InGroupStartTime;
 	
 	CollectOwnedMeshComponents();
 }
 
-FRecordActorSaveData URecordComponent::CookQueuedFrames()
+FRecordActorSaveData URecordComponent::CookQueuedFrames(const float& BaseTime)
 {
 	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_CookQueuedFrames);
 
 	FRecordActorSaveData Result = FRecordActorSaveData();
 	Result.PrimaryComponentName = PrimaryComponentName;
-	BloodStainRecordDataUtils::CookQueuedFrames(RecordOptions.SamplingInterval, FrameQueuePtr.Get(), Result, ComponentActiveIntervals);
+	BloodStainRecordDataUtils::CookQueuedFrames(RecordOptions.SamplingInterval, FrameQueuePtr.Get(), Result, ComponentActiveIntervals, BaseTime);
 
 	return Result;
 }

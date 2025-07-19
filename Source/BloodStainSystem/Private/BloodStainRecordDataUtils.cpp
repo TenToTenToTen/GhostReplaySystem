@@ -9,7 +9,7 @@
 
 namespace BloodStainRecordDataUtils
 {
-	bool CookQueuedFrames(float SamplingInterval, TCircularQueue<FRecordFrame>* FrameQueuePtr, FRecordActorSaveData& OutGhostSaveData, TArray<FComponentActiveInterval>& OutComponentIntervals)
+	bool CookQueuedFrames(float SamplingInterval, TCircularQueue<FRecordFrame>* FrameQueuePtr, FRecordActorSaveData& OutGhostSaveData, TArray<FComponentActiveInterval>& OutComponentIntervals, const float& BaseTime)
 	{
 		FRecordFrame First;
 		if (!FrameQueuePtr->Peek(First))
@@ -19,8 +19,6 @@ namespace BloodStainRecordDataUtils
 		}
 
 		const int32 FirstIndex = First.FrameIndex;
-		const float BaseTime = First.TimeStamp;
-		
 
 		// Copy original frame datas and do normalize timestamps [0, duration)
 		TArray<FRecordFrame> RawFrames;
@@ -28,11 +26,12 @@ namespace BloodStainRecordDataUtils
 		while (FrameQueuePtr->Dequeue(Tmp))
 		{
 			Tmp.TimeStamp -= BaseTime;
+			if (Tmp.TimeStamp < 0)
+			{
+				continue;
+			}
 			RawFrames.Add(MoveTemp(Tmp));
 		}
-
-		OutGhostSaveData.FirstRecordedFrameTime = BaseTime;
-		OutGhostSaveData.LastRecordedFrameTime = RawFrames.IsEmpty() ? BaseTime : RawFrames.Last().TimeStamp + BaseTime;
 		
 		if (RawFrames.Num() < 2)
 		{
@@ -42,13 +41,13 @@ namespace BloodStainRecordDataUtils
 
 		// Set up the interpolation
 		const float FrameInterval = SamplingInterval;
-		const int32 NumInterpFrames = FMath::FloorToInt(RawFrames.Last().TimeStamp / FrameInterval);
+		const int32 NumInterpFrames = FMath::FloorToInt((RawFrames.Last().TimeStamp - RawFrames[0].TimeStamp) / FrameInterval);
 
 		OutGhostSaveData.RecordedFrames.Empty(NumInterpFrames + 1);
 
 		for (int32 i = 0; i <= NumInterpFrames; ++i)
 		{
-			float TargetTime = i * FrameInterval;
+			float TargetTime = i * FrameInterval + RawFrames[0].TimeStamp;
 
 			int32 PrevIndex = 0;
 			while (PrevIndex + 1 < RawFrames.Num() && RawFrames[PrevIndex + 1].TimeStamp < TargetTime)
@@ -162,8 +161,8 @@ namespace BloodStainRecordDataUtils
 
 		for (const FRecordActorSaveData& D : Actors)
 		{
-			GroupStartTime = FMath::Min(GroupStartTime, D.FirstRecordedFrameTime);
-			GroupEndTime   = FMath::Max(GroupEndTime,   D.LastRecordedFrameTime);
+			GroupStartTime = FMath::Min(GroupStartTime, D.RecordedFrames[0].TimeStamp);
+			GroupEndTime   = FMath::Max(GroupEndTime,   D.RecordedFrames.Last().TimeStamp);
 		}
 
 		const float& WindowEnd = GroupEndTime;
@@ -172,7 +171,7 @@ namespace BloodStainRecordDataUtils
 		
 		for (FRecordActorSaveData& Actor : Actors)
 		{
-			if (Actor.LastRecordedFrameTime < WindowStart || Actor.FirstRecordedFrameTime > WindowEnd)
+			if (Actor.RecordedFrames.Last().TimeStamp < WindowStart || Actor.RecordedFrames[0].TimeStamp > WindowEnd)
 			{
 				Actor.RecordedFrames.Empty();
 				Actor.ComponentIntervals.Empty();
@@ -183,8 +182,8 @@ namespace BloodStainRecordDataUtils
 			auto& Frames = Actor.RecordedFrames;
 			const int32 Length = Frames.Num();
 			
-			float LocalStart = WindowStart - Actor.FirstRecordedFrameTime;
-			float LocalEnd   = WindowEnd   - Actor.FirstRecordedFrameTime;
+			float LocalStart = WindowStart - Actor.RecordedFrames[0].TimeStamp;
+			float LocalEnd   = WindowEnd   - Actor.RecordedFrames[0].TimeStamp;
 			
 			int32 StartIdx = Algo::LowerBoundBy(Frames, LocalStart, [](const FRecordFrame& Frame) {;
 				return Frame.TimeStamp;
@@ -204,7 +203,7 @@ namespace BloodStainRecordDataUtils
 				continue;
 			}
 
-			float NewFirstWorldTime = Actor.FirstRecordedFrameTime + Frames[StartIdx].TimeStamp;
+			float NewFirstWorldTime = Actor.RecordedFrames[0].TimeStamp + Frames[StartIdx].TimeStamp;
 
 			TArray<int32> OldToNew;
 			OldToNew.Init(-1, Length);
@@ -221,21 +220,21 @@ namespace BloodStainRecordDataUtils
 				const FRecordFrame& O = Frames[i];
 				FRecordFrame G = O;
 
-				float WorldTime = Actor.FirstRecordedFrameTime + O.TimeStamp;
+				float WorldTime = Actor.RecordedFrames[0].TimeStamp + O.TimeStamp;
 				G.TimeStamp = WorldTime - NewFirstWorldTime;
 
 				NewFrames.Add(MoveTemp(G));
 			}
 			Actor.RecordedFrames = MoveTemp(NewFrames);
 
-			Actor.FirstRecordedFrameTime = NewFirstWorldTime;
+			Actor.RecordedFrames[0].TimeStamp = NewFirstWorldTime;
 			if (!Actor.RecordedFrames.IsEmpty())
 			{
-				Actor.LastRecordedFrameTime = NewFirstWorldTime + Actor.RecordedFrames.Last().TimeStamp;
+				Actor.RecordedFrames.Last().TimeStamp = NewFirstWorldTime + Actor.RecordedFrames.Last().TimeStamp;
 			}
 			else
 			{
-				Actor.LastRecordedFrameTime = NewFirstWorldTime;
+				Actor.RecordedFrames.Last().TimeStamp = NewFirstWorldTime;
 			}
 
 			TArray<FComponentActiveInterval> NewIntervals;

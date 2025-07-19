@@ -7,7 +7,6 @@
 
 #include "BloodStainActor.h"
 #include "BloodStainFileUtils.h"
-#include "BloodStainRecordDataUtils.h"
 #include "BloodStainSystem.h"
 #include "PlayComponent.h"
 #include "RecordComponent.h"
@@ -66,6 +65,10 @@ bool UBloodStainSubsystem::StartRecording(AActor* TargetActor, FBloodStainRecord
 	{
 		FBloodStainRecordGroup RecordGroup;
 		RecordGroup.RecordOptions = RecordOptions;
+		if (const UWorld* World = GetWorld())
+		{
+			RecordGroup.GroupStartTime = World->GetTimeSeconds();
+		}
 		BloodStainRecordGroups.Add(RecordOptions.RecordingGroupName, RecordGroup);
 	}
 	
@@ -88,7 +91,7 @@ bool UBloodStainSubsystem::StartRecording(AActor* TargetActor, FBloodStainRecord
 	
 	TargetActor->AddInstanceComponent(Recorder);
 	Recorder->RegisterComponent();
-	Recorder->Initialize(RecordGroup.RecordOptions);
+	Recorder->Initialize(RecordGroup.RecordOptions, RecordGroup.GroupStartTime);
 
 	RecordGroup.ActiveRecorders.Add(TargetActor, Recorder);
 	
@@ -133,8 +136,12 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 	
 	if (bSaveRecordingData)
 	{
+		BloodStainRecordGroup.GroupEndTime = GetWorld()->GetTimeSeconds() - BloodStainRecordGroup.GroupStartTime;
+		const float EffectiveStartTime = BloodStainRecordGroups[GroupName].GroupEndTime - BloodStainRecordGroups[GroupName].RecordOptions.MaxRecordTime;
+		BloodStainRecordGroup.GroupStartTime = EffectiveStartTime > 0 ? EffectiveStartTime : 0;
+		
 		TArray<FRecordActorSaveData> RecordSaveDataArray;
-
+		
 		for (const auto& [Actor, RecordComponent] : BloodStainRecordGroup.ActiveRecorders)
 		{
 			if (!Actor)
@@ -149,7 +156,7 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 				continue;
 			}
 
-			FRecordActorSaveData RecordSaveData = RecordComponent->CookQueuedFrames();
+			FRecordActorSaveData RecordSaveData = RecordComponent->CookQueuedFrames(BloodStainRecordGroup.GroupStartTime);
 			if (RecordSaveData.RecordedFrames.Num() == 0)
 			{
 				UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording Warning: Frame is 0: %s"), *Actor->GetName());
@@ -158,7 +165,7 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 			RecordSaveDataArray.Add(RecordSaveData);
 		}
 
-		TArray<FRecordActorSaveData> TerminatedActorSaveDataArray = ReplayTerminatedActorManager->CookQueuedFrames(GroupName);
+		TArray<FRecordActorSaveData> TerminatedActorSaveDataArray = ReplayTerminatedActorManager->CookQueuedFrames(GroupName, BloodStainRecordGroup.GroupStartTime);
 		for (const FRecordActorSaveData& RecordActorSaveData : TerminatedActorSaveDataArray)
 		{
 			// TODO : Check if RecordActorSaveData is valid
@@ -174,13 +181,7 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 		{
 			UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording Failed: There is no Valid Recorder Group[%s]"), GetData(GroupName.ToString()));
 			return;
-		}
-
-		auto& Opts = BloodStainRecordGroup.RecordOptions;
-		BloodStainRecordDataUtils::ClipActorSaveDataByGroup(
-		RecordSaveDataArray, /* For Testing Value */ 3.0f ,Opts.SamplingInterval
-		);
-		
+		}		
 		
 		const FString MapName = UGameplayStatics::GetCurrentLevelName(GetWorld());
 		const FString GroupNameString = GroupName.ToString();
@@ -214,15 +215,15 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 		))->StartBackgroundTask();
 	}
 	
-	BloodStainRecordGroups.Remove(GroupName);
-	ReplayTerminatedActorManager->ClearRecordGroup(GroupName);
-	
 	for (const auto& [Actor, RecordComponent] : BloodStainRecordGroup.ActiveRecorders)
 	{
 		RecordComponent->UnregisterComponent();
 		Actor->RemoveInstanceComponent(RecordComponent);
 		RecordComponent->DestroyComponent();
 	}
+	
+	BloodStainRecordGroups.Remove(GroupName);
+	ReplayTerminatedActorManager->ClearRecordGroup(GroupName);
 	
 	UE_LOG(LogBloodStain, Log, TEXT("[BloodStain] Recording stopped for %s"), GetData(GroupName.ToString()));
 }
@@ -542,6 +543,8 @@ FRecordSaveData UBloodStainSubsystem::ConvertToSaveData(TArray<FRecordActorSaveD
 	RecordSaveData.Header.SpawnPointTransform = BloodStainRecordGroups[GroupName].SpawnPointTransform;
 	RecordSaveData.Header.MaxRecordTime = BloodStainRecordGroups[GroupName].RecordOptions.MaxRecordTime;
 	RecordSaveData.Header.SamplingInterval = BloodStainRecordGroups[GroupName].RecordOptions.SamplingInterval;
+	RecordSaveData.Header.GroupEndTime = BloodStainRecordGroups[GroupName].GroupEndTime > BloodStainRecordGroups[GroupName].RecordOptions.MaxRecordTime ?
+									BloodStainRecordGroups[GroupName].RecordOptions.MaxRecordTime : BloodStainRecordGroups[GroupName].GroupEndTime;
 	RecordSaveData.RecordActorDataArray = MoveTemp(RecordActorDataArray);
 	
 	return RecordSaveData;
@@ -601,7 +604,12 @@ bool UBloodStainSubsystem::StartReplay_Internal(const FRecordSaveData& RecordSav
 		// TODO : to separate all SpawnPoint data per Actors
 		FTransform StartTransform = Header.SpawnPointTransform;
 		AReplayActor* GhostActor = GetWorld()->SpawnActor<AReplayActor>(AReplayActor::StaticClass(), StartTransform);
-	
+
+		if (GhostActor)
+		{
+			GhostActor->SetActorHiddenInGame(true);
+		}
+
 		UPlayComponent* Replayer = NewObject<UPlayComponent>(
 			GhostActor, UPlayComponent::StaticClass(), NAME_None, RF_Transient);
 

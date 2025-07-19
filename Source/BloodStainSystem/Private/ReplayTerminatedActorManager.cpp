@@ -101,7 +101,7 @@ void UReplayTerminatedActorManager::CollectRecordGroups(float DeltaTime)
 	}
 }
 
-TArray<FRecordActorSaveData> UReplayTerminatedActorManager::CookQueuedFrames(const FName& GroupName)
+TArray<FRecordActorSaveData> UReplayTerminatedActorManager::CookQueuedFrames(const FName& GroupName, const float& BaseTime)
 {
 	TArray<FRecordActorSaveData> Result = TArray<FRecordActorSaveData>();
 	if (!RecordGroups.Contains(GroupName))
@@ -121,7 +121,7 @@ TArray<FRecordActorSaveData> UReplayTerminatedActorManager::CookQueuedFrames(con
 	
 	for (FRecordComponentData& RecordComponentData : RecordGroupData.RecordComponentData)
 	{
-		if (BloodStainRecordDataUtils::CookQueuedFrames(RecordGroupData.RecordOptions.SamplingInterval, RecordComponentData.FrameQueuePtr.Get(), RecordComponentData.GhostSaveData, RecordComponentData.ComponentIntervals))
+		if (BloodStainRecordDataUtils::CookQueuedFrames(RecordGroupData.RecordOptions.SamplingInterval, RecordComponentData.FrameQueuePtr.Get(), RecordComponentData.GhostSaveData, RecordComponentData.ComponentIntervals, BaseTime))
 		{
 			Result.Add(RecordComponentData.GhostSaveData);
 		}

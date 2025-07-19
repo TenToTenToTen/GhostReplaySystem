@@ -285,12 +285,6 @@ struct FRecordActorSaveData
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "BloodStain")
 	TArray<FRecordFrame> RecordedFrames;
 
-	UPROPERTY()
-	float FirstRecordedFrameTime = 0.f;
-
-	UPROPERTY()
-	float LastRecordedFrameTime = 0.f;
-
 	bool IsValid() const
 	{
 		return RecordedFrames.Num() > 0 ? true : false;
@@ -335,6 +329,9 @@ struct FRecordHeaderData
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "BloodStain|Header")
 	FReplayCustomUserData ReplayCustomUserData;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="BloodStain|Header")
+	float GroupEndTime;
+
 	FRecordHeaderData()
 		: MaxRecordTime(5.f)
 		, SamplingInterval(0.1f)
@@ -348,7 +345,7 @@ struct FRecordHeaderData
 		Ar << Data.SpawnPointTransform;
 		Ar << Data.MaxRecordTime;
 		Ar << Data.SamplingInterval;
-
+		Ar << Data.GroupEndTime;
 		Ar << Data.ReplayCustomUserData;
 	
 		return Ar;

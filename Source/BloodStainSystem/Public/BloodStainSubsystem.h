@@ -32,6 +32,9 @@ struct FBloodStainRecordGroup
 
 	UPROPERTY()
 	float GroupStartTime = 0.f;
+
+	UPROPERTY()
+	float GroupEndTime = 0.f;
 	
 	/** Transform at which this group will be spawned for Replay */
 	UPROPERTY()

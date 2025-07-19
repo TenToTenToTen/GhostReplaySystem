@@ -61,7 +61,9 @@ private:
 	void SeekFrame(int32 FrameIndex);
 	static TUniquePtr<FIntervalTreeNode> BuildIntervalTree(const TArray<FComponentActiveInterval*>& InComponentIntervals);
 	static void QueryIntervalTree(FIntervalTreeNode* Node, int32 FrameIndex, TArray<FComponentActiveInterval*>& OutComponentIntervals);
-	
+
+	UPROPERTY()
+	TObjectPtr<AActor> ReplayActor;
 protected:
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "BloodStain|Playback")
 	FRecordHeaderData RecordHeaderData;
