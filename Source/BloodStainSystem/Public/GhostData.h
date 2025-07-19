@@ -6,48 +6,12 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "OptionTypes.h"
+#include "GameplayTagContainer.h"
+#include "ReplayCustomUserData.h"
 #include "GhostData.generated.h"
 
 class AReplayActor;
 class URecordComponent;
-
-/** @brief Recording group for one or more actors, saved as a single file.
- * 
- *	manages the spawn point, recording options, and active recorders.
- */
-USTRUCT()
-struct FBloodStainRecordGroup
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	float GroupStartTime = 0.f;
-
-	/** Transform at which this group will be spawned for Replay */
-	UPROPERTY()
-	FTransform SpawnPointTransform;
-
-	/** Recording options applied to this group */
-	UPROPERTY()
-	FBloodStainRecordOptions RecordOptions;
-
-	/** Map of actors currently being recorded to their URecordComponent instances */
-	UPROPERTY()
-	TMap<TObjectPtr<AActor>, TObjectPtr<URecordComponent>> ActiveRecorders;
-};
-
-/** @brief Playback group: tracks active replay actors for a single replay session.
- */
-USTRUCT()
-struct FBloodStainPlaybackGroup
-{
-	GENERATED_BODY()
-
-	/** Set of currently active replay actors */
-	UPROPERTY()
-	TSet<TObjectPtr<AReplayActor>> ActiveReplayers;
-};
 
 /** @brief Material parameters: serializes stored vector and scalar parameters per slot 
  * 
@@ -350,12 +314,13 @@ USTRUCT(BlueprintType)
 struct FRecordHeaderData
 {
 	GENERATED_BODY()
-	
-	UPROPERTY()
-	FName GroupName;
+
+	/** BloodStain GamePlayTags. use for filtering, searching */
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "BloodStain|Header")
+	FGameplayTagContainer Tags;
 	
 	/** Transform at which the group will be spawned*/
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "BloodStain")
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "BloodStain|Header")
 	FTransform SpawnPointTransform;
 	
 	/** Maximum recording duration in seconds */
@@ -365,20 +330,30 @@ struct FRecordHeaderData
 	/** Sampling interval between frames in seconds (0.1 sec - 10fps) */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="BloodStain|Header")
 	float SamplingInterval;
+	
+	/** User Custom Data struct. (e.g. description, character info, etc) */
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "BloodStain|Header")
+	FReplayCustomUserData ReplayCustomUserData;
 
 	FRecordHeaderData()
-	: MaxRecordTime(5.f)
-	, SamplingInterval(0.1f)
-	{}
-	
+		: MaxRecordTime(5.f)
+		, SamplingInterval(0.1f)
+	{
+	}
+
 	friend FArchive& operator<<(FArchive& Ar, FRecordHeaderData& Data)
 	{
-		Ar << Data.GroupName;
+		FGameplayTagContainer::StaticStruct()->SerializeItem(Ar, &Data.Tags, nullptr);
+	
 		Ar << Data.SpawnPointTransform;
 		Ar << Data.MaxRecordTime;
 		Ar << Data.SamplingInterval;
+
+		Ar << Data.ReplayCustomUserData;
+	
 		return Ar;
 	}
+
 };
 
 /** @brief Total Save data containing header and per-actor recordings */

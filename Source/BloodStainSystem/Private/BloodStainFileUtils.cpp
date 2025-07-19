@@ -60,6 +60,9 @@ bool BloodStainFileUtils::SaveToFile(
     FileHeader.UncompressedSize = RawBytes.Num();
 
     FBufferArchive FileAr;
+
+	FileAr.SetIsSaving(true);
+	
     FileAr << FileHeader;
 	FileAr << LocalCopy.Header;
     FileAr.Serialize(Payload.GetData(), Payload.Num());

@@ -143,12 +143,11 @@ void URecordComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	}
 }
 
-void URecordComponent::Initialize(const FName& InGroupName, const FBloodStainRecordOptions& InOptions)
+void URecordComponent::Initialize(const FBloodStainRecordOptions& InOptions)
 {
 	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_Initialize);
 	
 	RecordOptions = InOptions;
-	GroupName = InGroupName;
 	
 	MaxRecordFrames = FMath::CeilToInt(RecordOptions.MaxRecordTime / RecordOptions.SamplingInterval);
 	uint32 CapacityPlusOne = FMath::Max<uint32>(MaxRecordFrames + 1, 2);

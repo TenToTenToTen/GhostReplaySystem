@@ -13,13 +13,15 @@
 #include "RecordComponent.h"
 #include "ReplayActor.h"
 #include "ReplayTerminatedActorManager.h"
-#include "Kismet/KismetMathLibrary.h"
 #include "SaveRecordingTask.h"
+#include "GameplayTagContainer.h"
 #include "Engine/World.h"
-#include "Kismet/GameplayStatics.h"
 #include "UObject/ConstructorHelpers.h"
+#include "Kismet/KismetMathLibrary.h"
+#include "Kismet/GameplayStatics.h"
 
 #include "Algo/BinarySearch.h" 
+#include "LevelInstance/LevelInstanceTypes.h"
 
 class FSaveRecordingTask;
 
@@ -86,7 +88,7 @@ bool UBloodStainSubsystem::StartRecording(AActor* TargetActor, FBloodStainRecord
 	
 	TargetActor->AddInstanceComponent(Recorder);
 	Recorder->RegisterComponent();
-	Recorder->Initialize(RecordOptions.RecordingGroupName, RecordOptions);
+	Recorder->Initialize(RecordGroup.RecordOptions);
 
 	RecordGroup.ActiveRecorders.Add(TargetActor, Recorder);
 	
@@ -115,7 +117,7 @@ bool UBloodStainSubsystem::StartRecordingWithActors(TArray<AActor*> TargetActors
 }
 
 void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingData)
-{
+{	
 	if (GroupName == NAME_None)
 	{
 		GroupName = DefaultGroupName;
@@ -197,11 +199,18 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 		BloodStainRecordGroup.SpawnPointTransform = RootTransform;
 	
 		FRecordSaveData RecordSaveData = ConvertToSaveData(RecordSaveDataArray, GroupName);
-	
-		const FString FileName = FString::Printf(TEXT("/%s-%s.sav"), *GroupNameString, *UniqueTimestamp);
+		
+		if (BloodStainRecordGroup.RecordOptions.FileName == NAME_None)
+		{
+			BloodStainRecordGroup.RecordOptions.FileName = FName(FString::Printf(TEXT("/%s-%s.sav"), *GroupNameString, *UniqueTimestamp));
+		}
 
+		OnBuildRecordingHeader.Broadcast(GroupName);
+
+		RecordSaveData.Header.ReplayCustomUserData = GetReplayCustomUserData(GroupName);
+		
 		(new FAutoDeleteAsyncTask<FSaveRecordingTask>(
-			MoveTemp(RecordSaveData), MapName, FileName,FileSaveOptions
+			MoveTemp(RecordSaveData), MapName, BloodStainRecordGroup.RecordOptions.FileName.ToString(), FileSaveOptions
 		))->StartBackgroundTask();
 	}
 	
@@ -406,6 +415,21 @@ const TMap<FString, FRecordHeaderData>& UBloodStainSubsystem::GetCachedHeaders()
 	return CachedHeaders;
 }
 
+TArray<FRecordHeaderData> UBloodStainSubsystem::GetTestCachedHeaders(FGameplayTagContainer GameplayTagContainer)
+{
+	TArray<FRecordHeaderData> Result;
+
+	for (const auto& Pair : CachedHeaders)
+	{
+		if (Pair.Value.Tags.HasAll(GameplayTagContainer))
+		{
+			Result.Add(Pair.Value);
+		}
+	}
+
+	return Result;
+}
+
 void UBloodStainSubsystem::LoadAllHeadersInLevel(const FString& LevelName)
 {
 	FString LevelStr = LevelName;
@@ -514,11 +538,12 @@ bool UBloodStainSubsystem::IsPlaying(const FGuid& InPlaybackKey) const
 FRecordSaveData UBloodStainSubsystem::ConvertToSaveData(TArray<FRecordActorSaveData>& RecordActorDataArray, const FName& GroupName)
 {
 	FRecordSaveData RecordSaveData;
-	RecordSaveData.Header.GroupName = GroupName;
+	RecordSaveData.Header.Tags = BloodStainRecordGroups[GroupName].RecordOptions.Tags;
 	RecordSaveData.Header.SpawnPointTransform = BloodStainRecordGroups[GroupName].SpawnPointTransform;
 	RecordSaveData.Header.MaxRecordTime = BloodStainRecordGroups[GroupName].RecordOptions.MaxRecordTime;
 	RecordSaveData.Header.SamplingInterval = BloodStainRecordGroups[GroupName].RecordOptions.SamplingInterval;
 	RecordSaveData.RecordActorDataArray = MoveTemp(RecordActorDataArray);
+	
 	return RecordSaveData;
 }
 
@@ -622,6 +647,24 @@ void UBloodStainSubsystem::CleanupInvalidRecordGroups()
 	}
 }
 
+FReplayCustomUserData UBloodStainSubsystem::GetReplayCustomUserData(const FName& GroupName)
+{
+	FReplayCustomUserData ReplayCustomUserData;
+
+	if (ReplayCustomUserDataMap.Contains(GroupName))
+	{
+		ReplayCustomUserData = ReplayCustomUserDataMap[GroupName];
+		ReplayCustomUserDataMap.Remove(GroupName);
+	}
+	
+	return ReplayCustomUserData;
+}
+
+void UBloodStainSubsystem::SetReplayCustomUserData(const FReplayCustomUserData& ReplayCustomUserData, const FName GroupName)
+{
+	ReplayCustomUserDataMap.Add(GroupName, ReplayCustomUserData);
+}
+
 bool UBloodStainSubsystem::IsValidReplayGroup(const FName& GroupName)
 {
 	if (!BloodStainRecordGroups.Contains(GroupName))
@@ -690,7 +733,10 @@ void UBloodStainSubsystem::StartRecordingWithPendingGroup(FBloodStainRecordOptio
 	{
 		for (TWeakObjectPtr<AActor>& Actor : PendingGroups[BloodStainRecordOptions.RecordingGroupName])
 		{
-			StartRecording(Actor.Get(), BloodStainRecordOptions);
+			if (Actor.IsValid())
+			{
+				StartRecording(Actor.Get(), BloodStainRecordOptions);
+			}
 		} 
 		PendingGroups.Remove(BloodStainRecordOptions.RecordingGroupName);
 	}

@@ -24,7 +24,7 @@ public class BloodStainSystem : ModuleRules
 		
 		PublicDependencyModuleNames.AddRange(
 			new string[] {
-				"Core",
+				"Core", "GameplayTags"
 			}
 		);
 		

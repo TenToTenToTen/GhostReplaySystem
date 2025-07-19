@@ -7,6 +7,7 @@
 
 #include "CoreMinimal.h"
 #include "GhostData.h"
+#include "OptionTypes.h"
 #include "Components/ActorComponent.h"
 #include "PlayComponent.generated.h"
 
@@ -62,20 +63,23 @@ private:
 	static void QueryIntervalTree(FIntervalTreeNode* Node, int32 FrameIndex, TArray<FComponentActiveInterval*>& OutComponentIntervals);
 	
 protected:
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "BloodStain|Playback")
 	FRecordHeaderData RecordHeaderData;
-	FRecordActorSaveData ReplayData;
-	UPROPERTY(BlueprintReadWrite, Category = "BloodStain|Playback")
+	
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "BloodStain|Playback")
 	FBloodStainPlaybackOptions PlaybackOptions;
+	
+	FRecordActorSaveData ReplayData;
 
-	UPROPERTY(BlueprintReadOnly, Category = "BloodStain|Playback")
+	UPROPERTY()
+	TMap<FString, TObjectPtr<USceneComponent>> ReconstructedComponents;
+	
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "BloodStain|Playback")
 	FGuid PlaybackKey;
 	
 	float PlaybackStartTime = 0.f;
 
 	int32 CurrentFrame = 0;
-
-	UPROPERTY()
-	TMap<FString, TObjectPtr<USceneComponent>> ReconstructedComponents;
 	
 	/* Interval Tree root
 	 * Used to quickly find components that overlap with a given time range.

@@ -6,6 +6,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "GameplayTagContainer.h"
 #include "OptionTypes.generated.h"
 
 /** @brief Recording options for the BloodStain system.
@@ -23,6 +24,14 @@ struct FBloodStainRecordOptions
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Record")
 	FName RecordingGroupName = NAME_None;
+
+	/** Record File Name. If a file already exists, override */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Record")
+	FName FileName = NAME_None;
+
+	/** BloodStain GamePlayTags. This is stored in FRecordHeaderData */
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "BloodStain")
+	FGameplayTagContainer Tags;
 
 	/** Maximum recording duration in seconds */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Record")
@@ -43,6 +52,10 @@ struct FBloodStainRecordOptions
 	friend FArchive& operator<<(FArchive& Ar, FBloodStainRecordOptions& Data)
 	{
 		Ar << Data.RecordingGroupName;
+		Ar << Data.FileName;
+
+		FGameplayTagContainer::StaticStruct()->SerializeItem(Ar, &Data.Tags, nullptr);
+		
 		Ar << Data.MaxRecordTime;
 		Ar << Data.SamplingInterval;
 		Ar << Data.bTrackAttachmentChanges;

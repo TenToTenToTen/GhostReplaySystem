@@ -7,6 +7,7 @@
 
 #include "CoreMinimal.h"
 #include "GhostData.h"
+#include "OptionTypes.h"
 #include "Components/ActorComponent.h"
 #include "Containers/CircularQueue.h"
 #include "RecordComponent.generated.h"
@@ -31,7 +32,7 @@ public:
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
-	void Initialize(const FName& InGroupName, const FBloodStainRecordOptions& InOptions);
+	void Initialize(const FBloodStainRecordOptions& InOptions);
 
 	// Cook Data from FrameQueue to GhostSaveData
 	FRecordActorSaveData CookQueuedFrames();
@@ -45,7 +46,7 @@ public:
 
 	/** Recording group name */
 	UFUNCTION(BlueprintCallable, Category="Record")
-	FName GetRecordGroupName() const { return GroupName; }
+	FName GetRecordGroupName() const { return RecordOptions.RecordingGroupName; }
 
 private:
 	/** Collect mesh components from the current actor and sub-actor */
@@ -66,9 +67,6 @@ private:
 	void HandleAttachedActorChangesByBit();
 
 protected:
-
-	UPROPERTY()
-	FName GroupName = NAME_None;
 	
 	/** Record Option */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Record")

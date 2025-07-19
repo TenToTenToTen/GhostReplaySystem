@@ -16,6 +16,49 @@ class AReplayActor;
 class URecordComponent;
 class UReplayTerminatedActorManager;
 struct FBloodStainRecordOptions;
+struct FGameplayTagContainer;
+
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnBuildRecordingHeader, FName, GroupName);
+
+/** @brief Recording group for one or more actors, saved as a single file.
+ * 
+ *	manages the spawn point, recording options, and active recorders.
+ */
+USTRUCT()
+struct FBloodStainRecordGroup
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	float GroupStartTime = 0.f;
+	
+	/** Transform at which this group will be spawned for Replay */
+	UPROPERTY()
+	FTransform SpawnPointTransform;
+
+	/** Recording options applied to this group */
+	UPROPERTY()
+	FBloodStainRecordOptions RecordOptions;
+
+	/** Map of actors currently being recorded to their URecordComponent instances */
+	UPROPERTY()
+	TMap<TObjectPtr<AActor>, TObjectPtr<URecordComponent>> ActiveRecorders;
+};
+
+/** @brief Playback group: tracks active replay actors for a single replay session.
+ */
+USTRUCT()
+struct FBloodStainPlaybackGroup
+{
+	GENERATED_BODY()
+
+	/** Set of currently active replay actors */
+	UPROPERTY()
+	TSet<TObjectPtr<AReplayActor>> ActiveReplayers;
+};
+
+
 
 /**
  * @brief BloodStain recording and playback subsystem.
@@ -49,7 +92,7 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Record")
 	bool StartRecording(AActor* TargetActor, FBloodStainRecordOptions RecordOptions = FBloodStainRecordOptions());
-	
+
 	/**
 	 *  @brief Starts recording multiple actors into the same recording group using the same options.
 	 *  
@@ -195,6 +238,10 @@ public:
 	/** Gets a read-only reference to the map of cached replay headers. */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
 	const TMap<FString, FRecordHeaderData>& GetCachedHeaders();
+
+	// TODO UISOO
+	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
+	TArray<FRecordHeaderData> GetTestCachedHeaders(FGameplayTagContainer GameplayTagContainer);
 	
 	/** @return The complete absolute file path in the project's standard save directory. */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
@@ -222,7 +269,7 @@ public:
 	
 	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
 	void SetFileSaveOptions(const FBloodStainFileOptions& InOptions);
-
+	
 private:
 	/** The core implementation for spawning an ABloodStainActor at a specific transform. */
 	ABloodStainActor* SpawnBloodStain_Internal(const FVector& Location, const FRotator& Rotation, const FString& FileName, const FString& LevelName);
@@ -244,6 +291,8 @@ private:
 	
 	/** Iterates through all active recording groups and removes any that are no longer valid. */
 	void CleanupInvalidRecordGroups();
+
+	FReplayCustomUserData GetReplayCustomUserData(const FName& GroupName);
 	
 public:
 	/**
@@ -252,6 +301,12 @@ public:
 	 */
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Config, Category="BloodStain|File")
 	FBloodStainFileOptions FileSaveOptions;
+
+	UPROPERTY(BlueprintAssignable, Category = "BloodStain|File")
+	FOnBuildRecordingHeader OnBuildRecordingHeader;
+
+	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
+	void SetReplayCustomUserData(const FReplayCustomUserData& ReplayCustomUserData, FName GroupName = NAME_None);
 	
 protected:
 	/** The ABloodStainActor class to spawn, loaded from a hardcoded path in the constructor. */
@@ -283,6 +338,8 @@ private:
 	UPROPERTY()
 	TObjectPtr<UMaterialInterface> GhostMaterial;
 
+	TMap<FName, FReplayCustomUserData> ReplayCustomUserDataMap;
+	
 	/** Default group name to use if one is not specified when starting a recording. */
 	static FName DefaultGroupName;
 
