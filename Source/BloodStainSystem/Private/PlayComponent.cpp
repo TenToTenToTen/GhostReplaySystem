@@ -48,27 +48,50 @@ void UPlayComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
 	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_TickComponent); 
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	float ElapsedTime = 0.0f;
+	// if (!bIsInitialized)
+	// {
+	// 	return;
+	// }
 
 	// Calculate Playing time and see if replay has to be continued
-	if (!CalculatePlaybackTime(ElapsedTime))
-	{
-		FinishReplay();
-		return;
-	}
-
-	const bool bShouldBeHidden = ReplayData.RecordedFrames.IsEmpty() || 
-								 ElapsedTime < ReplayData.RecordedFrames[0].TimeStamp || 
-								 ElapsedTime > ReplayData.RecordedFrames.Last().TimeStamp;
-	ReplayActor->SetActorHiddenInGame(bShouldBeHidden);
-
-	if (bShouldBeHidden)
-	{
-		return;
-	}
+	// if (!CalculatePlaybackTime(ElapsedTime))
+	// {
+	// 	FinishReplay();
+	// 	return;
+	// }
 	
 	// Update the playback stat including transform interpolation
-	UpdatePlaybackToTime(ElapsedTime);
+	// UpdatePlaybackToTime(ElapsedTime);
+	// Calculate Playing time and see if replay has to be continued
+	// if (!CalculatePlaybackTime(ElapsedTime))
+	// {
+	// 	FinishReplay();
+	// 	return;
+	// }
+
+	// const bool bShouldBeHidden = ReplayData.RecordedFrames.IsEmpty() || 
+	// 							 ElapsedTime < ReplayData.RecordedFrames[0].TimeStamp || 
+	// 							 ElapsedTime > ReplayData.RecordedFrames.Last().TimeStamp;
+	// ReplayActor->SetActorHiddenInGame(bShouldBeHidden);
+	//
+	// if (bShouldBeHidden)
+	// {
+	// 	return;
+	// }
+	//
+	// Update the playback stat including transform interpolation
+	// UpdatePlaybackToTime(ElapsedTime);
+	// float ElapsedTime = 0.0f;
+	//
+	// // Calculate Playing time and see if replay has to be continued
+	// if (!CalculatePlaybackTime(ElapsedTime))
+	// {
+	// 	FinishReplay();
+	// 	return;
+	// }
+	//
+	// // Update the playback stat including transform interpolation
+	// UpdatePlaybackToTime(ElapsedTime);
 }
 
 bool UPlayComponent::CalculatePlaybackTime(float& OutElapsedTime)
@@ -222,6 +245,13 @@ void UPlayComponent::Initialize(FGuid InPlaybackKey, const FRecordHeaderData& In
 	}
 	IntervalRoot = BuildIntervalTree(Ptrs);
 	SeekFrame(0);
+	
+	bIsInitialized = true;
+}
+
+bool UPlayComponent::IsTickable() const
+{
+	return bIsInitialized;
 }
 
 void UPlayComponent::FinishReplay() const
@@ -312,7 +342,6 @@ void UPlayComponent::ApplySkeletalBoneTransforms(const FRecordFrame& Prev, const
 		}
 	}
 }
-
 
 /**
  * @brief Creates a mesh component based on an FComponentRecord and registers it with the world.

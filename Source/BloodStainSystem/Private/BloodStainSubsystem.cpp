@@ -181,7 +181,14 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 		{
 			UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording Failed: There is no Valid Recorder Group[%s]"), GetData(GroupName.ToString()));
 			return;
-		}		
+		}
+		
+	
+		// auto& Opts = BloodStainRecordGroup.RecordOptions;
+		// BloodStainRecordDataUtils::ClipActorSaveDataByGroup(
+		// RecordSaveDataArray, /* For Testing Value */ 3.0f ,Opts.SamplingInterval
+		// );
+		
 		
 		const FString MapName = UGameplayStatics::GetCurrentLevelName(GetWorld());
 		const FString GroupNameString = GroupName.ToString();
@@ -600,25 +607,27 @@ bool UBloodStainSubsystem::StartReplay_Internal(const FRecordSaveData& RecordSav
 	// TODO - Check if RecordSaveData is valid
 
 	const FRecordHeaderData& Header = RecordSaveData.Header;
-	const TArray<FRecordActorSaveData>& RecordActorDataArray = RecordSaveData.RecordActorDataArray;
+	const TArray<FRecordActorSaveData>& ActorDataArray = RecordSaveData.RecordActorDataArray;
 
 	const FGuid UniqueID = FGuid::NewGuid();
 	
 	FBloodStainPlaybackGroup BloodStainPlaybackGroup;
 
-	for (const FRecordActorSaveData& RecordActorData : RecordActorDataArray)
+	for (const FRecordActorSaveData& ActorData : ActorDataArray)
 	{
 		// TODO : to separate all SpawnPoint data per Actors
 		FTransform StartTransform = Header.SpawnPointTransform;
 		AReplayActor* GhostActor = GetWorld()->SpawnActor<AReplayActor>(AReplayActor::StaticClass(), StartTransform);
 
+		//UPlayComponent* Replayer = NewObject<UPlayComponent>(GhostActor, UPlayComponent::StaticClass(), NAME_None, RF_Transient);
 		if (GhostActor)
 		{
 			GhostActor->SetActorHiddenInGame(true);
 		}
 
-		UPlayComponent* Replayer = NewObject<UPlayComponent>(
-			GhostActor, UPlayComponent::StaticClass(), NAME_None, RF_Transient);
+		//UPlayComponent* Replayer = NewObject<UPlayComponent>(GhostActor, UPlayComponent::StaticClass(), NAME_None, RF_Transient);
+		UPlayComponent* Replayer = GhostActor->GetPlayComponent();
+		// UPlayComponent* Replayer = NewObject<UPlayComponent>(GhostActor, UPlayComponent::StaticClass(), NAME_None, RF_Transient);
 
 		if (!Replayer)
 		{
@@ -626,11 +635,24 @@ bool UBloodStainSubsystem::StartReplay_Internal(const FRecordSaveData& RecordSav
 			continue;
 		}
 
-		GhostActor->AddInstanceComponent(Replayer);
-		Replayer->RegisterComponent();
-	
-		Replayer->Initialize(UniqueID, Header, RecordActorData, InPlaybackOptions);
+		// GhostActor->AddInstanceComponent(Replayer);
+		// Replayer->RegisterComponent();
+		// Replayer->Initialize(UniqueID, Header, RecordActorData, InPlaybackOptions);
 
+		switch (GetWorld()->GetNetMode())
+		{
+		case NM_Standalone:
+			GhostActor->InitializeReplayLocal(UniqueID, Header, ActorData, InPlaybackOptions);
+			break;
+		case NM_ListenServer:
+			GhostActor->Server_InitializeReplay(UniqueID, Header, ActorData, InPlaybackOptions);
+			break;
+
+		case NM_DedicatedServer:
+			GhostActor->Server_InitializeReplay(UniqueID, Header, ActorData, InPlaybackOptions);
+			break;
+		}
+		// GhostActor->Server_InitializeReplay(UniqueID, RecordSaveData.Header, ActorData, InPlaybackOptions);
 		BloodStainPlaybackGroup.ActiveReplayers.Add(GhostActor);
 	}
 

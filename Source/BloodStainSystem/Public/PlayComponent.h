@@ -38,16 +38,18 @@ public:
 	
 	void FinishReplay() const;
 	
+	bool IsTickable() const;
 	FGuid GetPlaybackKey() const;
-
-protected:
-
+public:
 	/** Calculate Playback State & Current Time.
 	 * @return false - if Playback is end */
 	bool CalculatePlaybackTime(float& OutElapsedTime);
 
 	/** Update Replay Frame by Calculated Time & Apply Interpolation */
 	void UpdatePlaybackToTime(float ElapsedTime);
+
+	FRecordActorSaveData GetReplayData() const { return ReplayData; }
+protected:
 	
 	/** Apply Interpolation to Component between Two Frames */
 	void ApplyComponentTransforms(const FRecordFrame& Prev, const FRecordFrame& Next, float Alpha) const;
@@ -87,4 +89,6 @@ protected:
 	 * Used to quickly find components that overlap with a given time range.
 	 */
 	TUniquePtr<FIntervalTreeNode> IntervalRoot;
+
+	bool bIsInitialized = false;
 };

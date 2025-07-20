@@ -36,6 +36,7 @@ public class BloodStainSystem : ModuleRules
 				"Slate",
 				"SlateCore",
 				"UMG",
+				"NetCore",
 			}
 		);
 		
