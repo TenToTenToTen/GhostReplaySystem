@@ -384,8 +384,6 @@ USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecor
 	{
 		USkeletalMeshComponent* SkeletalComp = NewObject<USkeletalMeshComponent>(Owner, USkeletalMeshComponent::StaticClass(), FName(*Record.ComponentName));
 		SkeletalComp->SetAnimInstanceClass(UGhostAnimInstance::StaticClass());
-		SkeletalComp->bAllowClothActors = true;
-		SkeletalComp->SetUpdateAnimationInEditor(true);
 		SkeletalComp->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
 		NewComponent = SkeletalComp;
 
