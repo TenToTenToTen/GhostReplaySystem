@@ -17,9 +17,9 @@
 #include "Components/MeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
-#include "Components/PoseableMeshComponent.h"
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "GhostAnimInstance.h"
 
 DECLARE_CYCLE_STAT(TEXT("PlayComp TickComponent"), STAT_PlayComponent_TickComponent, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("PlayComp Initialize"), STAT_PlayComponent_Initialize, STATGROUP_BloodStain);
@@ -312,36 +312,46 @@ void UPlayComponent::ApplyComponentTransforms(const FRecordFrame& Prev, const FR
 void UPlayComponent::ApplySkeletalBoneTransforms(const FRecordFrame& Prev, const FRecordFrame& Next, float Alpha) const
 {
 	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_ApplySkeletalBoneTransforms);
+
 	for (const auto& Pair : ReconstructedComponents)
 	{
-		if (UPoseableMeshComponent* PoseableComp = Cast<UPoseableMeshComponent>(Pair.Value))
+		if (USkeletalMeshComponent* SkeletalComp = Cast<USkeletalMeshComponent>(Pair.Value))
 		{
 			const FString& ComponentName = Pair.Key;
-			
+
 			const FBoneComponentSpace* PrevBones = Prev.SkeletalMeshBoneTransforms.Find(ComponentName);
 			const FBoneComponentSpace* NextBones = Next.SkeletalMeshBoneTransforms.Find(ComponentName);
 
 			if (PrevBones && NextBones)
 			{
 				const int32 NumBones = FMath::Min(PrevBones->BoneTransforms.Num(), NextBones->BoneTransforms.Num());
-				
+				if (NumBones == 0) continue;
+
+				TArray<FTransform> InterpolatedBones;
+				InterpolatedBones.Reserve(NumBones);
+
 				for (int32 BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex)
 				{
 					const FTransform& PrevT = PrevBones->BoneTransforms[BoneIndex];
 					const FTransform& NextT = NextBones->BoneTransforms[BoneIndex];
-					
+
 					FTransform InterpT;
 					InterpT.SetLocation(FMath::Lerp(PrevT.GetLocation(), NextT.GetLocation(), Alpha));
 					InterpT.SetRotation(FQuat::Slerp(PrevT.GetRotation(), NextT.GetRotation(), Alpha));
 					InterpT.SetScale3D(FMath::Lerp(PrevT.GetScale3D(), NextT.GetScale3D(), Alpha));
-					
-					PoseableComp->BoneSpaceTransforms[BoneIndex] = InterpT;
+
+					InterpolatedBones.Add(InterpT);
 				}
-				PoseableComp->MarkRefreshTransformDirty();
+
+				if (UGhostAnimInstance* GhostAnim = Cast<UGhostAnimInstance>(SkeletalComp->GetAnimInstance()))
+				{
+					GhostAnim->SetTargetPose(InterpolatedBones);
+				}
 			}
 		}
 	}
 }
+
 
 /**
  * @brief Creates a mesh component based on an FComponentRecord and registers it with the world.
@@ -372,7 +382,13 @@ USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecor
 	
 	if (ComponentClass->IsChildOf(USkeletalMeshComponent::StaticClass()))
 	{
-		NewComponent = NewObject<UPoseableMeshComponent>(Owner, UPoseableMeshComponent::StaticClass(), FName(*Record.ComponentName));
+		USkeletalMeshComponent* SkeletalComp = NewObject<USkeletalMeshComponent>(Owner, USkeletalMeshComponent::StaticClass(), FName(*Record.ComponentName));
+		SkeletalComp->SetAnimInstanceClass(UGhostAnimInstance::StaticClass());
+		SkeletalComp->bAllowClothActors = true;
+		SkeletalComp->SetUpdateAnimationInEditor(true);
+		SkeletalComp->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+		NewComponent = SkeletalComp;
+
 	}
 	else if (ComponentClass->IsChildOf(UStaticMeshComponent::StaticClass()))
 	{
@@ -401,10 +417,10 @@ USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecor
                 StaticMeshComp->SetStaticMesh(Cast<UStaticMesh>(*FoundAsset));
                 StaticMeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
             }
-            else if (UPoseableMeshComponent* PoseableMeshComp = Cast<UPoseableMeshComponent>(NewComponent))
+            else if (USkeletalMeshComponent* SkeletalMeshComp = Cast<USkeletalMeshComponent>(NewComponent))
             {
-                PoseableMeshComp->SetSkinnedAssetAndUpdate(Cast<USkeletalMesh>(*FoundAsset));
-                PoseableMeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+                SkeletalMeshComp->SetSkinnedAssetAndUpdate(Cast<USkeletalMesh>(*FoundAsset));
+                SkeletalMeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
             }
         }
     }
