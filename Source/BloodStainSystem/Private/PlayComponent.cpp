@@ -235,6 +235,15 @@ void UPlayComponent::Initialize(FGuid InPlaybackKey, const FRecordHeaderData& In
 			UE_LOG(LogBloodStain, Warning, TEXT("Initialize: Failed to create comp from interval: %s"), *Interval.Meta.ComponentName);
 		}
 	}
+
+	SkelInfos.Reset();
+	for (auto& Pair : ReconstructedComponents)
+	{
+		if (auto* Sk = Cast<USkeletalMeshComponent>(Pair.Value))
+		{
+			SkelInfos.Emplace(Sk, *Pair.Key);
+		}
+	}
 	
 	// Initialize the Interval Tree for querying active components at a specific point(frame) in time.
 	TArray<FComponentActiveInterval*> Ptrs;
@@ -313,41 +322,37 @@ void UPlayComponent::ApplySkeletalBoneTransforms(const FRecordFrame& Prev, const
 {
 	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_ApplySkeletalBoneTransforms);
 
-	for (const auto& Pair : ReconstructedComponents)
+	for (const FSkelReplayInfo& Info : SkelInfos)
 	{
-		if (USkeletalMeshComponent* SkeletalComp = Cast<USkeletalMeshComponent>(Pair.Value))
+		const FBoneComponentSpace* PrevBones = Prev.SkeletalMeshBoneTransforms.Find(Info.Key);
+		const FBoneComponentSpace* NextBones = Next.SkeletalMeshBoneTransforms.Find(Info.Key);
+		if (!PrevBones || !NextBones)
 		{
-			const FString& ComponentName = Pair.Key;
+			continue;
+		}
 
-			const FBoneComponentSpace* PrevBones = Prev.SkeletalMeshBoneTransforms.Find(ComponentName);
-			const FBoneComponentSpace* NextBones = Next.SkeletalMeshBoneTransforms.Find(ComponentName);
+		const int32 NumBones = FMath::Min(PrevBones->BoneTransforms.Num(),NextBones->BoneTransforms.Num());
+		if (NumBones == 0)
+		{
+			continue;
+		}
 
-			if (PrevBones && NextBones)
-			{
-				const int32 NumBones = FMath::Min(PrevBones->BoneTransforms.Num(), NextBones->BoneTransforms.Num());
-				if (NumBones == 0) continue;
+		TArray<FTransform>& OutPose = Info.Buffer;
+		OutPose.SetNumUninitialized(NumBones);
 
-				TArray<FTransform> InterpolatedBones;
-				InterpolatedBones.Reserve(NumBones);
+		for (int32 i = 0; i < NumBones; ++i)
+		{
+			const FTransform& P = PrevBones->BoneTransforms[i];
+			const FTransform& N = NextBones->BoneTransforms[i];
 
-				for (int32 BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex)
-				{
-					const FTransform& PrevT = PrevBones->BoneTransforms[BoneIndex];
-					const FTransform& NextT = NextBones->BoneTransforms[BoneIndex];
+			OutPose[i].SetTranslation(FMath::Lerp(P.GetLocation(), N.GetLocation(), Alpha));
+			OutPose[i].SetRotation(FQuat::FastLerp(P.GetRotation(), N.GetRotation(), Alpha).GetNormalized());
+			OutPose[i].SetScale3D(FMath::Lerp(P.GetScale3D(), N.GetScale3D(), Alpha));
+		}
 
-					FTransform InterpT;
-					InterpT.SetLocation(FMath::Lerp(PrevT.GetLocation(), NextT.GetLocation(), Alpha));
-					InterpT.SetRotation(FQuat::Slerp(PrevT.GetRotation(), NextT.GetRotation(), Alpha));
-					InterpT.SetScale3D(FMath::Lerp(PrevT.GetScale3D(), NextT.GetScale3D(), Alpha));
-
-					InterpolatedBones.Add(InterpT);
-				}
-
-				if (UGhostAnimInstance* GhostAnim = Cast<UGhostAnimInstance>(SkeletalComp->GetAnimInstance()))
-				{
-					GhostAnim->SetTargetPose(InterpolatedBones);
-				}
-			}
+		if (auto* GhostAnim = Cast<UGhostAnimInstance>(Info.Comp->GetAnimInstance()))
+		{
+			GhostAnim->SetTargetPose(OutPose);
 		}
 	}
 }

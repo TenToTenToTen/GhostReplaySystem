@@ -11,11 +11,29 @@
 #include "Components/ActorComponent.h"
 #include "PlayComponent.generated.h"
 
+class USkeletalMeshComponent;
+
 struct FIntervalTreeNode
 {
 	int32 Center;
 	TArray<FComponentActiveInterval*>    Intervals;
 	TUniquePtr<FIntervalTreeNode>  Left, Right;
+};
+
+USTRUCT()
+struct FSkelReplayInfo
+{
+	GENERATED_BODY()
+
+	FSkelReplayInfo() = default;
+	FSkelReplayInfo(USkeletalMeshComponent* InComp, const FString& InKey)
+	  : Comp(InComp)
+	  , Key(InKey)
+	{}
+	
+	USkeletalMeshComponent*       Comp = nullptr;
+	FString                       Key;
+	mutable TArray<FTransform>    Buffer;
 };
 
 /**
@@ -80,6 +98,9 @@ protected:
 	
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "BloodStain|Playback")
 	FGuid PlaybackKey;
+
+	UPROPERTY()
+	TArray<FSkelReplayInfo> SkelInfos;
 	
 	float PlaybackStartTime = 0.f;
 
