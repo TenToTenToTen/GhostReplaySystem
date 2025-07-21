@@ -1,4 +1,7 @@
-#pragma once
+/*
+* Copyright 2025 TenToTen, All Rights Reserved.
+*/
+
 #include "Animation/AnimInstanceProxy.h"
 
 class UGhostAnimInstance;

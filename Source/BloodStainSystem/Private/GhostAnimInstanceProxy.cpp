@@ -1,4 +1,7 @@
-// GhostAnimInstanceProxy.cpp
+/*
+* Copyright 2025 TenToTen, All Rights Reserved.
+*/
+
 #include "GhostAnimInstanceProxy.h"
 #include "GhostAnimInstance.h"
 
