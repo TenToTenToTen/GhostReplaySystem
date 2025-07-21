@@ -239,19 +239,25 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
 	bool IsFileBodyLoaded(const FString& FileName);
 	
-	/**
-	 * Key is FileName
-	 * Gets a read-only reference to the map of cached replay headers. */
+	/** Gets a read-only reference to the cached replay headers. */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
-	const TMap<FString, FRecordHeaderData>& GetCachedHeaders();
+	TArray<FRecordHeaderData> GetCachedHeaders() const;
 
-	// TODO UISOO
+	/**
+	 * Gets a read-only reference to the cached replay headers filtered by tags
+	 * @param FilterTags used to filter cached header data.
+	 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
-	TArray<FRecordHeaderData> GetTestCachedHeaders(FGameplayTagContainer GameplayTagContainer);
+	TArray<FRecordHeaderData> GetCachedHeadersByTags(const FGameplayTagContainer& FilterTags);
 	
 	/** @return The complete absolute file path in the project's standard save directory. */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
 	FString GetFullFilePath(const FString& FileName, const FString& LevelName) const;
+
+	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
+	bool DeleteFile(const FString& FileName, const FString& LevelName);
+
+	
 public:
 	/** Spawns a BloodStainActor to the ground using the file name and level name. */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|BloodStainActor")

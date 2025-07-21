@@ -424,20 +424,22 @@ bool UBloodStainSubsystem::FindOrLoadRecordBodyData(const FString& FileName, con
 	return true;
 }
 
-const TMap<FString, FRecordHeaderData>& UBloodStainSubsystem::GetCachedHeaders()
+TArray<FRecordHeaderData> UBloodStainSubsystem::GetCachedHeaders() const
 {
-	return CachedHeaders;
+	TArray<FRecordHeaderData> Result;
+	CachedHeaders.GenerateValueArray(Result);
+	return Result;
 }
 
-TArray<FRecordHeaderData> UBloodStainSubsystem::GetTestCachedHeaders(FGameplayTagContainer GameplayTagContainer)
+TArray<FRecordHeaderData> UBloodStainSubsystem::GetCachedHeadersByTags(const FGameplayTagContainer& FilterTags)
 {
 	TArray<FRecordHeaderData> Result;
 
-	for (const auto& Pair : CachedHeaders)
+	for (const auto& [FileName, HeaderData] : CachedHeaders)
 	{
-		if (Pair.Value.Tags.HasAll(GameplayTagContainer))
+		if (HeaderData.Tags.HasAll(FilterTags))
 		{
-			Result.Add(Pair.Value);
+			Result.Add(HeaderData);
 		}
 	}
 
@@ -457,6 +459,11 @@ void UBloodStainSubsystem::LoadAllHeadersInLevel(const FString& LevelName)
 FString UBloodStainSubsystem::GetFullFilePath(const FString& FileName, const FString& LevelName) const
 {
 	return BloodStainFileUtils::GetFullFilePath(FileName, LevelName);
+}
+
+bool UBloodStainSubsystem::DeleteFile(const FString& FileName, const FString& LevelName)
+{
+	return BloodStainFileUtils::DeleteFile(FileName, LevelName);
 }
 
 ABloodStainActor* UBloodStainSubsystem::SpawnBloodStain(const FString& FileName, const FString& LevelName)

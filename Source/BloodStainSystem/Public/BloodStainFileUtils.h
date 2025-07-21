@@ -46,5 +46,7 @@ namespace BloodStainFileUtils
 	 */
 	int32 LoadAllFiles(TMap<FString, FRecordSaveData>& OutLoadedDataMap, const FString& LevelName);
 
+	bool DeleteFile(const FString& FileName, const FString& LevelName);
+	
 	FString GetFullFilePath(const FString& FileName, const FString& LevelName);
 };

@@ -244,6 +244,26 @@ int32 BloodStainFileUtils::LoadAllFiles(TMap<FString, FRecordSaveData>& OutLoade
 	return OutLoadedDataMap.Num();
 }
 
+bool BloodStainFileUtils::DeleteFile(const FString& FileName, const FString& LevelName)
+{
+	const FString Path = BloodStainFileUtils_Internal::GetFullFilePath(FileName, LevelName);
+	
+	if (FPaths::FileExists(Path))
+	{
+		const bool bSuccess = IFileManager::Get().Delete(*Path);
+		if (!bSuccess)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[Delete File] Failed to delete file: %s"), *Path);
+		}
+		return bSuccess;
+	}
+	else
+	{
+		UE_LOG(LogBloodStain, Warning, TEXT("[Delete File] File does not exist: %s"), *Path);
+		return false;
+	}
+}
+
 FString BloodStainFileUtils::GetFullFilePath(const FString& FileName, const FString& LevelName)
 {
 	return BloodStainFileUtils_Internal::GetFullFilePath(FileName, LevelName);
