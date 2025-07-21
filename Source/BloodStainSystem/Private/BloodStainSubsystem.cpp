@@ -67,7 +67,7 @@ bool UBloodStainSubsystem::StartRecording(AActor* TargetActor, FBloodStainRecord
 		RecordGroup.RecordOptions = RecordOptions;
 		if (const UWorld* World = GetWorld())
 		{
-			RecordGroup.GroupStartTime = World->GetTimeSeconds();
+			RecordGroup.WorldBaseGroupStartTime = World->GetTimeSeconds();
 		}
 		BloodStainRecordGroups.Add(RecordOptions.RecordingGroupName, RecordGroup);
 	}
@@ -91,7 +91,7 @@ bool UBloodStainSubsystem::StartRecording(AActor* TargetActor, FBloodStainRecord
 	
 	TargetActor->AddInstanceComponent(Recorder);
 	Recorder->RegisterComponent();
-	Recorder->Initialize(RecordGroup.RecordOptions, RecordGroup.GroupStartTime);
+	Recorder->Initialize(RecordGroup.RecordOptions, RecordGroup.WorldBaseGroupStartTime);
 
 	RecordGroup.ActiveRecorders.Add(TargetActor, Recorder);
 	
@@ -136,9 +136,10 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 	
 	if (bSaveRecordingData)
 	{
-		float EndTime = GetWorld()->GetTimeSeconds() - BloodStainRecordGroup.GroupStartTime;
-		const float EffectiveStartTime = BloodStainRecordGroups[GroupName].GroupEndTime - BloodStainRecordGroups[GroupName].RecordOptions.MaxRecordTime;
-		float StartTime = EffectiveStartTime > 0 ? EffectiveStartTime : 0;
+		BloodStainRecordGroup.WorldBaseGroupEndTime = GetWorld()->GetTimeSeconds(); 
+		const float FrameBaseEndTime = BloodStainRecordGroup.WorldBaseGroupEndTime - BloodStainRecordGroup.WorldBaseGroupStartTime;
+		const float EffectiveStartTime = FrameBaseEndTime - BloodStainRecordGroup.RecordOptions.MaxRecordTime;
+		const float FrameBaseStartTime = EffectiveStartTime > 0 ? EffectiveStartTime : 0;
 		
 		TArray<FRecordActorSaveData> RecordSaveDataArray;
 		
@@ -156,7 +157,7 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 				continue;
 			}
 
-			FRecordActorSaveData RecordSaveData = RecordComponent->CookQueuedFrames(StartTime);
+			FRecordActorSaveData RecordSaveData = RecordComponent->CookQueuedFrames(FrameBaseStartTime);
 			if (RecordSaveData.RecordedFrames.Num() == 0)
 			{
 				UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording Warning: Frame is 0: %s"), *Actor->GetName());
@@ -165,7 +166,7 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 			RecordSaveDataArray.Add(RecordSaveData);
 		}
 
-		TArray<FRecordActorSaveData> TerminatedActorSaveDataArray = ReplayTerminatedActorManager->CookQueuedFrames(GroupName, BloodStainRecordGroup.GroupStartTime);
+		TArray<FRecordActorSaveData> TerminatedActorSaveDataArray = ReplayTerminatedActorManager->CookQueuedFrames(GroupName, FrameBaseStartTime);
 		for (const FRecordActorSaveData& RecordActorSaveData : TerminatedActorSaveDataArray)
 		{
 			// TODO : Check if RecordActorSaveData is valid
@@ -211,7 +212,7 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 			BloodStainRecordGroup.RecordOptions.FileName = FName(FString::Printf(TEXT("/%s-%s.sav"), *GroupNameString, *UniqueTimestamp));
 		}
 		
-		FRecordSaveData RecordSaveData = ConvertToSaveData(EndTime, GroupName, BloodStainRecordGroup.RecordOptions.FileName, FName(MapName), RecordSaveDataArray);
+		FRecordSaveData RecordSaveData = ConvertToSaveData(FrameBaseEndTime, GroupName, BloodStainRecordGroup.RecordOptions.FileName, FName(MapName), RecordSaveDataArray);
 
 		OnBuildRecordingHeader.Broadcast(GroupName);
 

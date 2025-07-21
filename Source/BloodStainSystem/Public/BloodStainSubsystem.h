@@ -32,10 +32,10 @@ struct FBloodStainRecordGroup
 
 	// Based On World Time
 	UPROPERTY()
-	float GroupStartTime = 0.f;
+	float WorldBaseGroupStartTime = 0.f;
 
 	UPROPERTY()
-	float GroupEndTime = 0.f;
+	float WorldBaseGroupEndTime = 0.f;
 	
 	/** Transform at which this group will be spawned for Replay */
 	UPROPERTY()
