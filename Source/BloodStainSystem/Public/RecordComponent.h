@@ -66,6 +66,8 @@ private:
 	/** Checks for newly attached or detached actors since the last frame and updates the recording state accordingly. */
 	void HandleAttachedActorChangesByBit();
 
+	/** Adds the given mesh component to the list of components to be recorded. */
+	bool AddComponentToRecordList(UMeshComponent* MeshComp);
 protected:
 	
 	/** Record Option */
@@ -83,7 +85,7 @@ protected:
 
 	/** Component currently owned */
 	UPROPERTY()
-	TSet<TObjectPtr<USceneComponent>> OwnedComponentsForRecord;
+	TArray<TObjectPtr<UMeshComponent>> OwnedComponentsForRecord;
 	
 	/** Component Intervals for each component, used to track when components were attached/detached */
 	UPROPERTY()

@@ -14,7 +14,6 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
-#include "Camera/CameraComponent.h"
 #include "Engine/World.h"
 
 DECLARE_CYCLE_STAT(TEXT("RecordComp TickComponent"), STAT_RecordComponent_TickComponent, STATGROUP_BloodStain);
@@ -65,12 +64,12 @@ void URecordComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 			PendingRemovedComponentNames.Empty();
 		}
 
-		// Record All Owned Component Transform (support for SceneComponent, SkeletalMeshComponent)
-		for (TObjectPtr<USceneComponent>& SceneComp : OwnedComponentsForRecord)
+		// Record All Owned Component Transform (support for StaticMeshComponent, SkeletalMeshComponent)
+		for (TObjectPtr<UMeshComponent>& MeshComp : OwnedComponentsForRecord)
 		{
-			FString ComponentName = FString::Printf(TEXT("%s_%u"), *SceneComp->GetName(), SceneComp->GetUniqueID());
+			FString ComponentName = FString::Printf(TEXT("%s_%u"), *MeshComp->GetName(), MeshComp->GetUniqueID());
 
-			if (USkeletalMeshComponent* SkeletalComp = Cast<USkeletalMeshComponent>(SceneComp))
+			if (USkeletalMeshComponent* SkeletalComp = Cast<USkeletalMeshComponent>(MeshComp))
 			{
 				if (SkeletalComp->IsSimulatingPhysics())
 				{
@@ -110,7 +109,7 @@ void URecordComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 				NewFrame.SkeletalMeshBoneTransforms.Add(ComponentName, LocalBaseTransforms);
 				}
 			}
-			NewFrame.ComponentTransforms.Add(ComponentName, SceneComp->GetComponentTransform());
+			NewFrame.ComponentTransforms.Add(ComponentName, MeshComp->GetComponentTransform());
 		}
 
 		/* If there is no space left, discard the oldest frame */
@@ -179,7 +178,11 @@ void URecordComponent::OnComponentAttached(UMeshComponent* NewComponent)
 		return;
 	}
 	
-	if (Cast<UCameraProxyMeshComponent>(NewComponent))
+	const UClass* ComponentClass = NewComponent->GetClass();
+	const bool bIsExactStaticMesh = (ComponentClass == UStaticMeshComponent::StaticClass());
+	const bool bIsExactSkeletalMesh = (ComponentClass == USkeletalMeshComponent::StaticClass());
+
+	if (!bIsExactStaticMesh && !bIsExactSkeletalMesh)
 	{
 		return;
 	}
@@ -297,86 +300,51 @@ void URecordComponent::FillMaterialData(const UMeshComponent* InMeshComponent, F
 void URecordComponent::CollectOwnedMeshComponents()
 {
 	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_CollectMeshComponents);
-    if (AActor* Owner = GetOwner())
-    {
-    	ComponentActiveIntervals.Empty();
-        OwnedComponentsForRecord.Empty();
+	
+	AActor* Owner = GetOwner();
+	if (!Owner)
+	{
+		return;
+	}
+	
+    ComponentActiveIntervals.Empty();
+    OwnedComponentsForRecord.Empty();
+    IntervalIndexMap.Empty();
 
-        TArray<UMeshComponent*> OwnerMeshComponents;
-        Owner->GetComponents<UMeshComponent>(OwnerMeshComponents);
+	TArray<AActor*> ActorsToProcess;
+	ActorsToProcess.Add(Owner);
+	Owner->GetAttachedActors(ActorsToProcess, false, true);
 
-    	// TODO - to clear out the exact order of GetComponents()
-    	for (UMeshComponent* MeshComp : OwnerMeshComponents)
-    	{
-    		if (Cast<UCameraProxyMeshComponent>(MeshComp))
-    		{
-    			continue;
-    		}
-    		if (USkeletalMeshComponent* SkeletalMeshComp = Cast<USkeletalMeshComponent>(MeshComp))
-    		{
-    			if (SkeletalMeshComp->GetSkeletalMeshAsset())
-    			{
-	    			PrimaryComponentName = FName(FString::Printf(TEXT("%s_%u"), *SkeletalMeshComp->GetName(), SkeletalMeshComp->GetUniqueID()));
-    				break;
-    			}
-    		}
-    		else if (UStaticMeshComponent* StaticMeshComp = Cast<UStaticMeshComponent>(MeshComp))
-    		{
-    			PrimaryComponentName = FName(FString::Printf(TEXT("%s_%u"), *StaticMeshComp->GetName(), StaticMeshComp->GetUniqueID()));
-    			break;
-    		}
-    	}
-    	
-        for (UMeshComponent* MeshComp : OwnerMeshComponents)
-        {
-            if (Cast<UCameraProxyMeshComponent>(MeshComp))
-            {
-                continue;
-            }
+	for (AActor* CurrentActor: ActorsToProcess)
+	{
+		TArray<UMeshComponent*> MeshComponents;
+		CurrentActor->GetComponents<UMeshComponent>(MeshComponents);
 
-        	if (Cast<USkeletalMeshComponent>(MeshComp) || Cast<UStaticMeshComponent>(MeshComp))
-        	{
-        		FComponentRecord Record;
-        		if (CreateRecordFromMeshComponent(MeshComp, Record))
-        		{
-        			FComponentActiveInterval Interval = FComponentActiveInterval(Record, 0, INT32_MAX);
-        			int32 NewIdx = ComponentActiveIntervals.Add(Interval);
-        			IntervalIndexMap.Add(Record.ComponentName, NewIdx);
-        			OwnedComponentsForRecord.Add(MeshComp);
-        		}
-        	}
-        }
+		for (UMeshComponent* MeshComp : MeshComponents)
+		{
+			const UClass* ComponentClass = MeshComp->GetClass();
 
-        TArray<AActor*> AllAttachedActors;
-        Owner->GetAttachedActors(AllAttachedActors, true, true);
-    	
-        for (AActor* AttachedActor : AllAttachedActors)
-        {
-            TArray<UMeshComponent*> AttachedActorMeshComponents;
-            AttachedActor->GetComponents<UMeshComponent>(AttachedActorMeshComponents);
+			const bool bIsExactStaticMesh = (ComponentClass == UStaticMeshComponent::StaticClass());
+			const bool bIsExactSkeletalMesh = (ComponentClass == USkeletalMeshComponent::StaticClass());
 
-            for (UMeshComponent* MeshComp : AttachedActorMeshComponents)
-            {
-                if (Cast<UCameraProxyMeshComponent>(MeshComp))
-                {
-                    continue;
-                }
-            	
-				if (Cast<UStaticMeshComponent>(MeshComp) || Cast<USkeletalMeshComponent>(MeshComp))
-                {
-					FComponentRecord Record;
-					if (CreateRecordFromMeshComponent(MeshComp, Record))
-					{
-						FComponentActiveInterval Interval = FComponentActiveInterval(Record, 0, INT32_MAX);
-						int32 NewIdx = ComponentActiveIntervals.Add(Interval);
-						IntervalIndexMap.Add(Record.ComponentName, NewIdx);
-						OwnedComponentsForRecord.Add(MeshComp);
-					}
-                }
-            }
-        }
-        UE_LOG(LogBloodStain, Warning, TEXT("Collected %d mesh components for %s."), OwnedComponentsForRecord.Num(), *Owner->GetName());
-    }
+			if (bIsExactStaticMesh || bIsExactSkeletalMesh)
+			{
+				AddComponentToRecordList(MeshComp);
+			}
+		}
+	}
+
+    // TODO - to clear out the exact order of GetComponents()
+	if (!OwnedComponentsForRecord.IsEmpty())
+	{
+		const UMeshComponent* PrimaryComp = OwnedComponentsForRecord[0].Get();
+		if (PrimaryComp != nullptr)
+		{
+			PrimaryComponentName = FName(FString::Printf(TEXT("%s_%u"), *PrimaryComp->GetName(), PrimaryComp->GetUniqueID()));
+		}
+	}
+	
+	UE_LOG(LogBloodStain, Log, TEXT("Collected %d mesh components for %s and its attachments."), OwnedComponentsForRecord.Num(), *Owner->GetName());
 }
 
 bool URecordComponent::CreateRecordFromMeshComponent(UMeshComponent* InMeshComponent, FComponentRecord& OutRecord)
@@ -489,3 +457,16 @@ void URecordComponent::HandleAttachedActorChangesByBit()
 	PrevAttachedBits = CurAttachedBits;
 }
 
+bool URecordComponent::AddComponentToRecordList(UMeshComponent* MeshComp)
+{
+	FComponentRecord Record;
+	if (CreateRecordFromMeshComponent(MeshComp, Record))
+	{
+		FComponentActiveInterval Interval = FComponentActiveInterval(Record, 0, INT32_MAX);
+		const int32 NewIdx = ComponentActiveIntervals.Add(Interval);
+		IntervalIndexMap.Add(Record.ComponentName, NewIdx);
+		OwnedComponentsForRecord.Add(MeshComp);
+		return true;
+	}
+	return false;
+}
