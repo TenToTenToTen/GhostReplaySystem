@@ -12,6 +12,8 @@
 
 AReplayActor::AReplayActor()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("AReplayActor::AReplayActor");
+	
 	PrimaryActorTick.bCanEverTick = true;
 	/** Only Spawn on Server, then automatically replciates to the client */
 	bReplicates = true;
@@ -28,6 +30,7 @@ AReplayActor::AReplayActor()
 
 void AReplayActor::BeginPlay()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("AReplayActor::BeginPlay");
 	Super::BeginPlay();
 	ENetMode Mode = GetNetMode();
 	if (Mode == NM_DedicatedServer)
@@ -38,6 +41,8 @@ void AReplayActor::BeginPlay()
 
 void AReplayActor::Tick(float DeltaTime)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("AReplayActor::Tick");
+	
 	Super::Tick(DeltaTime);
 
 	if (!PlayComponent || !PlayComponent->IsTickable())
@@ -47,6 +52,8 @@ void AReplayActor::Tick(float DeltaTime)
 
 	if (HasAuthority())
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AReplayActor::Tick (Authority)");
+		
 		float ElapsedTime = 0.f;
 		if (!PlayComponent->CalculatePlaybackTime(ElapsedTime))
 		{
@@ -71,6 +78,7 @@ void AReplayActor::Tick(float DeltaTime)
 	}
 	else
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AReplayActor::Tick (Client)");
 		// UE_LOG(LogBloodStain, Warning, TEXT("AReplayActor::Tick - Client Tick %.2f"), ReplicatedPlaybackTime);
 	}
 	PlayComponent->UpdatePlaybackToTime(ReplicatedPlaybackTime);
@@ -81,6 +89,8 @@ void AReplayActor::Tick(float DeltaTime)
 void AReplayActor::InitializeReplayLocal(const FGuid& InPlaybackKey, const FRecordHeaderData& InHeader,
 	const FRecordActorSaveData& InActorData, const FBloodStainPlaybackOptions& InOptions)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("AReplayActor::InitializeReplayLocal");
+	
 	PlayComponent->PrimaryComponentTick.bCanEverTick = true;
 	PlayComponent->Initialize(InPlaybackKey, InHeader, InActorData, InOptions);
 	PlayComponent->SetComponentTickEnabled(true);
@@ -90,6 +100,8 @@ void AReplayActor::Server_InitializeReplay(
 	const FGuid& InPlaybackKey, const FRecordHeaderData& InHeader,
 	const FRecordActorSaveData& InActorData, const FBloodStainPlaybackOptions& InOptions)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("AReplayActor::Server_InitializeReplay");
+	
 	check(HasAuthority());
 
 	Server_PlaybackStartTime = GetWorld()->GetTimeSeconds();
@@ -114,6 +126,7 @@ void AReplayActor::Server_InitializeReplay(
 
 void AReplayActor::OnRep_PlaybackTime()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("AReplayActor::OnRep_PlaybackTime");
 	// GEngine->AddOnScreenDebugMessage(
 	// 		-1, 0.1f, FColor::Yellow,
 	// 		FString::Printf(TEXT("Client OnRep_PlaybackTime: %0.2f"), ReplicatedPlaybackTime)
@@ -128,29 +141,60 @@ void AReplayActor::OnRep_PlaybackTime()
 
 void AReplayActor::Server_BuildDataChunks(const FRecordActorSaveData& InActorData)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("AReplayActor::Server_BuildDataChunks");
+	
 	check(HasAuthority());
 
-	FBufferArchive Archive;
-	Archive << const_cast<FRecordActorSaveData&>(InActorData);
+	// FBufferArchive Archive;
+	// Archive << const_cast<FRecordActorSaveData&>(InActorData);
+	//
+	// constexpr int32 ChunkSize = 8000;
+	// const int32 TotalSize = Archive.Num();
+	// const int32 NumChunks = FMath::DivideAndRoundUp(TotalSize, ChunkSize);
+	//
+	// Server_DataChunks.Empty(NumChunks);
+	// Server_DataChunks.SetNum(NumChunks);
+	//
+	// for (int32 i = 0; i < NumChunks; ++i)
+	// {
+	// 	const int32 Offset = i * ChunkSize;
+	// 	const int32 Size = FMath::Min(ChunkSize, TotalSize - Offset); // Maximum size 8KB, or remaining size
+	// 	Server_DataChunks[i].Append(Archive.GetData() + Offset, Size);
+	// }
+	FBufferArchive Raw;
+	Raw << const_cast<FRecordActorSaveData&>(InActorData);
+	Server_OriginalSize = Raw.Num();
 
-	constexpr int32 ChunkSize = 8000; // 8KB
-	const int32 TotalSize = Archive.Num();
-	const int32 NumChunks = FMath::DivideAndRoundUp(TotalSize, ChunkSize);
+	CompressedBuffer.SetNum(Server_OriginalSize);
+	int32 CompressedSize = Server_OriginalSize;
+	bool bOK = FCompression::CompressMemory(
+		NAME_LZ4,
+		CompressedBuffer.GetData(), CompressedSize,
+		Raw.GetData(),              Server_OriginalSize,
+		COMPRESS_BiasSpeed);
+	if (!bOK) { UE_LOG(LogBloodStain, Error, TEXT("Compress failed")); return; }
+	CompressedBuffer.SetNum(CompressedSize);
 
-	Server_DataChunks.Empty(NumChunks);
+	constexpr int32 ChunkSize = 16*1024;
+	int32 NumChunks = FMath::DivideAndRoundUp(CompressedSize, ChunkSize);
+
 	Server_DataChunks.SetNum(NumChunks);
-
 	for (int32 i = 0; i < NumChunks; ++i)
 	{
-		const int32 Offset = i * ChunkSize;
-		const int32 Size = FMath::Min(ChunkSize, TotalSize - Offset); // Maximum size 8KB, or remaining size
-		Server_DataChunks[i].Append(Archive.GetData() + Offset, Size);
+		int32 Off = i*ChunkSize;
+		int32 Sz  = FMath::Min(ChunkSize, CompressedSize - Off);
+		Server_DataChunks[i].Append(CompressedBuffer.GetData()+Off, Sz);
 	}
 }
 
 void AReplayActor::Server_SendChunks()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("AReplayActor::Server_SendChunks");
+	
 	check(HasAuthority());
+
+	////////////////////////////////
+	Multicast_SendOriginalSize(Server_OriginalSize);
 
 	const int32 TotalChunks = Server_DataChunks.Num();
 	for (int32 i = 0; i < TotalChunks; ++i)
@@ -166,6 +210,8 @@ void AReplayActor::Server_SendChunks()
 void AReplayActor::Multicast_InitializeOnClients_Implementation(const FGuid& InPlaybackKey,
                                                                 const FRecordHeaderData& InHeader, const FBloodStainPlaybackOptions& InOptions)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("AReplayActor::Multicast_InitializeOnClients");
+	
 	if (HasAuthority() && GetNetMode() == NM_DedicatedServer)
 	{
 		// Client is the only one should enter this function
@@ -184,29 +230,50 @@ void AReplayActor::Multicast_InitializeOnClients_Implementation(const FGuid& InP
 void AReplayActor::Multicast_ReceiveDataChunk_Implementation(int32 ChunkIndex, int32 TotalChunks,
 	const TArray<uint8>& DataChunk)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("AReplayActor::Multicast_ReceiveDataChunk");
+	
 	if (HasAuthority())
 	{
 		// Client is the only one should enter this function
 		return;
 	}
-
-	if (Client_ReceivedChunks == 0)
+	
+	if (Client_ReceivedChunks==0)
 	{
 		Client_ExpectedChunks = TotalChunks;
+		CompressedBuffer.Empty(TotalChunks * DataChunk.Num());
 	}
 
-	// Append the received data chunk to the buffer
-	Client_ReceivedDataBuffer.Append(DataChunk);
+	CompressedBuffer.Append(DataChunk);
 	Client_ReceivedChunks++;
 
-	if (Client_ReceivedChunks == Client_ExpectedChunks)
+	if (Client_ReceivedChunks==Client_ExpectedChunks && Client_OriginalSize>0)
 	{
-		Client_FinalizeDataAndInitialize();
+		TArray<uint8> Decompressed;
+		Decompressed.AddUninitialized(Client_OriginalSize);
+		bool bOK = FCompression::UncompressMemory(
+			NAME_LZ4,
+			Decompressed.GetData(),     Client_OriginalSize,
+			CompressedBuffer.GetData(), CompressedBuffer.Num());
+		if (!bOK) { UE_LOG(LogTemp,Error,TEXT("Decompress failed")); return; }
+
+		FMemoryReader Reader(Decompressed, true);
+		FRecordActorSaveData Data;
+		Reader << Data;
+
+		PlayComponent->Initialize(
+			/*PlaybackKey=*/Client_PlaybackKey,
+			/*Header=*/Client_HeaderData,
+			MoveTemp(Data),
+			/*Options=*/Client_PlaybackOptions);
+		PlayComponent->SetComponentTickEnabled(true);
 	}
 }
 
 void AReplayActor::Client_FinalizeDataAndInitialize()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("AReplayActor::Client_FinalizeDataAndInitialize");
+	
 	FMemoryReader Reader(Client_ReceivedDataBuffer, true);
 	FRecordActorSaveData DeserializedData;
 	Reader << DeserializedData;
@@ -226,6 +293,8 @@ void AReplayActor::Client_FinalizeDataAndInitialize()
 
 void AReplayActor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("AReplayActor::GetLifetimeReplicatedProps");
+	
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME_CONDITION(AReplayActor, ReplicatedPlaybackTime, COND_None);
 }
@@ -234,4 +303,9 @@ void AReplayActor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 UPlayComponent* AReplayActor::GetPlayComponent() const
 {
 	return PlayComponent;
+}
+
+void AReplayActor::Multicast_SendOriginalSize_Implementation(int32 InSize)
+{
+	Client_OriginalSize = InSize;
 }

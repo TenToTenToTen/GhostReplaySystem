@@ -53,6 +53,9 @@ public:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	UPlayComponent* GetPlayComponent() const;
+
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_SendOriginalSize(int32 InSize);
 	
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Replay")
@@ -65,6 +68,9 @@ private:
 	FBloodStainPlaybackOptions Server_PlaybackOptions;
 	TArray<TArray<uint8>> Server_DataChunks; /** Server only : Serialized chunk data */
 
+	TArray<uint8> CompressedBuffer;
+	int32 Server_OriginalSize = 0;
+
 	/** Client Only */
 	FGuid Client_PlaybackKey;
 	FRecordHeaderData Client_HeaderData;
@@ -73,4 +79,7 @@ private:
 	TArray<uint8> Client_ReceivedDataBuffer;
 	int32 Client_ExpectedChunks = 0;
 	int32 Client_ReceivedChunks = 0;
+
+	
+	int32 Client_OriginalSize = 0;
 };
