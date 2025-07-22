@@ -293,6 +293,14 @@ private:
 	 */
 	bool StartReplay_Standalone(const FRecordSaveData& RecordSaveData, const FBloodStainPlaybackOptions& InPlaybackOptions, FGuid& OutGuid);
 
+	/**
+ 	 * @brief Starts a replay session in networked mode.
+ 	 *
+ 	 * This function is intended for networked replay scenarios.
+ 	 * In network mode, each ReplayActor is responsible for deserializing, dequantizing, and decompressing its own data.
+ 	 */
+	bool StartReplay_Networked(const FString& FileName, const FString& LevelName, const FBloodStainFileHeader& FileHeader, const FRecordHeaderData& RecordHeader, const TArray<uint8>& CompressedPayload, const FBloodStainPlaybackOptions& InPlaybackOptions, FGuid& OutGuid);
+	
 	/** Internal helper to package actor-specific data into the final save format.
 	 *  Aggregates multiple FRecordActorSaveData instances into a single FRecordSaveData.
 	 */

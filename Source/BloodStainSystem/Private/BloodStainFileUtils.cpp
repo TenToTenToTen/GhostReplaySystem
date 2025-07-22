@@ -143,6 +143,35 @@ bool BloodStainFileUtils::LoadFromFile(const FString& FileName, const FString& L
     return true;
 }
 
+bool BloodStainFileUtils::LoadRawPayloadFromFile(const FString& FileName, const FString& LevelName,
+	FBloodStainFileHeader& OutFileHeader, FRecordHeaderData& OutRecordHeader, TArray<uint8>& OutCompressedPayload)
+{
+	const FString Path = BloodStainFileUtils_Internal::GetFullFilePath(FileName, LevelName);
+	TArray<uint8> AllBytes;
+	if (!FFileHelper::LoadFileToArray(AllBytes, *Path))
+	{
+		UE_LOG(LogBloodStain, Error, TEXT("[BloodStainFileUtils] LoadRawPayloadFromFile failed read: %s"), *Path);
+		return false;
+	}
+
+	FMemoryReader MemR(AllBytes, true);
+
+	// Only Deserialize the file header and record header
+	MemR << OutFileHeader;
+	MemR << OutRecordHeader;
+	
+	const int64 Offset = MemR.Tell();
+	const int64 PayloadSize = AllBytes.Num() - Offset;
+	
+	if (PayloadSize > 0)
+	{
+		OutCompressedPayload.SetNumUninitialized(PayloadSize);
+		FMemory::Memcpy(OutCompressedPayload.GetData(), AllBytes.GetData() + Offset, PayloadSize);
+	}
+    
+	return true;
+}
+
 bool BloodStainFileUtils::LoadHeaderFromFile(const FString& FileName, const FString& LevelName, FRecordHeaderData& OutRecordHeaderData)
 {	
 	const FString Path = BloodStainFileUtils_Internal::GetFullFilePath(FileName, LevelName);

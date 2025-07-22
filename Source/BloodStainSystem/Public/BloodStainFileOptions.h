@@ -116,6 +116,7 @@ struct FBloodStainFileHeader
     FBloodStainFileOptions Options;
 
 	/** Size of the uncompressed payload in bytes */
+	UPROPERTY()
 	int64 UncompressedSize = 0;
 
     friend FArchive& operator<<(FArchive& Ar, FBloodStainFileHeader& Header)

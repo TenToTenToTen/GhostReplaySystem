@@ -310,21 +310,20 @@ bool UBloodStainSubsystem::StartReplayFromFile(const FString& FileName, const FS
 
 		return StartReplay_Standalone(Data, InPlaybackOptions, OutGuid);
 	}
-	return false;
-	// else // NM_ListenServer or NM_DedicatedServer
-	// {
-	// 	FBloodStainFileHeader FileHeader;
-	// 	FRecordHeaderData RecordHeader;
-	// 	TArray<uint8> CompressedPayload;
-	//
-	// 	if (!BloodStainFileUtils::LoadRawPayloadFromFile(FileName, LevelName, FileHeader, RecordHeader, CompressedPayload))
-	// 	{
-	// 		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] File: Cannot Load Raw Payload [%s] for Networked"), *FileName);
-	// 		return false;
-	// 	}
-	//
-	// 	return StartReplay_Networked(FileHeader, LevelName, FileHeader, RecordHeader, CompressedPayload, InPlaybackOptions, OutGuid);
-	// }
+	else // NM_ListenServer or NM_DedicatedServer
+	{
+		FBloodStainFileHeader FileHeader;
+		FRecordHeaderData RecordHeader;
+		TArray<uint8> CompressedPayload;
+	
+		if (!BloodStainFileUtils::LoadRawPayloadFromFile(FileName, LevelName, FileHeader, RecordHeader, CompressedPayload))
+		{
+			UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] File: Cannot Load Raw Payload [%s] for Networked"), *FileName);
+			return false;
+		}
+	
+		return StartReplay_Networked(FileName, LevelName, FileHeader, RecordHeader, CompressedPayload, InPlaybackOptions, OutGuid);
+	}
 	
 	
 }
@@ -673,6 +672,29 @@ bool UBloodStainSubsystem::StartReplay_Standalone(const FRecordSaveData& RecordS
 	}
 	OutGuid = UniqueID;
 	BloodStainPlaybackGroups.Add(UniqueID, BloodStainPlaybackGroup);
+	return true;
+}
+
+bool UBloodStainSubsystem::StartReplay_Networked(const FString& FileName, const FString& LevelName,
+	const FBloodStainFileHeader& FileHeader, const FRecordHeaderData& RecordHeader,
+	const TArray<uint8>& CompressedPayload, const FBloodStainPlaybackOptions& InPlaybackOptions, FGuid& OutGuid)
+{
+	OutGuid = FGuid::NewGuid();
+
+	AReplayActor* GhostActor = GetWorld()->SpawnActor<AReplayActor>(AReplayActor::StaticClass(), RecordHeader.SpawnPointTransform);
+
+	if (!GhostActor)
+	{
+		UE_LOG(LogBloodStain, Error, TEXT("[BloodStain] Failed to spawn ReplayActor at %s"), *RecordHeader.SpawnPointTransform.GetLocation().ToString());
+		return false;
+	}
+
+	GhostActor->Server_InitializeReplayWithPayload(OutGuid, FileHeader, RecordHeader, CompressedPayload, InPlaybackOptions);
+
+	FBloodStainPlaybackGroup PlaybackGroup;
+	PlaybackGroup.ActiveReplayers.Add(GhostActor);
+	BloodStainPlaybackGroups.Add(OutGuid, PlaybackGroup);
+
 	return true;
 }
 

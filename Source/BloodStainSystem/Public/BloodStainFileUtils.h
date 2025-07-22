@@ -34,6 +34,17 @@ namespace BloodStainFileUtils
 	 */
 	bool LoadFromFile(const FString& FileName, const FString& LevelName, FRecordSaveData& OutData);
 
+	/**
+	 * @brief Directly loads the header and compressed original data payload from the file.
+	 * @param FileName Name of the file
+	 * @param LevelName Name of the level
+	 * @param OutFileHeader Metadata of the file (compression/quantization options, etc.)
+	 * @param OutRecordHeader Header data of the replay itself (spawn location, tags, etc.)
+	 * @param OutCompressedPayload Compressed and quantized original binary data
+	 * @return Success status
+	 */
+	bool LoadRawPayloadFromFile(const FString& FileName, const FString& LevelName, FBloodStainFileHeader& OutFileHeader, FRecordHeaderData& OutRecordHeader, TArray<uint8>& OutCompressedPayload);
+
 
 	bool LoadHeaderFromFile(const FString& FileName, const FString& LevelName, FRecordHeaderData& OutRecordHeaderData);
 
