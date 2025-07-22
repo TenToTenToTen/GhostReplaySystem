@@ -588,7 +588,7 @@ FRecordSaveData UBloodStainSubsystem::ConvertToSaveData(float EndTime, const FNa
 	RecordSaveData.Header.SpawnPointTransform = BloodStainRecordGroups[GroupName].SpawnPointTransform;
 	RecordSaveData.Header.MaxRecordTime = BloodStainRecordGroups[GroupName].RecordOptions.MaxRecordTime;
 	RecordSaveData.Header.SamplingInterval = BloodStainRecordGroups[GroupName].RecordOptions.SamplingInterval;
-	RecordSaveData.Header.GroupEndTime = FMath::Min(EndTime, BloodStainRecordGroups[GroupName].RecordOptions.MaxRecordTime);
+	RecordSaveData.Header.TotalLength = FMath::Min(EndTime, BloodStainRecordGroups[GroupName].RecordOptions.MaxRecordTime);
 	RecordSaveData.RecordActorDataArray = MoveTemp(RecordActorDataArray);
 	
 	return RecordSaveData;

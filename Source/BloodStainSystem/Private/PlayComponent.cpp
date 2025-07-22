@@ -103,7 +103,7 @@ bool UPlayComponent::CalculatePlaybackTime(float& OutElapsedTime)
 		return false;
 	}
 
-	const float Duration = RecordHeaderData.GroupEndTime;
+	const float Duration = RecordHeaderData.TotalLength;
 	if (Duration <= 0.0f)
 	{
 		return false;

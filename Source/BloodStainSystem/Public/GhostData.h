@@ -335,13 +335,14 @@ struct FRecordHeaderData
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "BloodStain|Header")
 	FReplayCustomUserData ReplayCustomUserData;
 
+	/** Group Total Length, Duration (s) */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="BloodStain|Header")
-	float GroupEndTime;
+	float TotalLength;
 
 	FRecordHeaderData()
 		: MaxRecordTime(5.f)
 		, SamplingInterval(0.1f)
-		, GroupEndTime(0)
+		, TotalLength(0)
 	{
 	}
 
@@ -356,7 +357,7 @@ struct FRecordHeaderData
 		Ar << Data.MaxRecordTime;
 		Ar << Data.SamplingInterval;
 		Ar << Data.ReplayCustomUserData;
-		Ar << Data.GroupEndTime;
+		Ar << Data.TotalLength;
 	
 		return Ar;
 	}
