@@ -297,13 +297,36 @@ bool UBloodStainSubsystem::StartReplayByBloodStain(ABloodStainActor* BloodStainA
 
 bool UBloodStainSubsystem::StartReplayFromFile(const FString& FileName, const FString& LevelName, FGuid& OutGuid, FBloodStainPlaybackOptions InPlaybackOptions)
 {
-	FRecordSaveData Data;
-	if (!FindOrLoadRecordBodyData(FileName, LevelName, Data))
+	const ENetMode NetMode = GetWorld()->GetNetMode();
+
+	if (NetMode == ENetMode::NM_Standalone)
 	{
-		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] File: Cannot Load File [%s]"), *FileName);
-		return false;
+		FRecordSaveData Data;
+		if (!FindOrLoadRecordBodyData(FileName, LevelName, Data))
+		{
+			UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] File: Cannot Load File [%s]"), *FileName);
+			return false;
+		}
+
+		return StartReplay_Standalone(Data, InPlaybackOptions, OutGuid);
 	}
-	return StartReplay_Internal(Data, InPlaybackOptions, OutGuid);
+	return false;
+	// else // NM_ListenServer or NM_DedicatedServer
+	// {
+	// 	FBloodStainFileHeader FileHeader;
+	// 	FRecordHeaderData RecordHeader;
+	// 	TArray<uint8> CompressedPayload;
+	//
+	// 	if (!BloodStainFileUtils::LoadRawPayloadFromFile(FileName, LevelName, FileHeader, RecordHeader, CompressedPayload))
+	// 	{
+	// 		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] File: Cannot Load Raw Payload [%s] for Networked"), *FileName);
+	// 		return false;
+	// 	}
+	//
+	// 	return StartReplay_Networked(FileHeader, LevelName, FileHeader, RecordHeader, CompressedPayload, InPlaybackOptions, OutGuid);
+	// }
+	
+	
 }
 
 void UBloodStainSubsystem::StopReplay(FGuid PlaybackKey)
@@ -603,7 +626,7 @@ ABloodStainActor* UBloodStainSubsystem::SpawnBloodStain_Internal(const FVector& 
 	return BloodStain;
 }
 
-bool UBloodStainSubsystem::StartReplay_Internal(const FRecordSaveData& RecordSaveData, const FBloodStainPlaybackOptions& InPlaybackOptions, FGuid& OutGuid)
+bool UBloodStainSubsystem::StartReplay_Standalone(const FRecordSaveData& RecordSaveData, const FBloodStainPlaybackOptions& InPlaybackOptions, FGuid& OutGuid)
 {
 	OutGuid = FGuid();
 	if (RecordSaveData.RecordActorDataArray.IsEmpty())
@@ -626,41 +649,20 @@ bool UBloodStainSubsystem::StartReplay_Internal(const FRecordSaveData& RecordSav
 		// TODO : to separate all SpawnPoint data per Actors
 		FTransform StartTransform = Header.SpawnPointTransform;
 		AReplayActor* GhostActor = GetWorld()->SpawnActor<AReplayActor>(AReplayActor::StaticClass(), StartTransform);
+		UPlayComponent* Replayer = GhostActor->GetPlayComponent();
 
-		//UPlayComponent* Replayer = NewObject<UPlayComponent>(GhostActor, UPlayComponent::StaticClass(), NAME_None, RF_Transient);
 		if (GhostActor)
 		{
 			GhostActor->SetActorHiddenInGame(true);
 		}
-
-		//UPlayComponent* Replayer = NewObject<UPlayComponent>(GhostActor, UPlayComponent::StaticClass(), NAME_None, RF_Transient);
-		UPlayComponent* Replayer = GhostActor->GetPlayComponent();
-		// UPlayComponent* Replayer = NewObject<UPlayComponent>(GhostActor, UPlayComponent::StaticClass(), NAME_None, RF_Transient);
-
+		
 		if (!Replayer)
 		{
 			UE_LOG(LogBloodStain, Error, TEXT("[BloodStain] Cannot create ReplayComponent on %s"), *GhostActor->GetName());
 			continue;
-		}
-
-		// GhostActor->AddInstanceComponent(Replayer);
-		// Replayer->RegisterComponent();
-		// Replayer->Initialize(UniqueID, Header, RecordActorData, InPlaybackOptions);
-
-		switch (GetWorld()->GetNetMode())
-		{
-		case NM_Standalone:
-			GhostActor->InitializeReplayLocal(UniqueID, Header, ActorData, InPlaybackOptions);
-			break;
-		case NM_ListenServer:
-			GhostActor->Server_InitializeReplay(UniqueID, Header, ActorData, InPlaybackOptions);
-			break;
-
-		case NM_DedicatedServer:
-			GhostActor->Server_InitializeReplay(UniqueID, Header, ActorData, InPlaybackOptions);
-			break;
-		}
-		// GhostActor->Server_InitializeReplay(UniqueID, RecordSaveData.Header, ActorData, InPlaybackOptions);
+		}		
+		
+		GhostActor->InitializeReplayLocal(UniqueID, Header, ActorData, InPlaybackOptions);
 		BloodStainPlaybackGroup.ActiveReplayers.Add(GhostActor);
 	}
 

@@ -287,11 +287,11 @@ private:
 	ABloodStainActor* SpawnBloodStain_Internal(const FVector& Location, const FRotator& Rotation, const FString& FileName, const FString& LevelName);
 
 	/**
-	 * @brief The core implementation for initiating a replay session.
+	 * @brief The core implementation for initiating a replay session in single-player mode.
 	 * Takes fully loaded replay data and spawns all necessary AReplayActor instances,
 	 * attaching and initializing a UPlayComponent to each one to begin playback.
 	 */
-	bool StartReplay_Internal(const FRecordSaveData& RecordSaveData, const FBloodStainPlaybackOptions& InPlaybackOptions, FGuid& OutGuid);
+	bool StartReplay_Standalone(const FRecordSaveData& RecordSaveData, const FBloodStainPlaybackOptions& InPlaybackOptions, FGuid& OutGuid);
 
 	/** Internal helper to package actor-specific data into the final save format.
 	 *  Aggregates multiple FRecordActorSaveData instances into a single FRecordSaveData.
