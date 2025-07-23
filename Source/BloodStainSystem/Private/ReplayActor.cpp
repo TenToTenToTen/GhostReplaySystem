@@ -8,8 +8,11 @@
 #include "BloodStainCompressionUtils.h"
 #include "QuantizationHelper.h"
 #include "Net/UnrealNetwork.h"
-#include "BloodStainSystem.h"
+#include "Engine/NetDriver.h"
+#include "Engine/NetConnection.h"
 #include "Engine/ActorChannel.h"
+#include "Serialization/MemoryReader.h"
+#include "BloodStainSystem.h"
 
 DECLARE_CYCLE_STAT(TEXT("AReplayActor Tick"), STAT_AReplayActor_Tick, STATGROUP_BloodStain);
 
@@ -315,9 +318,9 @@ void AReplayActor::Server_TickTransfer(float DeltaSeconds)
 		return;
 	}
 
+	bool bCanSend = true;
 #if WITH_SERVER_CODE
 	// check the busiest channel among all clients to prevent server from being overloaded
-	bool bCanSend = true;
 	if (NetDriver->ClientConnections.Num() > 0)
 	{
 		int32 MaxNumOutRec = 0;
