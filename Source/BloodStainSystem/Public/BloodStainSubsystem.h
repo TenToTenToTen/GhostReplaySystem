@@ -258,7 +258,7 @@ public:
 	 * @param FilterTags used to filter cached header data.
 	 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
-	TArray<FRecordHeaderData> GetCachedHeadersByTags(const FGameplayTagContainer& FilterTags);
+	TArray<FRecordHeaderData> GetCachedHeadersByTags(const FGameplayTagContainer& FilterTags) const ;
 	
 	/** @return The complete absolute file path in the project's standard save directory. */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|File")

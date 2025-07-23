@@ -471,7 +471,7 @@ TArray<FRecordHeaderData> UBloodStainSubsystem::GetCachedHeaders() const
 	return Result;
 }
 
-TArray<FRecordHeaderData> UBloodStainSubsystem::GetCachedHeadersByTags(const FGameplayTagContainer& FilterTags)
+TArray<FRecordHeaderData> UBloodStainSubsystem::GetCachedHeadersByTags(const FGameplayTagContainer& FilterTags) const
 {
 	TArray<FRecordHeaderData> Result;
 
