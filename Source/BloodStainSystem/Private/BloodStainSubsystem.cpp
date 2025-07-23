@@ -18,7 +18,6 @@
 #include "UObject/ConstructorHelpers.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Kismet/GameplayStatics.h"
-
 #include "Algo/BinarySearch.h" 
 #include "LevelInstance/LevelInstanceTypes.h"
 
@@ -537,6 +536,12 @@ ABloodStainActor* UBloodStainSubsystem::SpawnBloodStain(const FString& FileName,
 
 TArray<ABloodStainActor*> UBloodStainSubsystem::SpawnAllBloodStainInLevel()
 {
+	if (GetWorld()->GetNetMode() == NM_Client)
+	{
+		UE_LOG(LogBloodStain, Warning, TEXT("Cannot spawn BloodStain actors on client. Only server can spawn them."));
+		return TArray<ABloodStainActor*>(); 
+	}
+	
 	FString LevelName = UGameplayStatics::GetCurrentLevelName(GetWorld());
 	
 	// TODO - Currently Reload all cached data

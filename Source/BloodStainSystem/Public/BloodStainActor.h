@@ -25,6 +25,8 @@ class BLOODSTAINSYSTEM_API ABloodStainActor : public ADecalActor
 public:
 	ABloodStainActor();
 
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
 	// virtual void BeginPlay() override;
 
 	void Initialize(const FString& InReplayFileName, const FString& InLevelName);
@@ -39,16 +41,25 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "BloodStainActor")
 	void Interact();
 
+	UFUNCTION(Server, Reliable)
+	void Server_Interact();
+	
+	UFUNCTION(Client, Reliable)
+	void Client_ShowInteractionWidget();
+
+	UFUNCTION(Client, Reliable)
+	void Client_HideInteractionWidget();
+
 	UFUNCTION(BlueprintCallable, Category = "BloodStainActor")
 	bool GetHeaderData(FRecordHeaderData& OutRecordHeaderData);
 
 public:
 	/** Replay Target File Name without Directory Path */
-	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category="BloodStainActor")
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Replicated, Category="BloodStainActor")
 	FString ReplayFileName;
 
 	/** Replay Target Level Name */
-	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category="BloodStainActor")
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Replicated, Category="BloodStainActor")
 	FString LevelName;
 
 	/** Replay Playback Option */
@@ -56,6 +67,8 @@ public:
 	FBloodStainPlaybackOptions PlaybackOptions;
 
 protected:
+	void StartReplay();
+	
 	/** Whether to allow multiple playback. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="BloodStainActor")
 	uint8 bAllowMultiplePlayback : 1 = true;
@@ -72,6 +85,10 @@ protected:
 	
 	UPROPERTY(BlueprintReadOnly, Category = "BloodStainActor", meta=(AllowPrivateAccess = "true"))
 	TObjectPtr<USphereComponent> SphereComponent;
+
+	/** [SERVER-ONLY] currently approved to interact this bloodstain */
+	UPROPERTY()
+	TObjectPtr<APlayerController> InteractingPlayerController;
 	
 private:
 	static FName SphereComponentName;
