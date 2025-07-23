@@ -14,6 +14,15 @@
 
 class UPlayComponent;
 
+UENUM()
+enum class EReplayActorState : uint8
+{
+	Idle,                
+	TransferringPayload, 
+	Playing,             
+	Finished             
+};
+
 /**
  * @brief An actor responsible for replaying recorded data. Acts as an 'Orchestrator' in a network environment.
  *
@@ -23,30 +32,37 @@ class UPlayComponent;
  * 
  * On clients, this actor receives the data, de-serializes it, and then spawns local-only 'Visual Actors' to display the replay.
  */
- 
+
 UCLASS()
 class BLOODSTAINSYSTEM_API AReplayActor : public AActor
 {
 	GENERATED_BODY()
-	
-public:	
+
+public:
 	AReplayActor();
-	
+
 	/** Returns the PlayComponent SubObject. */
 	UPlayComponent* GetPlayComponent() const;
 
-	void InitializeReplayLocal(const FGuid& InPlaybackKey, const FRecordHeaderData& InHeader, const FRecordActorSaveData& InActorData, const FBloodStainPlaybackOptions& InOptions) const;
+	void InitializeReplayLocal(const FGuid& InPlaybackKey, const FRecordHeaderData& InHeader,
+	                           const FRecordActorSaveData& InActorData,
+	                           const FBloodStainPlaybackOptions& InOptions);
 
 	/** [SERVER-ONLY] : Initializes the replay by sending a compressed payload to all clients.
 	 * Called by the server's BloodStainSubsystem when starting a replay.
 	 */
 	void Server_InitializeReplayWithPayload(
-	   const FGuid& InPlaybackKey,
-	   const FBloodStainFileHeader& InFileHeader,
-	   const FRecordHeaderData& InRecordHeader,
-	   const TArray<uint8>& InCompressedPayload,
-	   const FBloodStainPlaybackOptions& InOptions
-   );
+		const FGuid& InPlaybackKey,
+		const FBloodStainFileHeader& InFileHeader,
+		const FRecordHeaderData& InRecordHeader,
+		const TArray<uint8>& InCompressedPayload,
+		const FBloodStainPlaybackOptions& InOptions
+	);
+
+	void SetIsOrchestrator(bool bValue) { bIsOrchestrator = bValue; }
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Replay|Network")
+	float RateLimitMbps = 0.5f;
 
 protected:
 	virtual void BeginPlay() override;
@@ -67,27 +83,30 @@ protected:
 
 	/** [CLIENT-ONLY] Decompresses the final payload and spawns the visual actors for the replay. */
 	void Client_FinalizeAndSpawnVisuals();
+	
+	bool bIsOrchestrator = false;
 
 private:
+	EReplayActorState CurrentState = EReplayActorState::Idle;
+	
 	/** Network Callback Functions and RPC implementations */
 
 	/** [CLIENT-ONLY] Replication notification callback for ReplicatedPlaybackTime. */
 	UFUNCTION()
 	void OnRep_PlaybackTime();
-	
+
 	/** [RPC] Notifies all clients to prepare for receiving replay data. */
 	UFUNCTION(NetMulticast, Reliable)
 	void Multicast_InitializeForPayload(
 		const FGuid& InPlaybackKey,
 		const FBloodStainFileHeader& InFileHeader,
 		const FRecordHeaderData& InRecordHeader,
-		const FBloodStainPlaybackOptions& InOptions,
-		int32 InTotalChunks
+		const FBloodStainPlaybackOptions& InOptions
 	);
-	
+
 	/** [RPC] Sends a single chunk of the compressed replay data to all clients. */
 	UFUNCTION(NetMulticast, Reliable)
-	void Multicast_ReceivePayloadChunk(int32 ChunkIndex, const TArray<uint8>& DataChunk);
+	void Multicast_ReceivePayloadChunk(int32 ChunkIndex, const TArray<uint8>& DataChunk, bool bIsLastChunk);
 
 	/**
 	 * @brief [CLIENT-ONLY]
@@ -111,4 +130,26 @@ private:
 	 */
 	UPROPERTY()
 	TArray<TObjectPtr<AReplayActor>> Client_SpawnedVisualActors;
+	
+	/** [SERVER-ONLY] Payload data that is being sent */
+	TArray<uint8> Server_CurrentPayload;
+
+	/** [SERVER-ONLY] Total byte that has been sent so far */
+	int32 Server_BytesSent = 0;
+
+	/** [SERVER-ONLY] Indicates if it's sending data */
+	bool bIsTransferInProgress = false;
+
+	/** [SERVER-ONLY] Accumulated tick time waiting for data sent */
+	float Server_AccumulatedTickTime = 0.f;
+
+	int32 Server_CurrentChunkIndex = 0;
+	
+	/** [SERVER-ONLY] Process sending data in every tick */
+	void Server_TickTransfer(float DeltaSeconds);
+	
+	void Server_TickTransferByNetConnection(float DeltaSeconds);
+
+	/** [SERVER-ONLY] Process Playing Replay data every tick */
+	void Server_TickPlayback(float DeltaSeconds);
 };

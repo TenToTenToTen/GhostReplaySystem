@@ -9,6 +9,9 @@
 #include "QuantizationHelper.h"
 #include "Net/UnrealNetwork.h"
 #include "BloodStainSystem.h"
+#include "Engine/ActorChannel.h"
+
+DECLARE_CYCLE_STAT(TEXT("AReplayActor Tick"), STAT_AReplayActor_Tick, STATGROUP_BloodStain);
 
 AReplayActor::AReplayActor()
 {
@@ -37,49 +40,39 @@ void AReplayActor::BeginPlay()
 	}
 }
 
+
 void AReplayActor::Tick(float DeltaTime)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE_STR("AReplayActor::Tick");
-	
 	Super::Tick(DeltaTime);
 
-	if (!PlayComponent || !PlayComponent->IsTickable())
+	if (bIsOrchestrator)
 	{
-		return;
-	}
-
-	if (HasAuthority())
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AReplayActor::Tick (Authority)");
-		
-		float ElapsedTime = 0.f;
-		if (!PlayComponent->CalculatePlaybackTime(ElapsedTime))
+		if (HasAuthority())
 		{
-			PlayComponent->FinishReplay();
-			return;
-		}
+			if (bIsTransferInProgress)
+			{
+				Server_TickTransfer(DeltaTime);
+				return;
+			}
 
-		const FRecordActorSaveData& ReplayData = PlayComponent->GetReplayData();
-		const bool bShouldBeHidden = ReplayData.RecordedFrames.IsEmpty() || 
-								 ElapsedTime < ReplayData.RecordedFrames[0].TimeStamp || 
-								 ElapsedTime > ReplayData.RecordedFrames.Last().TimeStamp;
-		SetActorHiddenInGame(bShouldBeHidden);
-
-		if (bShouldBeHidden)
-		{
-			return;
+			Server_TickPlayback(DeltaTime);
 		}
-	
-		
-		ReplicatedPlaybackTime = ElapsedTime;
-		// UE_LOG(LogBloodStain, Log, TEXT("AReplayActor::Tick - Server Tick %.2f"), ReplicatedPlaybackTime);
 	}
-	else
+	else if (GetNetMode() == NM_Standalone) // Local Mode
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AReplayActor::Tick (Client)");
-		// UE_LOG(LogBloodStain, Warning, TEXT("AReplayActor::Tick - Client Tick %.2f"), ReplicatedPlaybackTime);
+		if (PlayComponent && PlayComponent->IsTickable())
+		{
+			float ElapsedTime = 0.f;
+			if (PlayComponent->CalculatePlaybackTime(ElapsedTime))
+			{
+				PlayComponent->UpdatePlaybackToTime(ElapsedTime);
+			}
+			else
+			{
+				Destroy();
+			}
+		}
 	}
-	PlayComponent->UpdatePlaybackToTime(ReplicatedPlaybackTime);	
 }
 
 void AReplayActor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -96,7 +89,7 @@ UPlayComponent* AReplayActor::GetPlayComponent() const
 }
 
 void AReplayActor::InitializeReplayLocal(const FGuid& InPlaybackKey, const FRecordHeaderData& InHeader,
-	const FRecordActorSaveData& InActorData, const FBloodStainPlaybackOptions& InOptions) const
+	const FRecordActorSaveData& InActorData, const FBloodStainPlaybackOptions& InOptions)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("AReplayActor::InitializeReplayLocal");
 	
@@ -111,55 +104,79 @@ void AReplayActor::Server_InitializeReplayWithPayload(const FGuid& InPlaybackKey
 {
 	check(HasAuthority());
 
+	Server_CurrentPayload = InCompressedPayload;
+	UE_LOG(LogBloodStain, Warning, TEXT("[%s] Initialized. Payload size: %d"), *GetName(), Server_CurrentPayload.Num());
+	
+	Server_BytesSent = 0;
+	Server_AccumulatedTickTime = 0.f;
+	Server_CurrentChunkIndex = 0;
+	bIsTransferInProgress = true;
+
+	// [Important] Only the orchestrator should handle the transfer and tick playback.
+	SetIsOrchestrator(true);
+	
 	// Notify clients to initialize the replay and send the header, option data
 
+	const int32 TotalSize = Server_CurrentPayload.Num();
 	constexpr int32 ChunkSize = 16*1024; // 16KB
-	const int32 TotalSize = InCompressedPayload.Num();
 	const int32 NumChunks = FMath::DivideAndRoundUp(TotalSize, ChunkSize);
 
 	// Notify all Clients to prepare for receiving the payload
-	Multicast_InitializeForPayload(InPlaybackKey, InFileHeader, InRecordHeader, InOptions, NumChunks);
-	
-	for (int32 i = 0; i < NumChunks; ++i)
-	{
-		const int32 Offset = i * ChunkSize;
-		const int32 Size = FMath::Min(ChunkSize, TotalSize - Offset); // Maximum size 16KB, or remaining size
-
-		TArray<uint8> ChunkData;
-		ChunkData.Append(InCompressedPayload.GetData() + Offset, Size);
-		
-		Multicast_ReceivePayloadChunk(i, ChunkData);
-	}
+	Multicast_InitializeForPayload(InPlaybackKey, InFileHeader, InRecordHeader, InOptions);
 
 	// If it's a listen server, also supposed to render for local client
 	if (GetNetMode() == NM_ListenServer)
 	{
 		UE_LOG(LogBloodStain, Log, TEXT("Listen Server: Executing local initialization."));
+		
+		TArray<uint8> LocalPayloadForListenServer  = InCompressedPayload;
 
 		Client_PlaybackKey = InPlaybackKey;
 		Client_FileHeader = InFileHeader;
 		Client_RecordHeader = InRecordHeader;
 		Client_PlaybackOptions = InOptions;
-		Client_ExpectedChunks = NumChunks;
-		Client_ReceivedChunks = NumChunks;
-		Client_ReceivedPayloadBuffer = InCompressedPayload;
+		Client_ReceivedPayloadBuffer = LocalPayloadForListenServer;
 		
 		Client_FinalizeAndSpawnVisuals();
+
+		// If there is no remote client connected, finalize the transfer immediately.
+		UNetDriver* NetDriver = GetNetDriver();
+		if (NetDriver == nullptr || NetDriver->ClientConnections.Num() == 0)
+		{
+			UE_LOG(LogBloodStain, Log, TEXT("No remote clients on Listen Server. Finalizing transfer immediately."));
+			bIsTransferInProgress = false;
+			Server_CurrentPayload.Empty();
+		}
 	}
 }
 
 void AReplayActor::Client_AssembleAndFinalize()
 {
-	int32 TotalPayloadSize = 0;
-	for (int32 i = 0; i < Client_ExpectedChunks; ++i)
+	if (Client_PendingChunks.IsEmpty())
 	{
-		if (Client_PendingChunks.Contains(i))
+		UE_LOG(LogBloodStain, Error, TEXT("Client failed to assemble: No chunks received."));
+		Destroy();
+		return;
+	}
+
+	int32 HighestIndex = 0;
+	for (const auto& Elem : Client_PendingChunks)
+	{
+		if (Elem.Key > HighestIndex)
 		{
-			TotalPayloadSize += Client_PendingChunks[i].Num();
+			HighestIndex = Elem.Key;
+		}
+	}
+
+	int32 TotalPayloadSize = 0;
+	for (int32 i = 0; i <= HighestIndex; ++i)
+	{
+		if (const TArray<uint8>* Chunk = Client_PendingChunks.Find(i))
+		{
+			TotalPayloadSize += Chunk->Num();
 		}
 		else
 		{
-			// If any chunk is missing, we cannot finalize
 			UE_LOG(LogBloodStain, Error, TEXT("Client failed to assemble: Chunk %d is missing!"), i);
 			Destroy();
 			return;
@@ -168,7 +185,7 @@ void AReplayActor::Client_AssembleAndFinalize()
     
 	Client_ReceivedPayloadBuffer.Empty(TotalPayloadSize);
 
-	for (int32 i = 0; i < Client_ExpectedChunks; ++i)
+	for (int32 i = 0; i <= HighestIndex; ++i)
 	{
 		Client_ReceivedPayloadBuffer.Append(Client_PendingChunks[i]);
 	}
@@ -204,8 +221,8 @@ void AReplayActor::Client_FinalizeAndSpawnVisuals()
 	}
 
 	// Hide the orchestrator actor itself and disable its tick.
-	SetActorHiddenInGame(true);
-	SetActorTickEnabled(false);
+	// SetActorHiddenInGame(true);
+	// SetActorTickEnabled(false);
 
 	for (const FRecordActorSaveData& Data : AllReplayData.RecordActorDataArray)
 	{
@@ -227,19 +244,22 @@ void AReplayActor::OnRep_PlaybackTime()
 	{
 		return;
 	}
-
+	// UE_LOG (LogBloodStain, Log, TEXT("AReplayActor::OnRep_PlaybackTime - Updated Client to Time: %.2f"), ReplicatedPlaybackTime);
+	
 	for (TObjectPtr<AReplayActor> VisualActor : Client_SpawnedVisualActors)
 	{
-		if (PlayComponent && PlayComponent->IsTickable())
+		if (VisualActor && VisualActor->GetPlayComponent() && VisualActor->GetPlayComponent()->IsTickable())
 		{
-			PlayComponent->UpdatePlaybackToTime(ReplicatedPlaybackTime);
+			VisualActor->SetActorTickEnabled(false);
+			VisualActor->GetPlayComponent()->UpdatePlaybackToTime(ReplicatedPlaybackTime);
+			
 		}
 	}
 }
 
 void AReplayActor::Multicast_InitializeForPayload_Implementation(const FGuid& InPlaybackKey,
-	const FBloodStainFileHeader& InFileHeader, const FRecordHeaderData& InRecordHeader,
-	const FBloodStainPlaybackOptions& InOptions, int32 InTotalChunks)
+                                                                 const FBloodStainFileHeader& InFileHeader, const FRecordHeaderData& InRecordHeader,
+                                                                 const FBloodStainPlaybackOptions& InOptions)
 {
 	/** Client only : prepare for the replay start, saving metadata from the server */
 	if (HasAuthority())
@@ -252,13 +272,12 @@ void AReplayActor::Multicast_InitializeForPayload_Implementation(const FGuid& In
     Client_RecordHeader = InRecordHeader;
     Client_PlaybackOptions = InOptions;
 	
-	Client_ExpectedChunks = InTotalChunks; 
 	Client_ReceivedChunks = 0;
 	Client_PendingChunks.Empty();
 	Client_ReceivedPayloadBuffer.Empty();
 }	
 
-void AReplayActor::Multicast_ReceivePayloadChunk_Implementation(int32 ChunkIndex, const TArray<uint8>& DataChunk)
+void AReplayActor::Multicast_ReceivePayloadChunk_Implementation(int32 ChunkIndex, const TArray<uint8>& DataChunk, bool bIsLastChunk)
 {
 	if (HasAuthority())
 	{
@@ -271,19 +290,247 @@ void AReplayActor::Multicast_ReceivePayloadChunk_Implementation(int32 ChunkIndex
 	}
 
 	Client_PendingChunks.Add(ChunkIndex, DataChunk);
-	Client_ReceivedChunks++;
 
-	UE_LOG(LogBloodStain, Log, TEXT("Client received chunk %d/%d"), Client_ReceivedChunks, Client_ExpectedChunks);
-
-	if (Client_ExpectedChunks == 0 || Client_ReceivedChunks < Client_ExpectedChunks)
-	{
-		return;
-	}
-	
-	if (Client_ReceivedChunks >= Client_ExpectedChunks)
+	if (bIsLastChunk)
 	{
 		// All chunks received, finalize the data and initialize the playback component
+		Client_ExpectedChunks = Server_CurrentChunkIndex;
 		Client_AssembleAndFinalize();
 	}
 }
 
+void AReplayActor::Server_TickTransfer(float DeltaSeconds)
+{
+	// If there is no data to send or the transfer is not in progress, early exit.
+	if (!bIsTransferInProgress || Server_CurrentPayload.IsEmpty())
+	{
+		bIsTransferInProgress = false;
+		return;
+	}
+
+	UNetDriver* NetDriver = GetNetDriver();
+	if (!NetDriver)
+	{
+		bIsTransferInProgress = false;
+		return;
+	}
+
+	// check the busiest channel among all clients to prevent server from being overloaded
+	bool bCanSend = true;
+	if (NetDriver->ClientConnections.Num() > 0)
+	{
+		int32 MaxNumOutRec = 0;
+		// check all clients' connections.
+		for (UNetConnection* Connection : NetDriver->ClientConnections)
+		{
+			if (Connection && Connection->GetConnectionState() == EConnectionState::USOCK_Open)
+			{
+				if (UActorChannel* Channel = Connection->FindActorChannelRef(this))
+				{
+					MaxNumOutRec = FMath::Max(MaxNumOutRec, Channel->NumOutRec);
+				}
+			}
+		}
+
+		// If the maximum number of outgoing reliable packets (NumOutRec) for any client is too high,
+		// we will throttle the transfer to prevent network congestion.
+		if (MaxNumOutRec >= (RELIABLE_BUFFER / 2))
+		{
+			bCanSend = false;
+			// UE_LOG(LogBloodStain, Log, TEXT("Server_TickTransfer: Throttling transfer due to high network congestion (MaxNumOutRec: %d)."), MaxNumOutRec);
+		}
+	}
+	else
+	{
+		bIsTransferInProgress = false;
+		Server_CurrentPayload.Empty();
+		UE_LOG(LogBloodStain, Log, TEXT("No clients connected. Transfer cancelled."));
+		return;
+	}
+	
+	// Only proceed with sending data if we are allowed to send
+	if (bCanSend)
+	{
+		int32 MaxBytesToSendThisTick = Server_CurrentPayload.Num();
+		const float TotalTimeSinceLastTransfer = DeltaSeconds + Server_AccumulatedTickTime;
+		if (RateLimitMbps > 0)
+		{
+			const float BytesPerSecond = (RateLimitMbps * 1024 * 1024) / 8.0f;
+			MaxBytesToSendThisTick = FMath::Max(1, static_cast<int32>(TotalTimeSinceLastTransfer * BytesPerSecond));
+		}
+		int32 BytesSentThisTick = 0;
+
+		const int32 MaxChunksPerFrame = 4; // Max number of chunks to send per frame (64KB total)
+		int32 ChunksSentThisFrame = 0;
+		
+		constexpr int32 MinChunkSize = 256;
+		constexpr int32 MaxChunkSize = 16 * 1024;
+		
+		while (Server_BytesSent < Server_CurrentPayload.Num() &&
+			   BytesSentThisTick < MaxBytesToSendThisTick &&
+			   ChunksSentThisFrame < MaxChunksPerFrame)
+		{
+			const int32 BytesRemaining = Server_CurrentPayload.Num() - Server_BytesSent;
+			const int32 BytesLeftInTick = MaxBytesToSendThisTick - BytesSentThisTick;
+
+			int32 ChunkSize = FMath::Min(BytesRemaining, MaxChunkSize);
+			ChunkSize = FMath::Min(ChunkSize, BytesLeftInTick);
+			
+			const bool bIsLastChunk = (Server_BytesSent + ChunkSize) >= Server_CurrentPayload.Num();
+			if (!bIsLastChunk && ChunkSize < MinChunkSize && RateLimitMbps > 0)
+			{
+				Server_AccumulatedTickTime += DeltaSeconds;
+				break;
+			}
+			
+			TArray<uint8> ChunkData;
+			ChunkData.Append(Server_CurrentPayload.GetData() + Server_BytesSent, ChunkSize);
+			
+			const int32 ChunkIndex = Server_BytesSent / MaxChunkSize;
+
+			Multicast_ReceivePayloadChunk(Server_CurrentChunkIndex, ChunkData, bIsLastChunk);
+
+			Server_BytesSent += ChunkSize;
+			BytesSentThisTick += ChunkSize;
+			ChunksSentThisFrame++;
+
+			Server_CurrentChunkIndex++;
+		}
+		
+        Server_AccumulatedTickTime = 0.f;
+	}
+    else
+    {
+        Server_AccumulatedTickTime += DeltaSeconds;
+    }
+
+	if (Server_BytesSent >= Server_CurrentPayload.Num())
+	{
+		UE_LOG(LogBloodStain, Log, TEXT("Payload transfer completed for actor %s."), *GetName());
+		bIsTransferInProgress = false;
+		Server_CurrentPayload.Empty();
+	}
+}
+
+void AReplayActor::Server_TickTransferByNetConnection(float DeltaSeconds)
+{
+	if (!bIsTransferInProgress || Server_CurrentPayload.IsEmpty())
+	{
+		bIsTransferInProgress = false;
+		return;
+	}
+
+	UNetConnection* NetConnection = GetNetConnection();
+	if (!NetConnection)
+	{
+		UE_LOG(LogBloodStain, Error, TEXT("Server_TickTransfer: No NetConnection found"));
+		return;
+	}
+
+	UActorChannel* Channel = NetConnection->FindActorChannelRef(this);
+	if (!Channel)
+	{
+		UE_LOG(LogBloodStain, Error, TEXT("Server_TickTransfer: No ActorChannel found for this actor"));
+		return;
+	}
+
+	const int32 ReliableBufferLimit = RELIABLE_BUFFER / 2;
+
+	int32 MaxBytesToSendThisTick = Server_CurrentPayload.Num();
+	const float TotalTimeSinceLastTransfer = DeltaSeconds + Server_AccumulatedTickTime;
+	if (RateLimitMbps > 0)
+	{
+		const float BytesPerSecond = (RateLimitMbps * 1024 * 1024) / 8.0f;
+		MaxBytesToSendThisTick = FMath::Max(1, static_cast<int32>(TotalTimeSinceLastTransfer * BytesPerSecond));
+	}
+
+	int32 BytesSentThisTick =0;
+	constexpr int32 MinChunkSize = 256;
+	constexpr int32 MaxChunkSize = 16 * 1024;
+
+	// There's data to send existing in the payload && Enough space for the reliable buffer && Didn't exceed the rate limit
+	while (Server_BytesSent < Server_CurrentPayload.Num() &&
+		Channel->NumOutRec < ReliableBufferLimit &&
+		BytesSentThisTick < MaxBytesToSendThisTick )
+	{
+		const int32 BytesRemaining = Server_CurrentPayload.Num() - Server_BytesSent;
+		const int32 BytesLeftInTick = MaxBytesToSendThisTick - BytesSentThisTick;
+
+		int32 ChunkSize = FMath::Min(BytesRemaining, MaxChunkSize);
+		ChunkSize = FMath::Min(ChunkSize, BytesLeftInTick);
+
+		const bool bIsLastChunk = (Server_BytesSent + ChunkSize) >= Server_CurrentPayload.Num();
+		if (!bIsLastChunk && ChunkSize < MinChunkSize && RateLimitMbps > 0)
+		{
+			// If the chunk is too small, we need to wait for more data to send
+			Server_AccumulatedTickTime += DeltaSeconds;
+			break;
+		}
+
+		TArray<uint8> ChunkData;
+		ChunkData.Append(Server_CurrentPayload.GetData() + Server_BytesSent, ChunkSize);
+
+		const int32 ChunkIndex = Server_BytesSent / MaxChunkSize;
+
+		Multicast_ReceivePayloadChunk(ChunkIndex, ChunkData, bIsLastChunk);
+
+		Server_BytesSent += ChunkSize;
+		BytesSentThisTick += ChunkSize;
+		Server_AccumulatedTickTime = 0.f;
+
+		UE_LOG(LogBloodStain, Log, TEXT("Server sent chunk %d/%d, Size: %d bytes"), 
+			ChunkIndex, FMath::DivideAndRoundUp(Server_CurrentPayload.Num(), MaxChunkSize), ChunkSize);
+	}
+
+	// Check if we have sent all data
+	if (Server_BytesSent >= Server_CurrentPayload.Num())
+	{
+		UE_LOG(LogBloodStain, Log, TEXT("Payload transfer completed for actor %s."), *GetName());
+		bIsTransferInProgress = false;
+		Server_CurrentPayload.Empty();
+	}
+}
+
+void AReplayActor::Server_TickPlayback(float DeltaSeconds)
+{
+	// Send data Completed, now we are in the playback phase.
+	UPlayComponent* TimeSourceComponent = nullptr;
+	
+	if (GetNetMode() == NM_ListenServer)
+	{
+		// In Listen Server we calculate playback time from the first spawned visual actor.
+		if (Client_SpawnedVisualActors.IsValidIndex(0) && Client_SpawnedVisualActors[0])
+		{
+			TimeSourceComponent = Client_SpawnedVisualActors[0]->GetPlayComponent();
+		}
+	}
+	else if (GetNetMode() == NM_DedicatedServer)
+	{
+		// No need to spawn visual actors on the dedicated server.
+		TimeSourceComponent = this->PlayComponent;
+	}
+
+	if (TimeSourceComponent && TimeSourceComponent->IsTickable())
+	{
+		float ElapsedTime = 0.f;
+		if (TimeSourceComponent->CalculatePlaybackTime(ElapsedTime))
+		{
+			// Orchestrator AReplayActor is the only one updates Replicated PlaybackTime.
+			ReplicatedPlaybackTime = ElapsedTime;
+			if (GetNetMode() == NM_ListenServer)
+			{
+				for (AReplayActor* Visualizer : Client_SpawnedVisualActors)
+				{
+					if (Visualizer && Visualizer->GetPlayComponent())
+					{
+						Visualizer->GetPlayComponent()->UpdatePlaybackToTime(ReplicatedPlaybackTime);
+					}
+				}
+			}
+		}
+		else
+		{
+			SetActorTickEnabled(false);
+		}
+	}
+}

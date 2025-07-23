@@ -681,11 +681,6 @@ bool UBloodStainSubsystem::StartReplay_Standalone(const FRecordSaveData& RecordS
 		FTransform StartTransform = Header.SpawnPointTransform;
 		AReplayActor* GhostActor = GetWorld()->SpawnActor<AReplayActor>(AReplayActor::StaticClass(), StartTransform);
 		UPlayComponent* Replayer = GhostActor->GetPlayComponent();
-
-		if (GhostActor)
-		{
-			GhostActor->SetActorHiddenInGame(true);
-		}
 		
 		if (!Replayer)
 		{
