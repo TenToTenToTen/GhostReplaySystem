@@ -234,6 +234,7 @@ void AReplayActor::Client_FinalizeAndSpawnVisuals()
 		{
 			VisualActor->SetReplicates(false); 
 			VisualActor->InitializeReplayLocal(Client_PlaybackKey, AllReplayData.Header, Data, Client_PlaybackOptions);
+			VisualActor->SetActorHiddenInGame(true);
 			Client_SpawnedVisualActors.Add(VisualActor);
 		}
 	}

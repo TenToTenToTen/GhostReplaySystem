@@ -197,6 +197,16 @@ bool UPlayComponent::CalculatePlaybackTime(float& OutElapsedTime)
 
 void UPlayComponent::UpdatePlaybackToTime(float ElapsedTime)
 {
+	const bool bShouldBeHidden = ReplayData.RecordedFrames.IsEmpty() || 
+							 ElapsedTime < ReplayData.RecordedFrames[0].TimeStamp || 
+							 ElapsedTime > ReplayData.RecordedFrames.Last().TimeStamp;
+	ReplayActor->SetActorHiddenInGame(bShouldBeHidden);
+
+	if (bShouldBeHidden)
+	{
+		return;
+	}
+	
 	const TArray<FRecordFrame>& Frames = ReplayData.RecordedFrames;
 	const int32 PreviousFrame = CurrentFrame;
 
