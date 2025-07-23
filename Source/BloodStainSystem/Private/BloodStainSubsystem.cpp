@@ -226,7 +226,7 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 	
 		if (BloodStainRecordGroup.RecordOptions.FileName == NAME_None)
 		{
-			BloodStainRecordGroup.RecordOptions.FileName = FName(FString::Printf(TEXT("/%s-%s.sav"), *GroupNameString, *UniqueTimestamp));
+			BloodStainRecordGroup.RecordOptions.FileName = FName(FString::Printf(TEXT("%s-%s.sav"), *GroupNameString, *UniqueTimestamp));
 		}
 		
 		FRecordSaveData RecordSaveData = ConvertToSaveData(FrameBaseEndTime, GroupName, BloodStainRecordGroup.RecordOptions.FileName, FName(MapName), RecordSaveDataArray);
