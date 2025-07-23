@@ -315,6 +315,7 @@ void AReplayActor::Server_TickTransfer(float DeltaSeconds)
 		return;
 	}
 
+#if WITH_SERVER_CODE
 	// check the busiest channel among all clients to prevent server from being overloaded
 	bool bCanSend = true;
 	if (NetDriver->ClientConnections.Num() > 0)
@@ -347,7 +348,10 @@ void AReplayActor::Server_TickTransfer(float DeltaSeconds)
 		UE_LOG(LogBloodStain, Log, TEXT("No clients connected. Transfer cancelled."));
 		return;
 	}
+#else
+	// Server is the only one implementing the transfer logic, so we skipped this check in client builds.
 	
+#endif
 	// Only proceed with sending data if we are allowed to send
 	if (bCanSend)
 	{
