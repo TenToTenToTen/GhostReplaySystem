@@ -30,7 +30,7 @@ struct FBloodStainRecordOptions
 	FName FileName = NAME_None;
 
 	/** BloodStain GamePlayTags. This is stored in FRecordHeaderData */
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "BloodStain")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Record")
 	FGameplayTagContainer Tags;
 
 	/** Maximum recording duration in seconds */
