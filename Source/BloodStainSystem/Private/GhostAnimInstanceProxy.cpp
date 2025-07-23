@@ -4,6 +4,7 @@
 
 #include "GhostAnimInstanceProxy.h"
 #include "GhostAnimInstance.h"
+#include "Animation/AnimNodeBase.h"
 
 FGhostAnimInstanceProxy::FGhostAnimInstanceProxy(UAnimInstance* InInstance)
 	: FAnimInstanceProxy(InInstance)
@@ -13,7 +14,8 @@ FGhostAnimInstanceProxy::FGhostAnimInstanceProxy(UAnimInstance* InInstance)
 
 bool FGhostAnimInstanceProxy::Evaluate(FPoseContext& Output)
 {
-	const FBoneContainer& BoneContainer = Output.AnimInstanceProxy->GetRequiredBones();
+	FBoneContainer BoneContainer = FBoneContainer();
+	BoneContainer = Output.AnimInstanceProxy->GetRequiredBones();
 	const TArray<FTransform>& SrcPose = GhostInstance->GetPose();
 
 	if (SrcPose.Num() != BoneContainer.GetNumBones())

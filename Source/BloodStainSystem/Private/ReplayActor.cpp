@@ -8,6 +8,7 @@
 #include "BloodStainCompressionUtils.h"
 #include "QuantizationHelper.h"
 #include "Net/UnrealNetwork.h"
+#include "Engine/World.h"
 #include "Engine/NetDriver.h"
 #include "Engine/NetConnection.h"
 #include "Engine/ActorChannel.h"
@@ -37,10 +38,6 @@ void AReplayActor::BeginPlay()
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("AReplayActor::BeginPlay");
 	Super::BeginPlay();
 	ENetMode Mode = GetNetMode();
-	if (Mode == NM_DedicatedServer)
-	{
-		// SetActorTickEnabled(false);
-	}
 }
 
 
@@ -222,10 +219,6 @@ void AReplayActor::Client_FinalizeAndSpawnVisuals()
 		Destroy();
 		return;
 	}
-
-	// Hide the orchestrator actor itself and disable its tick.
-	// SetActorHiddenInGame(true);
-	// SetActorTickEnabled(false);
 
 	for (const FRecordActorSaveData& Data : AllReplayData.RecordActorDataArray)
 	{
@@ -412,85 +405,6 @@ void AReplayActor::Server_TickTransfer(float DeltaSeconds)
         Server_AccumulatedTickTime += DeltaSeconds;
     }
 
-	if (Server_BytesSent >= Server_CurrentPayload.Num())
-	{
-		UE_LOG(LogBloodStain, Log, TEXT("Payload transfer completed for actor %s."), *GetName());
-		bIsTransferInProgress = false;
-		Server_CurrentPayload.Empty();
-	}
-}
-
-void AReplayActor::Server_TickTransferByNetConnection(float DeltaSeconds)
-{
-	if (!bIsTransferInProgress || Server_CurrentPayload.IsEmpty())
-	{
-		bIsTransferInProgress = false;
-		return;
-	}
-
-	UNetConnection* NetConnection = GetNetConnection();
-	if (!NetConnection)
-	{
-		UE_LOG(LogBloodStain, Error, TEXT("Server_TickTransfer: No NetConnection found"));
-		return;
-	}
-
-	UActorChannel* Channel = NetConnection->FindActorChannelRef(this);
-	if (!Channel)
-	{
-		UE_LOG(LogBloodStain, Error, TEXT("Server_TickTransfer: No ActorChannel found for this actor"));
-		return;
-	}
-
-	const int32 ReliableBufferLimit = RELIABLE_BUFFER / 2;
-
-	int32 MaxBytesToSendThisTick = Server_CurrentPayload.Num();
-	const float TotalTimeSinceLastTransfer = DeltaSeconds + Server_AccumulatedTickTime;
-	if (RateLimitMbps > 0)
-	{
-		const float BytesPerSecond = (RateLimitMbps * 1024 * 1024) / 8.0f;
-		MaxBytesToSendThisTick = FMath::Max(1, static_cast<int32>(TotalTimeSinceLastTransfer * BytesPerSecond));
-	}
-
-	int32 BytesSentThisTick =0;
-	constexpr int32 MinChunkSize = 256;
-	constexpr int32 MaxChunkSize = 16 * 1024;
-
-	// There's data to send existing in the payload && Enough space for the reliable buffer && Didn't exceed the rate limit
-	while (Server_BytesSent < Server_CurrentPayload.Num() &&
-		Channel->NumOutRec < ReliableBufferLimit &&
-		BytesSentThisTick < MaxBytesToSendThisTick )
-	{
-		const int32 BytesRemaining = Server_CurrentPayload.Num() - Server_BytesSent;
-		const int32 BytesLeftInTick = MaxBytesToSendThisTick - BytesSentThisTick;
-
-		int32 ChunkSize = FMath::Min(BytesRemaining, MaxChunkSize);
-		ChunkSize = FMath::Min(ChunkSize, BytesLeftInTick);
-
-		const bool bIsLastChunk = (Server_BytesSent + ChunkSize) >= Server_CurrentPayload.Num();
-		if (!bIsLastChunk && ChunkSize < MinChunkSize && RateLimitMbps > 0)
-		{
-			// If the chunk is too small, we need to wait for more data to send
-			Server_AccumulatedTickTime += DeltaSeconds;
-			break;
-		}
-
-		TArray<uint8> ChunkData;
-		ChunkData.Append(Server_CurrentPayload.GetData() + Server_BytesSent, ChunkSize);
-
-		const int32 ChunkIndex = Server_BytesSent / MaxChunkSize;
-
-		Multicast_ReceivePayloadChunk(ChunkIndex, ChunkData, bIsLastChunk);
-
-		Server_BytesSent += ChunkSize;
-		BytesSentThisTick += ChunkSize;
-		Server_AccumulatedTickTime = 0.f;
-
-		UE_LOG(LogBloodStain, Log, TEXT("Server sent chunk %d/%d, Size: %d bytes"), 
-			ChunkIndex, FMath::DivideAndRoundUp(Server_CurrentPayload.Num(), MaxChunkSize), ChunkSize);
-	}
-
-	// Check if we have sent all data
 	if (Server_BytesSent >= Server_CurrentPayload.Num())
 	{
 		UE_LOG(LogBloodStain, Log, TEXT("Payload transfer completed for actor %s."), *GetName());

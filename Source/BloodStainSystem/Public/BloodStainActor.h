@@ -27,8 +27,6 @@ public:
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-	// virtual void BeginPlay() override;
-
 	void Initialize(const FString& InReplayFileName, const FString& InLevelName);
 	
 	UFUNCTION(BlueprintNativeEvent, Category="BloodStainActor")

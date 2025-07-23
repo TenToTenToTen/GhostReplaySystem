@@ -162,12 +162,12 @@ public:
 	 *  
 	 *  @param FileName          The name of the replay file.
 	 *  @param LevelName         The level where the replay was recorded.
-	 *  @param InPlaybackOptions Playback settings (rate, looping, etc.).
+	 *  @param PlaybackOptions Playback settings (rate, looping, etc.).
 	 *  @param OutGuid           Returns the unique ID of the new playback session.
 	 *  @return True on success, false otherwise.
 	 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
-	bool StartReplayFromFile(const FString& FileName, const FString& LevelName, FGuid& OutGuid, FBloodStainPlaybackOptions InPlaybackOptions = FBloodStainPlaybackOptions());
+	bool StartReplayFromFile(const FString& FileName, const FString& LevelName, FGuid& OutGuid, FBloodStainPlaybackOptions PlaybackOptions = FBloodStainPlaybackOptions());
 
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
 	bool IsPlaying(const FGuid& InPlaybackKey) const;
@@ -301,7 +301,7 @@ private:
 	 * Takes fully loaded replay data and spawns all necessary AReplayActor instances,
 	 * attaching and initializing a UPlayComponent to each one to begin playback.
 	 */
-	bool StartReplay_Standalone(const FRecordSaveData& RecordSaveData, const FBloodStainPlaybackOptions& InPlaybackOptions, FGuid& OutGuid);
+	bool StartReplay_Standalone(const FRecordSaveData& RecordSaveData, const FBloodStainPlaybackOptions& PlaybackOptions, FGuid& OutGuid);
 
 	/**
  	 * @brief Starts a replay session in networked mode.
@@ -309,7 +309,7 @@ private:
  	 * This function is intended for networked replay scenarios.
  	 * In network mode, each ReplayActor is responsible for deserializing, dequantizing, and decompressing its own data.
  	 */
-	bool StartReplay_Networked(const FString& FileName, const FString& LevelName, const FBloodStainFileHeader& FileHeader, const FRecordHeaderData& RecordHeader, const TArray<uint8>& CompressedPayload, const FBloodStainPlaybackOptions& InPlaybackOptions, FGuid& OutGuid);
+	bool StartReplay_Networked(const FString& FileName, const FString& LevelName, const FBloodStainFileHeader& FileHeader, const FRecordHeaderData& RecordHeader, const TArray<uint8>& CompressedPayload, const FBloodStainPlaybackOptions& PlaybackOptions, FGuid& OutGuid);
 	
 	/** Internal helper to package actor-specific data into the final save format.
 	 *  Aggregates multiple FRecordActorSaveData instances into a single FRecordSaveData.
@@ -395,7 +395,7 @@ public:
 	void RemoveFromPendingGroupWithActors(const FName& GroupName, TArray<AActor*> Actors);
 
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Experimental", meta=(ToolTip="This is Experimental Function"))
-	void StartRecordingWithPendingGroup(FBloodStainRecordOptions BloodStainRecordOptions);
+	void StartRecordingWithPendingGroup(FBloodStainRecordOptions RecordOptions);
 
 private:
 	TMap<FName, TSet<TWeakObjectPtr<AActor>>> PendingGroups;

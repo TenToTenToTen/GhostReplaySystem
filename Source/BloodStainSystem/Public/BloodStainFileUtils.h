@@ -51,9 +51,9 @@ namespace BloodStainFileUtils
 	int32 LoadHeadersForAllFiles(TMap<FString, FRecordHeaderData>& OutLoadedHeaders, const FString& LevelName);
 	
 	/**
-	 * 저장 디렉토리에서 모든 녹화 파일을 찾아 로드
-	 * @param OutLoadedDataMap 파일 이름(확장자 제외)을 키로, 로드된 데이터를 값으로 하는 맵
-	 * @return 성공적으로 로드한 파일의 개수를 반환
+	 * Finds and loads all recording files from the save directory.
+	 * @param OutLoadedDataMap A map where the key is the file name (without extension) and the value is the loaded data.
+	 * @return The number of files successfully loaded.
 	 */
 	int32 LoadAllFiles(TMap<FString, FRecordSaveData>& OutLoadedDataMap, const FString& LevelName);
 

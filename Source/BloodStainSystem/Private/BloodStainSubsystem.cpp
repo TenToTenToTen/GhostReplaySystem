@@ -18,8 +18,7 @@
 #include "UObject/ConstructorHelpers.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Kismet/GameplayStatics.h"
-#include "Algo/BinarySearch.h" 
-#include "LevelInstance/LevelInstanceTypes.h"
+#include "Algo/BinarySearch.h"
 
 class FSaveRecordingTask;
 
@@ -191,13 +190,6 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 			return;
 		}
 		
-	
-		// auto& Opts = BloodStainRecordGroup.RecordOptions;
-		// BloodStainRecordDataUtils::ClipActorSaveDataByGroup(
-		// RecordSaveDataArray, /* For Testing Value */ 3.0f ,Opts.SamplingInterval
-		// );
-		
-		
 		const FString MapName = UGameplayStatics::GetCurrentLevelName(GetWorld());
 		const FString GroupNameString = GroupName.ToString();
 		const FString UniqueTimestamp = FDateTime::Now().ToString(TEXT("%Y%m%d-%H%M%S%s"));
@@ -312,7 +304,7 @@ bool UBloodStainSubsystem::StartReplayByBloodStain(ABloodStainActor* BloodStainA
 	return StartReplayFromFile(BloodStainActor->ReplayFileName, BloodStainActor->LevelName, OutGuid, BloodStainActor->PlaybackOptions);
 }
 
-bool UBloodStainSubsystem::StartReplayFromFile(const FString& FileName, const FString& LevelName, FGuid& OutGuid, FBloodStainPlaybackOptions InPlaybackOptions)
+bool UBloodStainSubsystem::StartReplayFromFile(const FString& FileName, const FString& LevelName, FGuid& OutGuid, FBloodStainPlaybackOptions PlaybackOptions)
 {
 	const ENetMode NetMode = GetWorld()->GetNetMode();
 
@@ -325,7 +317,7 @@ bool UBloodStainSubsystem::StartReplayFromFile(const FString& FileName, const FS
 			return false;
 		}
 
-		return StartReplay_Standalone(Data, InPlaybackOptions, OutGuid);
+		return StartReplay_Standalone(Data, PlaybackOptions, OutGuid);
 	}
 	else // NM_ListenServer or NM_DedicatedServer
 	{
@@ -339,7 +331,7 @@ bool UBloodStainSubsystem::StartReplayFromFile(const FString& FileName, const FS
 			return false;
 		}
 	
-		return StartReplay_Networked(FileName, LevelName, FileHeader, RecordHeader, CompressedPayload, InPlaybackOptions, OutGuid);
+		return StartReplay_Networked(FileName, LevelName, FileHeader, RecordHeader, CompressedPayload, PlaybackOptions, OutGuid);
 	}
 	
 	
@@ -662,7 +654,7 @@ ABloodStainActor* UBloodStainSubsystem::SpawnBloodStain_Internal(const FVector& 
 	return BloodStain;
 }
 
-bool UBloodStainSubsystem::StartReplay_Standalone(const FRecordSaveData& RecordSaveData, const FBloodStainPlaybackOptions& InPlaybackOptions, FGuid& OutGuid)
+bool UBloodStainSubsystem::StartReplay_Standalone(const FRecordSaveData& RecordSaveData, const FBloodStainPlaybackOptions& PlaybackOptions, FGuid& OutGuid)
 {
 	OutGuid = FGuid();
 	if (RecordSaveData.RecordActorDataArray.IsEmpty())
@@ -698,7 +690,7 @@ bool UBloodStainSubsystem::StartReplay_Standalone(const FRecordSaveData& RecordS
 			continue;
 		}		
 		
-		GhostActor->InitializeReplayLocal(UniqueID, Header, ActorData, InPlaybackOptions);
+		GhostActor->InitializeReplayLocal(UniqueID, Header, ActorData, PlaybackOptions);
 		BloodStainPlaybackGroup.ActiveReplayers.Add(GhostActor);
 	}
 
@@ -714,7 +706,7 @@ bool UBloodStainSubsystem::StartReplay_Standalone(const FRecordSaveData& RecordS
 
 bool UBloodStainSubsystem::StartReplay_Networked(const FString& FileName, const FString& LevelName,
 	const FBloodStainFileHeader& FileHeader, const FRecordHeaderData& RecordHeader,
-	const TArray<uint8>& CompressedPayload, const FBloodStainPlaybackOptions& InPlaybackOptions, FGuid& OutGuid)
+	const TArray<uint8>& CompressedPayload, const FBloodStainPlaybackOptions& PlaybackOptions, FGuid& OutGuid)
 {
 	OutGuid = FGuid::NewGuid();
 
@@ -726,7 +718,7 @@ bool UBloodStainSubsystem::StartReplay_Networked(const FString& FileName, const 
 		return false;
 	}
 
-	GhostActor->Server_InitializeReplayWithPayload(OutGuid, FileHeader, RecordHeader, CompressedPayload, InPlaybackOptions);
+	GhostActor->Server_InitializeReplayWithPayload(OutGuid, FileHeader, RecordHeader, CompressedPayload, PlaybackOptions);
 
 	FBloodStainPlaybackGroup PlaybackGroup;
 	PlaybackGroup.ActiveReplayers.Add(GhostActor);
@@ -833,17 +825,17 @@ void UBloodStainSubsystem::RemoveFromPendingGroupWithActors(const FName& GroupNa
 	}
 }
 
-void UBloodStainSubsystem::StartRecordingWithPendingGroup(FBloodStainRecordOptions BloodStainRecordOptions)
+void UBloodStainSubsystem::StartRecordingWithPendingGroup(FBloodStainRecordOptions RecordOptions)
 {
-	if (PendingGroups.Contains(BloodStainRecordOptions.RecordingGroupName))
+	if (PendingGroups.Contains(RecordOptions.RecordingGroupName))
 	{
-		for (TWeakObjectPtr<AActor>& Actor : PendingGroups[BloodStainRecordOptions.RecordingGroupName])
+		for (TWeakObjectPtr<AActor>& Actor : PendingGroups[RecordOptions.RecordingGroupName])
 		{
 			if (Actor.IsValid())
 			{
-				StartRecording(Actor.Get(), BloodStainRecordOptions);
+				StartRecording(Actor.Get(), RecordOptions);
 			}
 		} 
-		PendingGroups.Remove(BloodStainRecordOptions.RecordingGroupName);
+		PendingGroups.Remove(RecordOptions.RecordingGroupName);
 	}
 }

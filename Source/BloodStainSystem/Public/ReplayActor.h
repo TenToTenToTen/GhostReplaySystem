@@ -147,8 +147,6 @@ private:
 	
 	/** [SERVER-ONLY] Process sending data in every tick */
 	void Server_TickTransfer(float DeltaSeconds);
-	
-	void Server_TickTransferByNetConnection(float DeltaSeconds);
 
 	/** [SERVER-ONLY] Process Playing Replay data every tick */
 	void Server_TickPlayback(float DeltaSeconds);
