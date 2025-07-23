@@ -48,6 +48,11 @@ struct FBloodStainRecordGroup
 	/** Map of actors currently being recorded to their URecordComponent instances */
 	UPROPERTY()
 	TMap<TObjectPtr<AActor>, TObjectPtr<URecordComponent>> ActiveRecorders;
+
+	/** The Actor represented to specify the SpawnPointTransform position
+	 *  If null, it is set to the middle position of the Actors. */
+	UPROPERTY()
+	TWeakObjectPtr<AActor> MainActor;
 };
 
 /** @brief Playback group: tracks active replay actors for a single replay session.
@@ -208,6 +213,11 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Record")
 	void NotifyComponentDetached(AActor* TargetActor, UMeshComponent* DetachedComponent);
+
+	/** Set Main Actor for specify the SpawnPointTransform position
+	 *  If null, it is set to the middle position of the Actors. */
+	UFUNCTION(BlueprintCallable, Category="BloodStain|Record")
+	void SetMainActor(AActor* TargetActor, FName GroupName = NAME_None);
 	
 public:
 	/**

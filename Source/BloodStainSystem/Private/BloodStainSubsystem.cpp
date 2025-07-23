@@ -140,7 +140,8 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 		const float FrameBaseEndTime = BloodStainRecordGroup.WorldBaseGroupEndTime - BloodStainRecordGroup.WorldBaseGroupStartTime;
 		const float EffectiveStartTime = FrameBaseEndTime - BloodStainRecordGroup.RecordOptions.MaxRecordTime;
 		const float FrameBaseStartTime = EffectiveStartTime > 0 ? EffectiveStartTime : 0;
-		
+
+		TMap<FName, int32> RecordDataIndexMap;
 		TArray<FRecordActorSaveData> RecordSaveDataArray;
 		
 		for (const auto& [Actor, RecordComponent] : BloodStainRecordGroup.ActiveRecorders)
@@ -164,18 +165,25 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 				continue;
 			}
 			RecordSaveDataArray.Add(RecordSaveData);
+			int32 RecordDataIndex = RecordSaveDataArray.Num() - 1;
+			RecordDataIndexMap.Add(Actor->GetFName(), RecordDataIndex);
 		}
 
-		TArray<FRecordActorSaveData> TerminatedActorSaveDataArray = ReplayTerminatedActorManager->CookQueuedFrames(GroupName, FrameBaseStartTime);
-		for (const FRecordActorSaveData& RecordActorSaveData : TerminatedActorSaveDataArray)
+		TArray<FName> ActorNameArray;
+		TArray<FRecordActorSaveData> TerminatedActorSaveDataArray = ReplayTerminatedActorManager->CookQueuedFrames(GroupName, FrameBaseStartTime, ActorNameArray);
+		for (int32 Index = 0; Index < TerminatedActorSaveDataArray.Num(); Index++)
 		{
-			// TODO : Check if RecordActorSaveData is valid
+			const FRecordActorSaveData& RecordActorSaveData = TerminatedActorSaveDataArray[Index];
+			const FName& ActorName = ActorNameArray[Index];
+
 			if (!RecordActorSaveData.IsValid())
 			{
 				UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording Warning: Frame num is 0"));
 				continue;
 			}
 			RecordSaveDataArray.Add(RecordActorSaveData);
+			int32 RecordDataIndex = RecordSaveDataArray.Num() - 1;
+			RecordDataIndexMap.Add(ActorName, RecordDataIndex);
 		}
 	
 		if (RecordSaveDataArray.Num() == 0)
@@ -195,17 +203,27 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 		const FString GroupNameString = GroupName.ToString();
 		const FString UniqueTimestamp = FDateTime::Now().ToString(TEXT("%Y%m%d-%H%M%S%s"));
 
-		FTransform RootTransform = FTransform::Identity;
-		for (const FRecordActorSaveData& SaveData : RecordSaveDataArray)
+		if (BloodStainRecordGroup.MainActor.Get() != nullptr && RecordDataIndexMap.Contains(BloodStainRecordGroup.MainActor->GetFName()))
 		{
-			FTransform Transform = SaveData.RecordedFrames[0].ComponentTransforms[SaveData.PrimaryComponentName.ToString()];
-			RootTransform += Transform;
+			const int32 Index = RecordDataIndexMap[BloodStainRecordGroup.MainActor->GetFName()];
+			const FRecordActorSaveData& SaveData = RecordSaveDataArray[Index];
+			
+			BloodStainRecordGroup.SpawnPointTransform = SaveData.RecordedFrames[0].ComponentTransforms[SaveData.PrimaryComponentName.ToString()];
 		}
-
-		RootTransform.SetLocation(RootTransform.GetLocation() / RecordSaveDataArray.Num());
-		RootTransform.NormalizeRotation();
-		RootTransform.SetScale3D(RootTransform.GetScale3D() / RecordSaveDataArray.Num());
-		BloodStainRecordGroup.SpawnPointTransform = RootTransform;
+		else
+		{
+			FTransform RootTransform = FTransform::Identity;
+			for (const FRecordActorSaveData& SaveData : RecordSaveDataArray)
+			{
+				FTransform Transform = SaveData.RecordedFrames[0].ComponentTransforms[SaveData.PrimaryComponentName.ToString()];
+				RootTransform += Transform;
+			}
+			
+			RootTransform.SetLocation(RootTransform.GetLocation() / RecordSaveDataArray.Num());
+			RootTransform.NormalizeRotation();
+			RootTransform.SetScale3D(RootTransform.GetScale3D() / RecordSaveDataArray.Num());
+			BloodStainRecordGroup.SpawnPointTransform = RootTransform;
+		}
 	
 		if (BloodStainRecordGroup.RecordOptions.FileName == NAME_None)
 		{
@@ -521,7 +539,7 @@ TArray<ABloodStainActor*> UBloodStainSubsystem::SpawnAllBloodStainInLevel()
 {
 	FString LevelName = UGameplayStatics::GetCurrentLevelName(GetWorld());
 	
-	// TODO - Currently deleting all cached datas
+	// TODO - Currently Reload all cached data
 	
 	const int32 LoadedCount = BloodStainFileUtils::LoadHeadersForAllFiles(CachedHeaders, LevelName);
 
@@ -570,6 +588,20 @@ void UBloodStainSubsystem::NotifyComponentDetached(AActor* TargetActor, UMeshCom
 	if (URecordComponent* RecordComponent = TargetActor->GetComponentByClass<URecordComponent>())
 	{
 		RecordComponent->OnComponentDetached(DetachedComponent);
+	}
+}
+
+void UBloodStainSubsystem::SetMainActor(AActor* TargetActor, FName GroupName)
+{
+	if (GroupName == NAME_None)
+	{
+		GroupName = DefaultGroupName;
+	}
+	
+	if (BloodStainRecordGroups.Contains(GroupName))
+	{
+		FBloodStainRecordGroup& BloodStainRecordGroup = BloodStainRecordGroups[GroupName];
+		BloodStainRecordGroup.MainActor = TargetActor;
 	}
 }
 

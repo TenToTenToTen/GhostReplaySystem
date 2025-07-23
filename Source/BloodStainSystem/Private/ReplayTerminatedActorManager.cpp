@@ -101,9 +101,11 @@ void UReplayTerminatedActorManager::CollectRecordGroups(float DeltaTime)
 	}
 }
 
-TArray<FRecordActorSaveData> UReplayTerminatedActorManager::CookQueuedFrames(const FName& GroupName, const float& BaseTime)
+TArray<FRecordActorSaveData> UReplayTerminatedActorManager::CookQueuedFrames(const FName& GroupName, const float& BaseTime, TArray<FName>& OutActorNameArray)
 {
 	TArray<FRecordActorSaveData> Result = TArray<FRecordActorSaveData>();
+	OutActorNameArray.Empty();
+	
 	if (!RecordGroups.Contains(GroupName))
 	{
 		UE_LOG(LogBloodStain, Warning, TEXT("There is No Group for %s"), *GroupName.ToString());
@@ -123,10 +125,10 @@ TArray<FRecordActorSaveData> UReplayTerminatedActorManager::CookQueuedFrames(con
 	{
 		if (BloodStainRecordDataUtils::CookQueuedFrames(RecordGroupData.RecordOptions.SamplingInterval, BaseTime, RecordComponentData.FrameQueuePtr.Get(), RecordComponentData.GhostSaveData, RecordComponentData.ComponentIntervals))
 		{
+			OutActorNameArray.Add(RecordComponentData.ActorName);
 			Result.Add(RecordComponentData.GhostSaveData);
 		}
 	}
 	
 	return Result;
 }
-
