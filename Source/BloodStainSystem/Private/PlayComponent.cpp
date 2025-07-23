@@ -38,145 +38,14 @@ UPlayComponent::UPlayComponent()
 	PrimaryComponentTick.bCanEverTick = true;
 }
 
-void UPlayComponent::BeginPlay()
-{
-	Super::BeginPlay();
-}
-
-void UPlayComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
-{
-	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_TickComponent); 
-	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
-	// if (!bIsInitialized)
-	// {
-	// 	return;
-	// }
-
-	// Calculate Playing time and see if replay has to be continued
-	// if (!CalculatePlaybackTime(ElapsedTime))
-	// {
-	// 	FinishReplay();
-	// 	return;
-	// }
-	
-	// Update the playback stat including transform interpolation
-	// UpdatePlaybackToTime(ElapsedTime);
-	// Calculate Playing time and see if replay has to be continued
-	// if (!CalculatePlaybackTime(ElapsedTime))
-	// {
-	// 	FinishReplay();
-	// 	return;
-	// }
-
-	// const bool bShouldBeHidden = ReplayData.RecordedFrames.IsEmpty() || 
-	// 							 ElapsedTime < ReplayData.RecordedFrames[0].TimeStamp || 
-	// 							 ElapsedTime > ReplayData.RecordedFrames.Last().TimeStamp;
-	// ReplayActor->SetActorHiddenInGame(bShouldBeHidden);
-	//
-	// if (bShouldBeHidden)
-	// {
-	// 	return;
-	// }
-	//
-	// Update the playback stat including transform interpolation
-	// UpdatePlaybackToTime(ElapsedTime);
-	// float ElapsedTime = 0.0f;
-	//
-	// // Calculate Playing time and see if replay has to be continued
-	// if (!CalculatePlaybackTime(ElapsedTime))
-	// {
-	// 	FinishReplay();
-	// 	return;
-	// }
-	//
-	// // Update the playback stat including transform interpolation
-	// UpdatePlaybackToTime(ElapsedTime);
-}
-
-bool UPlayComponent::CalculatePlaybackTime(float& OutElapsedTime)
-{
-	const TArray<FRecordFrame>& Frames = ReplayData.RecordedFrames;
-	constexpr int32 MinFramesRequired = 2;
-	if (Frames.Num() < MinFramesRequired)
-	{
-		return false;
-	}
-
-	const float Duration = RecordHeaderData.TotalLength;
-	if (Duration <= 0.0f)
-	{
-		return false;
-	}
-
-	// Caculate elapsed time based on the current world time
-	OutElapsedTime = (GetWorld()->GetTimeSeconds() - PlaybackStartTime) * PlaybackOptions.PlaybackRate;
-
-	if (PlaybackOptions.bIsLooping)
-	{
-		// Looping playback: wrap the time to the [0, Duration) range.
-		OutElapsedTime = FMath::Fmod(OutElapsedTime, Duration);
-		if (OutElapsedTime < 0.0f)
-		{
-			OutElapsedTime += Duration;
-		}
-	}
-	else
-	{
-		// Single playback: check if the time is out of bounds.
-		// For reverse playback, values start as negative, so add Duration to map to the [0, Duration] range.
-		if (PlaybackOptions.PlaybackRate < 0.0f)
-		{
-			OutElapsedTime += Duration;
-		}
-
-		if (OutElapsedTime < 0.0f || OutElapsedTime > Duration)
-		{
-			return false;
-		}
-	}
-
-	return true;
-}
-
-void UPlayComponent::UpdatePlaybackToTime(float ElapsedTime)
-{
-	const TArray<FRecordFrame>& Frames = ReplayData.RecordedFrames;
-	const int32 PreviousFrame = CurrentFrame;
-
-	// Find the correct frame index for the current time using a binary search.
-	const int32 UpperBoundIndex = Algo::UpperBoundBy(Frames, ElapsedTime, [](const FRecordFrame& Frame) {
-		return Frame.TimeStamp;
-	});
-	const int32 NewFrameIndex = FMath::Clamp(UpperBoundIndex - 1, 0, Frames.Num() - 2);
-	
-	CurrentFrame = NewFrameIndex;
-	if (PreviousFrame != CurrentFrame)
-	{
-		// Only handle component activation/deactivation when the frame index changes.
-		SeekFrame(CurrentFrame);
-	}
-
-	// Interpolate between the current and next frames, then apply the transforms.
-	const FRecordFrame& Prev = Frames[CurrentFrame];
-	const FRecordFrame& Next = Frames[CurrentFrame + 1];
-    
-	const float FrameDuration = Next.TimeStamp - Prev.TimeStamp;
-	const float Alpha = (FrameDuration > KINDA_SMALL_NUMBER)
-		? FMath::Clamp((ElapsedTime - Prev.TimeStamp) / FrameDuration, 0.0f, 1.0f)
-		: 1.0f;
-	
-	ApplyComponentTransforms(Prev, Next, Alpha);
-	ApplySkeletalBoneTransforms(Prev, Next, Alpha);
-}
-
 void UPlayComponent::Initialize(FGuid InPlaybackKey, const FRecordHeaderData& InRecordHeaderData, const FRecordActorSaveData& InReplayData, const FBloodStainPlaybackOptions& InPlaybackOptions)
 {
 	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_Initialize);
 	ReplayActor = GetOwner();
 	PlaybackKey = InPlaybackKey;
 	RecordHeaderData = InRecordHeaderData;
-    ReplayData = InReplayData;
+
+	ReplayData = InReplayData;
     PlaybackOptions = InPlaybackOptions;
 
     PlaybackStartTime = GetWorld()->GetTimeSeconds();
@@ -237,17 +106,17 @@ void UPlayComponent::Initialize(FGuid InPlaybackKey, const FRecordHeaderData& In
 	}
 
 	SkelInfos.Reset();
-	for (auto& Pair : ReconstructedComponents)
+	for (auto& [ComponentName, Component] : ReconstructedComponents)
 	{
-		if (auto* Sk = Cast<USkeletalMeshComponent>(Pair.Value))
+		if (USkeletalMeshComponent* Sk = Cast<USkeletalMeshComponent>(Component))
 		{
-			SkelInfos.Emplace(Sk, *Pair.Key);
+			SkelInfos.Emplace(Sk, *ComponentName);
 		}
 	}
 	
 	// Initialize the Interval Tree for querying active components at a specific point(frame) in time.
 	TArray<FComponentActiveInterval*> Ptrs;
-	for (auto& I : ReplayData.ComponentIntervals)
+	for (FComponentActiveInterval& I : ReplayData.ComponentIntervals)
 	{
 		// I.EndFrame = FMath::Clamp(I.EndFrame, 0, ReplayData.RecordedFrames.Num() - 1);
 		Ptrs.Add(&I);			
@@ -256,11 +125,6 @@ void UPlayComponent::Initialize(FGuid InPlaybackKey, const FRecordHeaderData& In
 	SeekFrame(0);
 	
 	bIsInitialized = true;
-}
-
-bool UPlayComponent::IsTickable() const
-{
-	return bIsInitialized;
 }
 
 void UPlayComponent::FinishReplay() const
@@ -282,6 +146,89 @@ void UPlayComponent::FinishReplay() const
 			}
 		}
 	}
+}
+
+bool UPlayComponent::CalculatePlaybackTime(float& OutElapsedTime)
+{
+	const TArray<FRecordFrame>& Frames = ReplayData.RecordedFrames;
+	constexpr int32 MinFramesRequired = 2;
+	if (Frames.Num() < MinFramesRequired)
+	{
+		return false;
+	}
+
+	const float Duration = RecordHeaderData.TotalLength;
+	if (Duration <= 0.f)
+	{
+		return false;
+	}
+
+	static float Epsilon = FLT_EPSILON;  
+
+	// Calculate elapsed time based on the current world time
+	OutElapsedTime = FMath::Max(GetWorld()->GetTimeSeconds() - PlaybackStartTime * PlaybackOptions.PlaybackRate, 0.f);
+
+	if (PlaybackOptions.bIsLooping)
+	{
+		// Looping playback: wrap the time to the [0, Duration) range.
+		OutElapsedTime = FMath::Fmod(OutElapsedTime, Duration);
+		if (OutElapsedTime < -Epsilon)
+		{
+			OutElapsedTime += Duration;
+		}
+	}
+	else
+	{
+		// Single playback: check if the time is out of bounds.
+		// For reverse playback, values start as negative, so add Duration to map to the [0, Duration] range.
+		if (PlaybackOptions.PlaybackRate < 0.f)
+		{
+			OutElapsedTime += Duration;
+		}
+
+		if (OutElapsedTime < -Epsilon || OutElapsedTime > Duration)
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+void UPlayComponent::UpdatePlaybackToTime(float ElapsedTime)
+{
+	const TArray<FRecordFrame>& Frames = ReplayData.RecordedFrames;
+	const int32 PreviousFrame = CurrentFrame;
+
+	// Find the correct frame index for the current time using a binary search.
+	const int32 UpperBoundIndex = Algo::UpperBoundBy(Frames, ElapsedTime, [](const FRecordFrame& Frame) {
+		return Frame.TimeStamp;
+	});
+	const int32 NewFrameIndex = FMath::Clamp(UpperBoundIndex - 1, 0, Frames.Num() - 2);
+	
+	CurrentFrame = NewFrameIndex;
+	if (PreviousFrame != CurrentFrame)
+	{
+		// Only handle component activation/deactivation when the frame index changes.
+		SeekFrame(CurrentFrame);
+	}
+
+	// Interpolate between the current and next frames, then apply the transforms.
+	const FRecordFrame& Prev = Frames[CurrentFrame];
+	const FRecordFrame& Next = Frames[CurrentFrame + 1];
+    
+	const float FrameDuration = Next.TimeStamp - Prev.TimeStamp;
+	const float Alpha = (FrameDuration > KINDA_SMALL_NUMBER)
+		? FMath::Clamp((ElapsedTime - Prev.TimeStamp) / FrameDuration, 0.0f, 1.0f)
+		: 1.0f;
+	
+	ApplyComponentTransforms(Prev, Next, Alpha);
+	ApplySkeletalBoneTransforms(Prev, Next, Alpha);
+}
+
+bool UPlayComponent::IsTickable() const
+{
+	return bIsInitialized;
 }
 
 FGuid UPlayComponent::GetPlaybackKey() const
@@ -324,8 +271,8 @@ void UPlayComponent::ApplySkeletalBoneTransforms(const FRecordFrame& Prev, const
 
 	for (const FSkelReplayInfo& Info : SkelInfos)
 	{
-		const FBoneComponentSpace* PrevBones = Prev.SkeletalMeshBoneTransforms.Find(Info.Key);
-		const FBoneComponentSpace* NextBones = Next.SkeletalMeshBoneTransforms.Find(Info.Key);
+		const FBoneComponentSpace* PrevBones = Prev.SkeletalMeshBoneTransforms.Find(Info.ComponentName);
+		const FBoneComponentSpace* NextBones = Next.SkeletalMeshBoneTransforms.Find(Info.ComponentName);
 		if (!PrevBones || !NextBones)
 		{
 			continue;
@@ -337,7 +284,7 @@ void UPlayComponent::ApplySkeletalBoneTransforms(const FRecordFrame& Prev, const
 			continue;
 		}
 
-		TArray<FTransform>& OutPose = Info.Buffer;
+		TArray<FTransform> OutPose;
 		OutPose.SetNumUninitialized(NumBones);
 
 		for (int32 i = 0; i < NumBones; ++i)
@@ -350,7 +297,7 @@ void UPlayComponent::ApplySkeletalBoneTransforms(const FRecordFrame& Prev, const
 			OutPose[i].SetScale3D(FMath::Lerp(P.GetScale3D(), N.GetScale3D(), Alpha));
 		}
 
-		if (auto* GhostAnim = Cast<UGhostAnimInstance>(Info.Comp->GetAnimInstance()))
+		if (auto* GhostAnim = Cast<UGhostAnimInstance>(Info.Component->GetAnimInstance()))
 		{
 			GhostAnim->SetTargetPose(OutPose);
 		}
