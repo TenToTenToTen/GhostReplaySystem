@@ -95,6 +95,7 @@ struct FBloodStainPlaybackOptions
 		Ar << Data.PlaybackRate;
 		Ar << Data.bIsLooping;
 		Ar << Data.bUseGhostMaterial;
+		Ar << Data.GroupGhostMaterial;
 		return Ar;
 	}
 };
