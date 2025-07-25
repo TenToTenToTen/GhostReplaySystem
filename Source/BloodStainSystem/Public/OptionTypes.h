@@ -86,7 +86,7 @@ struct FBloodStainPlaybackOptions
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Replay")
 	bool bUseGhostMaterial = true;
 	
-	UPROPERTY(EditAnywhere, meta = (EditCondition = "bUseGhostMaterial"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (EditCondition = "bUseGhostMaterial", EditConditionHides))
 	UMaterialInterface* GroupGhostMaterial = nullptr;
 
 	
