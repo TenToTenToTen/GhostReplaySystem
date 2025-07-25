@@ -402,7 +402,14 @@ USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecor
 		// Force the ghost material if the option is enabled
 		if ((PlaybackOptions.bUseGhostMaterial || Record.MaterialPaths[MatIndex].IsEmpty()) && DefaultMaterial)
 		{
-			NewMeshComponent->SetMaterial(MatIndex, DefaultMaterial);
+			if (PlaybackOptions.GroupGhostMaterial != nullptr)
+			{
+				NewMeshComponent->SetMaterial(MatIndex, PlaybackOptions.GroupGhostMaterial);
+			}
+			else
+			{
+				NewMeshComponent->SetMaterial(MatIndex, DefaultMaterial);
+			}
 			continue; // Move to the next material slot.
 		}
 

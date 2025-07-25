@@ -85,6 +85,9 @@ struct FBloodStainPlaybackOptions
 	/** If true, use ghost material instead of original recorded one */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Replay")
 	bool bUseGhostMaterial = true;
+	
+	UPROPERTY(EditAnywhere, meta = (EditCondition = "bUseGhostMaterial"))
+	UMaterialInterface* GroupGhostMaterial = nullptr;
 
 	
 	friend FArchive& operator<<(FArchive& Ar, FBloodStainPlaybackOptions& Data)
