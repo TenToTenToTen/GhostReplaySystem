@@ -26,7 +26,10 @@ bool FGhostAnimInstanceProxy::Evaluate(FPoseContext& Output)
 
 	for (int32 BoneIndex = 0; BoneIndex < BoneContainer.GetNumBones(); ++BoneIndex)
 	{
-		FCompactPoseBoneIndex CompactIndex(BoneIndex);
+		FCompactPoseBoneIndex CompactIndex = BoneContainer.GetCompactPoseIndexFromSkeletonIndex(BoneIndex);
+		if (!CompactIndex.IsValid() || !Output.Pose.IsValidIndex(CompactIndex))
+			continue;
+
 		Output.Pose[CompactIndex] = SrcPose[BoneIndex];
 	}
 	return true;
