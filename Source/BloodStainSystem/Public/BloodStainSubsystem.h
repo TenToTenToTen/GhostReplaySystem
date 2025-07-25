@@ -52,7 +52,7 @@ struct FBloodStainRecordGroup
 	/** The Actor represented to specify the SpawnPointTransform position
 	 *  If null, it is set to the middle position of the Actors. */
 	UPROPERTY()
-	TWeakObjectPtr<AActor> MainActor;
+	TWeakObjectPtr<AActor> RecordingMainActor;
 };
 
 /** @brief Playback group: tracks active replay actors for a single replay session.
@@ -65,6 +65,17 @@ struct FBloodStainPlaybackGroup
 	/** Set of currently active replay actors */
 	UPROPERTY()
 	TSet<TObjectPtr<AReplayActor>> ActiveReplayers;
+};
+
+USTRUCT()
+struct FPendingGroup
+{
+	GENERATED_BODY()
+	
+	TSet<TWeakObjectPtr<AActor>> Actors;
+
+	UPROPERTY()
+	TWeakObjectPtr<AActor> RecordingMainActor = nullptr;
 };
 
 
@@ -217,7 +228,7 @@ public:
 	/** Set Main Actor for specify the SpawnPointTransform position
 	 *  If null, it is set to the middle position of the Actors. */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Record")
-	void SetMainActor(AActor* TargetActor, FName GroupName = NAME_None);
+	void SetRecordingGroupMainActor(AActor* TargetActor, FName GroupName = NAME_None);
 	
 public:
 	/**
@@ -288,6 +299,10 @@ public:
 	/** @return The currently set default ghost material. */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
 	UMaterialInterface* GetDefaultMaterial() const { return GhostMaterial; }
+
+	/** If GroupName is Name_None, Set GroupName to this */
+	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
+	void SetDefaultGroupName(const FName& InDefaultGroupName) { DefaultGroupName = InDefaultGroupName; }
 	
 	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
 	void SetFileSaveOptions(const FBloodStainFileOptions& InOptions);
@@ -375,28 +390,32 @@ private:
 	TMap<FName, FReplayCustomUserData> ReplayCustomUserDataMap;
 	
 	/** Default group name to use if one is not specified when starting a recording. */
-	static FName DefaultGroupName;
+	FName DefaultGroupName = TEXT("BloodStainReplay");
 
 	/** Distance to trace downwards to find the ground when spawning a BloodStainActor. */
 	static float LineTraceLength;
 
 	// Experimental
+	// Pending to Record & Start In an instant
 public:
-	UFUNCTION(BlueprintCallable, Category="BloodStain|Experimental", meta=(ToolTip="This is Experimental Function"))
-	void AddToPendingGroup(const FName& GroupName, AActor* Actor);
+	UFUNCTION(BlueprintCallable, Category="BloodStain|Pending|Experimental", meta=(ToolTip="This is Experimental Function"))
+	void AddToPendingGroup(AActor* Actor, FName GroupName = NAME_None);
 
-	UFUNCTION(BlueprintCallable, Category="BloodStain|Experimental", meta=(ToolTip="This is Experimental Function"))
-	void AddToPendingGroupWithActors(const FName& GroupName, TArray<AActor*> Actors);
+	UFUNCTION(BlueprintCallable, Category="BloodStain|Pending|Experimental", meta=(ToolTip="This is Experimental Function"))
+	void AddToPendingGroupWithActors(TArray<AActor*> Actors, FName GroupName = NAME_None);
 
-	UFUNCTION(BlueprintCallable, Category="BloodStain|Experimental", meta=(ToolTip="This is Experimental Function"))
-	void RemoveFromPendingGroup(const FName& GroupName, AActor* Actor);
+	UFUNCTION(BlueprintCallable, Category="BloodStain|Pending|Experimental", meta=(ToolTip="This is Experimental Function"))
+	void RemoveFromPendingGroup(AActor* Actor, FName GroupName = NAME_None);
 	
-	UFUNCTION(BlueprintCallable, Category="BloodStain|Experimental", meta=(ToolTip="This is Experimental Function"))
-	void RemoveFromPendingGroupWithActors(const FName& GroupName, TArray<AActor*> Actors);
+	UFUNCTION(BlueprintCallable, Category="BloodStain|Pending|Experimental", meta=(ToolTip="This is Experimental Function"))
+	void RemoveFromPendingGroupWithActors(TArray<AActor*> Actors, FName GroupName = NAME_None);
 
-	UFUNCTION(BlueprintCallable, Category="BloodStain|Experimental", meta=(ToolTip="This is Experimental Function"))
+	UFUNCTION(BlueprintCallable, Category="BloodStain|Pending|Experimental", meta=(ToolTip="This is Experimental Function"))
 	void StartRecordingWithPendingGroup(FBloodStainRecordOptions RecordOptions);
 
+	UFUNCTION(BlueprintCallable, Category="BloodStain|Pending|Experimental", meta=(ToolTip="This is Experimental Function"))
+	void SetPendingGroupMainActor(AActor* TargetActor, FName GroupName = NAME_None);
+
 private:
-	TMap<FName, TSet<TWeakObjectPtr<AActor>>> PendingGroups;
+	TMap<FName, FPendingGroup> PendingGroups;
 };

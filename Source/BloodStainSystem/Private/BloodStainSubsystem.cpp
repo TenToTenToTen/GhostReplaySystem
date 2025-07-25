@@ -23,7 +23,6 @@
 class FSaveRecordingTask;
 
 float UBloodStainSubsystem::LineTraceLength = 500.f;
-FName UBloodStainSubsystem::DefaultGroupName = TEXT("BloodStainReplay");
 
 UBloodStainSubsystem::UBloodStainSubsystem()
 {
@@ -52,11 +51,6 @@ bool UBloodStainSubsystem::StartRecording(AActor* TargetActor, FBloodStainRecord
 	{
 		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StartRecording failed: TargetActor is null."));
 		return false;
-	}
-
-	if (RecordOptions.RecordingGroupName == NAME_None)
-	{
-		RecordOptions.RecordingGroupName = DefaultGroupName;
 	}
 
 	if (!BloodStainRecordGroups.Contains(RecordOptions.RecordingGroupName))
@@ -119,11 +113,6 @@ bool UBloodStainSubsystem::StartRecordingWithActors(TArray<AActor*> TargetActors
 
 void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingData)
 {	
-	if (GroupName == NAME_None)
-	{
-		GroupName = DefaultGroupName;
-	}
-	
 	if (!BloodStainRecordGroups.Contains(GroupName))
 	{
 		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording failed: Record Group %s is not recording"), GetData(GroupName.ToString()));
@@ -191,12 +180,17 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 		}
 		
 		const FString MapName = UGameplayStatics::GetCurrentLevelName(GetWorld());
-		const FString GroupNameString = GroupName.ToString();
+		FString GroupNameString = GroupName.ToString();
 		const FString UniqueTimestamp = FDateTime::Now().ToString(TEXT("%Y%m%d-%H%M%S%s"));
 
-		if (BloodStainRecordGroup.MainActor.Get() != nullptr && RecordDataIndexMap.Contains(BloodStainRecordGroup.MainActor->GetFName()))
+		if (GroupName == NAME_None)
 		{
-			const int32 Index = RecordDataIndexMap[BloodStainRecordGroup.MainActor->GetFName()];
+			GroupNameString = DefaultGroupName.ToString();
+		}
+
+		if (BloodStainRecordGroup.RecordingMainActor.Get() != nullptr && RecordDataIndexMap.Contains(BloodStainRecordGroup.RecordingMainActor->GetFName()))
+		{
+			const int32 Index = RecordDataIndexMap[BloodStainRecordGroup.RecordingMainActor->GetFName()];
 			const FRecordActorSaveData& SaveData = RecordSaveDataArray[Index];
 			
 			BloodStainRecordGroup.SpawnPointTransform = SaveData.RecordedFrames[0].ComponentTransforms[SaveData.PrimaryComponentName.ToString()];
@@ -588,17 +582,12 @@ void UBloodStainSubsystem::NotifyComponentDetached(AActor* TargetActor, UMeshCom
 	}
 }
 
-void UBloodStainSubsystem::SetMainActor(AActor* TargetActor, FName GroupName)
-{
-	if (GroupName == NAME_None)
-	{
-		GroupName = DefaultGroupName;
-	}
-	
+void UBloodStainSubsystem::SetRecordingGroupMainActor(AActor* TargetActor, FName GroupName)
+{	
 	if (BloodStainRecordGroups.Contains(GroupName))
 	{
 		FBloodStainRecordGroup& BloodStainRecordGroup = BloodStainRecordGroups[GroupName];
-		BloodStainRecordGroup.MainActor = TargetActor;
+		BloodStainRecordGroup.RecordingMainActor = TargetActor;
 	}
 }
 
@@ -788,40 +777,40 @@ void UBloodStainSubsystem::SetFileSaveOptions(const FBloodStainFileOptions& InOp
 	FileSaveOptions = InOptions;
 }
 
-void UBloodStainSubsystem::AddToPendingGroup(const FName& GroupName, AActor* Actor)
+void UBloodStainSubsystem::AddToPendingGroup(AActor* Actor, FName GroupName)
 {
 	if (!PendingGroups.Contains(GroupName))
 	{
-		PendingGroups.Add(GroupName, TSet<TWeakObjectPtr<AActor>>());
+		PendingGroups.Add(GroupName, FPendingGroup());
 	}
-	PendingGroups[GroupName].Add(Actor);
+	PendingGroups[GroupName].Actors.Add(Actor);
 }
 
-void UBloodStainSubsystem::AddToPendingGroupWithActors(const FName& GroupName, TArray<AActor*> Actors)
+void UBloodStainSubsystem::AddToPendingGroupWithActors(TArray<AActor*> Actors, FName GroupName)
 {
 	for (AActor* Actor : Actors)
 	{
-		AddToPendingGroup(GroupName, Actor);
+		AddToPendingGroup(Actor, GroupName);
 	}
 }
 
-void UBloodStainSubsystem::RemoveFromPendingGroup(const FName& GroupName, AActor* Actor)
+void UBloodStainSubsystem::RemoveFromPendingGroup(AActor* Actor, FName GroupName)
 {
 	if (PendingGroups.Contains(GroupName))
 	{
-		PendingGroups[GroupName].Remove(Actor);
-		if (PendingGroups[GroupName].Num() == 0)
+		PendingGroups[GroupName].Actors.Remove(Actor);
+		if (PendingGroups[GroupName].Actors.Num() == 0)
 		{
 			PendingGroups.Remove(GroupName);
 		}
 	}
 }
 
-void UBloodStainSubsystem::RemoveFromPendingGroupWithActors(const FName& GroupName, TArray<AActor*> Actors)
+void UBloodStainSubsystem::RemoveFromPendingGroupWithActors(TArray<AActor*> Actors, FName GroupName)
 {
 	for (AActor* Actor : Actors)
 	{
-		RemoveFromPendingGroup(GroupName, Actor);
+		RemoveFromPendingGroup(Actor, GroupName);
 	}
 }
 
@@ -829,13 +818,29 @@ void UBloodStainSubsystem::StartRecordingWithPendingGroup(FBloodStainRecordOptio
 {
 	if (PendingGroups.Contains(RecordOptions.RecordingGroupName))
 	{
-		for (TWeakObjectPtr<AActor>& Actor : PendingGroups[RecordOptions.RecordingGroupName])
+		FPendingGroup& PendingGroup = PendingGroups[RecordOptions.RecordingGroupName];
+		for (TWeakObjectPtr<AActor>& Actor : PendingGroup.Actors)
 		{
 			if (Actor.IsValid())
 			{
 				StartRecording(Actor.Get(), RecordOptions);
 			}
-		} 
+		}
+
+		if (PendingGroup.RecordingMainActor.Get() != nullptr)
+		{
+			SetRecordingGroupMainActor(PendingGroup.RecordingMainActor.Get(), RecordOptions.RecordingGroupName);
+		}
+		
 		PendingGroups.Remove(RecordOptions.RecordingGroupName);
+	}
+}
+
+void UBloodStainSubsystem::SetPendingGroupMainActor(AActor* TargetActor, FName GroupName)
+{
+	if (PendingGroups.Contains(GroupName))
+	{
+		FPendingGroup& PendingGroup = PendingGroups[GroupName];
+		PendingGroup.RecordingMainActor = TargetActor;
 	}
 }
