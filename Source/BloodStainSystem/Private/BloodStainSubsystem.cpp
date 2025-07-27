@@ -197,17 +197,8 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 		}
 		else
 		{
-			FTransform RootTransform = FTransform::Identity;
-			for (const FRecordActorSaveData& SaveData : RecordSaveDataArray)
-			{
-				FTransform Transform = SaveData.RecordedFrames[0].ComponentTransforms[SaveData.PrimaryComponentName.ToString()];
-				RootTransform += Transform;
-			}
-			
-			RootTransform.SetLocation(RootTransform.GetLocation() / RecordSaveDataArray.Num());
-			RootTransform.NormalizeRotation();
-			RootTransform.SetScale3D(RootTransform.GetScale3D() / RecordSaveDataArray.Num());
-			BloodStainRecordGroup.SpawnPointTransform = RootTransform;
+			const FRecordActorSaveData& SaveData = RecordSaveDataArray[0];
+			BloodStainRecordGroup.SpawnPointTransform = SaveData.RecordedFrames[0].ComponentTransforms[SaveData.PrimaryComponentName.ToString()];
 		}
 	
 		if (BloodStainRecordGroup.RecordOptions.FileName == NAME_None)
