@@ -14,23 +14,24 @@ FGhostAnimInstanceProxy::FGhostAnimInstanceProxy(UAnimInstance* InInstance)
 
 bool FGhostAnimInstanceProxy::Evaluate(FPoseContext& Output)
 {
-	FBoneContainer BoneContainer = FBoneContainer();
-	BoneContainer = Output.AnimInstanceProxy->GetRequiredBones();
+	const FBoneContainer& BoneContainer = Output.AnimInstanceProxy->GetRequiredBones();
 	const TArray<FTransform>& SrcPose = GhostInstance->GetPose();
+	
+	const TArray<FBoneIndexType>& RequiredBoneIndices = BoneContainer.GetBoneIndicesArray();
 
-	if (SrcPose.Num() != BoneContainer.GetNumBones())
+	for (int32 CompactIdx = 0; CompactIdx < RequiredBoneIndices.Num(); ++CompactIdx)
 	{
-		Output.ResetToRefPose();
-		return false;
-	}
+		const int32 SkeletonIndex = RequiredBoneIndices[CompactIdx];
+		const FCompactPoseBoneIndex CompactIndex(CompactIdx);
 
-	for (int32 BoneIndex = 0; BoneIndex < BoneContainer.GetNumBones(); ++BoneIndex)
-	{
-		FCompactPoseBoneIndex CompactIndex = BoneContainer.GetCompactPoseIndexFromSkeletonIndex(BoneIndex);
-		if (!CompactIndex.IsValid() || !Output.Pose.IsValidIndex(CompactIndex))
-			continue;
-
-		Output.Pose[CompactIndex] = SrcPose[BoneIndex];
+		if (SrcPose.IsValidIndex(SkeletonIndex) && Output.Pose.IsValidIndex(CompactIndex))
+		{
+			Output.Pose[CompactIndex] = SrcPose[SkeletonIndex];
+		}
+		else
+		{
+			Output.Pose[CompactIndex] = FTransform::Identity;
+		}
 	}
 	return true;
 }
