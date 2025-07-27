@@ -18,11 +18,25 @@ namespace BloodStainFileUtils_Internal
 		return FPaths::ProjectSavedDir() / TEXT("BloodStain");
 	}
 
-	FString GetFullFilePath(const FString& FileName, const FString& LevelName)
+	FString GetSaveDirectory(const FString& LevelName)
 	{
 		FString Dir = GetSaveDirectory() / LevelName;
-		IFileManager::Get().MakeDirectory(*Dir, /*Tree*/true);
-		return Dir / (FileName + TEXT(".bin"));
+		return Dir;
+	}
+
+	/** @param FileName FileName without Extension
+	 *  @param LevelName
+	 */
+	FString GetFullFilePath(const FString& FileName, const FString& LevelName)
+	{
+		const FString Dir = GetSaveDirectory() / LevelName;
+		return Dir / (FileName + FILE_EXTENSION);
+	}
+
+	FString GetFullFilePath(const FString& RelativeFilePath)
+	{
+		const FString Dir = GetSaveDirectory();
+		return Dir / (RelativeFilePath + FILE_EXTENSION);
 	}
 }
 
@@ -68,6 +82,10 @@ bool BloodStainFileUtils::SaveToFile(
     FileAr.Serialize(Payload.GetData(), Payload.Num());
 
     const FString Path = BloodStainFileUtils_Internal::GetFullFilePath(FileName, LevelName);
+
+	const FString SaveDir = BloodStainFileUtils_Internal::GetSaveDirectory(LevelName);
+	IFileManager::Get().MakeDirectory(*SaveDir, /*Tree*/true);
+	
     bool bOK = FFileHelper::SaveArrayToFile(FileAr, *Path);
     FileAr.FlushCache(); FileAr.Empty();
 
@@ -100,47 +118,53 @@ bool BloodStainFileUtils::SaveToFile(
 
 bool BloodStainFileUtils::LoadFromFile(const FString& FileName, const FString& LevelName, FRecordSaveData& OutData)
 {
-    // Reading entire file from disk
-    const FString Path = BloodStainFileUtils_Internal::GetFullFilePath(FileName, LevelName);
-    TArray<uint8> AllBytes;
-    if (!FFileHelper::LoadFileToArray(AllBytes, *Path))
-    {
-        UE_LOG(LogBloodStain, Error, TEXT("[BS] LoadFromFile failed read: %s"), *Path);
-        return false;	
-    }
+	const FString RelativeFilePath = GetRelativeFilePath(FileName, LevelName);
+	return LoadFromFile(RelativeFilePath, OutData);
+}
 
-    // Header Deserialization
-    FMemoryReader MemR(AllBytes, true);
-    FBloodStainFileHeader FileHeader;
-    MemR << FileHeader;
+bool BloodStainFileUtils::LoadFromFile(const FString& RelativeFilePath, FRecordSaveData& OutData)
+{
+	// Reading entire file from disk
+	const FString Path = BloodStainFileUtils_Internal::GetFullFilePath(RelativeFilePath);
+	TArray<uint8> AllBytes;
+	if (!FFileHelper::LoadFileToArray(AllBytes, *Path))
+	{
+		UE_LOG(LogBloodStain, Error, TEXT("[BS] LoadFromFile failed read: %s"), *Path);
+		return false;	
+	}
+
+	// Header Deserialization
+	FMemoryReader MemR(AllBytes, true);
+	FBloodStainFileHeader FileHeader;
+	MemR << FileHeader;
 	MemR << OutData.Header;
 
-    int64 Offset = MemR.Tell();
-    int64 Remain = AllBytes.Num() - Offset;
-    const uint8* Ptr = AllBytes.GetData() + Offset;
+	int64 Offset = MemR.Tell();
+	int64 Remain = AllBytes.Num() - Offset;
+	const uint8* Ptr = AllBytes.GetData() + Offset;
 
-    TArray<uint8> Compressed;
-    Compressed.SetNumUninitialized(Remain);
-    FMemory::Memcpy(Compressed.GetData(), Ptr, Remain);
+	TArray<uint8> Compressed;
+	Compressed.SetNumUninitialized(Remain);
+	FMemory::Memcpy(Compressed.GetData(), Ptr, Remain);
 
-    TArray<uint8> RawBytes;
-    if (FileHeader.Options.Compression.Method == ECompressionMethod::None)
-    {
-        RawBytes = MoveTemp(Compressed);
-    }
-    else
-    {
-        if (!BloodStainCompressionUtils::DecompressBuffer(FileHeader.UncompressedSize, Compressed, RawBytes, FileHeader.Options.Compression))
-        {
-            UE_LOG(LogBloodStain, Error, TEXT("[BS] DecompressBuffer failed"));
-            return false;
-        }
-    }
+	TArray<uint8> RawBytes;
+	if (FileHeader.Options.Compression.Method == ECompressionMethod::None)
+	{
+		RawBytes = MoveTemp(Compressed);
+	}
+	else
+	{
+		if (!BloodStainCompressionUtils::DecompressBuffer(FileHeader.UncompressedSize, Compressed, RawBytes, FileHeader.Options.Compression))
+		{
+			UE_LOG(LogBloodStain, Error, TEXT("[BS] DecompressBuffer failed"));
+			return false;
+		}
+	}
 
 	FMemoryReader MemoryReader(RawBytes, true);
 	BloodStainFileUtils_Internal::DeserializeSaveData(MemoryReader,OutData,FileHeader.Options.Quantization);
 	
-    return true;
+	return true;
 }
 
 bool BloodStainFileUtils::LoadRawPayloadFromFile(const FString& FileName, const FString& LevelName,
@@ -173,8 +197,14 @@ bool BloodStainFileUtils::LoadRawPayloadFromFile(const FString& FileName, const 
 }
 
 bool BloodStainFileUtils::LoadHeaderFromFile(const FString& FileName, const FString& LevelName, FRecordHeaderData& OutRecordHeaderData)
+{
+	const FString RelativeFilePath = GetRelativeFilePath(FileName, LevelName);
+	return LoadHeaderFromFile(RelativeFilePath, OutRecordHeaderData);
+}
+
+bool BloodStainFileUtils::LoadHeaderFromFile(const FString& RelativeFilePath, FRecordHeaderData& OutRecordHeaderData)
 {	
-	const FString Path = BloodStainFileUtils_Internal::GetFullFilePath(FileName, LevelName);
+	const FString Path = BloodStainFileUtils_Internal::GetFullFilePath(RelativeFilePath);
 	IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
 	TUniquePtr<IFileHandle> FileHandle(PlatformFile.OpenRead(*Path));
 
@@ -209,8 +239,44 @@ bool BloodStainFileUtils::LoadHeaderFromFile(const FString& FileName, const FStr
 	return true;
 }
 
+int32 BloodStainFileUtils::LoadHeadersForAllFilesInLevel(TMap<FString, FRecordHeaderData>& OutLoadedHeaders, const TArray<FString>& LevelNames)
+{
+	// Initialize existing map data
+	OutLoadedHeaders.Empty();
 
-int32 BloodStainFileUtils::LoadHeadersForAllFiles(TMap<FString, FRecordHeaderData>& OutLoadedHeaders, const FString& LevelName)
+	IFileManager& FileManager = IFileManager::Get();
+	const FString FilePattern = FString(TEXT("*")) + BloodStainFileUtils_Internal::FILE_EXTENSION; // "*.bin"
+	
+	for (const FString& LevelName : LevelNames)
+	{
+		// Decide the directory and file pattern to search for
+		const FString SearchDirectory = BloodStainFileUtils_Internal::GetSaveDirectory() / LevelName;
+
+		// Find all files in the specified directory that match the pattern
+		TArray<FString> FoundFileNamesWithExt;
+		FileManager.FindFiles(FoundFileNamesWithExt, *SearchDirectory, *FilePattern);
+
+		UE_LOG(LogBloodStain, Log, TEXT("Found %d recording files in %s."), FoundFileNamesWithExt.Num(), *SearchDirectory);
+
+		// Load each found file
+		for (const FString& FileNameWithExt : FoundFileNamesWithExt)
+		{
+			FString BaseFileName = FileNameWithExt;
+			BaseFileName.RemoveFromEnd(BloodStainFileUtils_Internal::FILE_EXTENSION);
+
+			FRecordHeaderData LoadedData;
+			if (LoadHeaderFromFile(BaseFileName, LevelName, LoadedData))
+			{
+				const FString RelativeFilePath = GetRelativeFilePath(BaseFileName, LevelName);
+				// If loading was successful, add to the map
+				OutLoadedHeaders.Add(RelativeFilePath, LoadedData);
+			}
+		}
+	}
+	return OutLoadedHeaders.Num();
+}
+
+int32 BloodStainFileUtils::LoadHeadersForAllFilesInLevel(TMap<FString, FRecordHeaderData>& OutLoadedHeaders, const FString& LevelName)
 {
 	// Initialize existing map data
 	OutLoadedHeaders.Empty();
@@ -236,15 +302,53 @@ int32 BloodStainFileUtils::LoadHeadersForAllFiles(TMap<FString, FRecordHeaderDat
 		FRecordHeaderData LoadedData;
 		if (LoadHeaderFromFile(BaseFileName, LevelName, LoadedData))
 		{
+			const FString RelativeFilePath = GetRelativeFilePath(BaseFileName, LevelName);
 			// If loading was successful, add to the map
-			OutLoadedHeaders.Add(BaseFileName, LoadedData);
+			OutLoadedHeaders.Add(RelativeFilePath, LoadedData);
 		}
 	}
 
 	return OutLoadedHeaders.Num();
 }
 
-int32 BloodStainFileUtils::LoadAllFiles(TMap<FString, FRecordSaveData>& OutLoadedDataMap, const FString& LevelName)
+int32 BloodStainFileUtils::LoadHeadersForAllFiles(TMap<FString, FRecordHeaderData>& OutLoadedHeaders)
+{
+	// Initialize existing map data
+	OutLoadedHeaders.Empty();
+
+	IFileManager& FileManager = IFileManager::Get();
+
+	// Decide the directory and file pattern to search for
+	const FString SearchDirectory = BloodStainFileUtils_Internal::GetSaveDirectory();
+	const FString FilePattern = FString(TEXT("*")) + BloodStainFileUtils_Internal::FILE_EXTENSION; // "*.bin"
+
+	// Find all files in the specified directory that match the pattern
+	TArray<FString> FoundFileNamesWithExt;
+	FileManager.FindFilesRecursive(FoundFileNamesWithExt, *SearchDirectory, *FilePattern, true, false);
+
+	UE_LOG(LogBloodStain, Log, TEXT("Found %d recording files in %s."), FoundFileNamesWithExt.Num(), *SearchDirectory);
+
+	// Load each found file
+	for (const FString& FileNameWithExt : FoundFileNamesWithExt)
+	{
+		const FString RelativeFilePathWithExt = FileNameWithExt.Replace(*SearchDirectory, TEXT(""));
+		
+		FString RelativeFilePathWithoutExt = RelativeFilePathWithExt;
+		RelativeFilePathWithoutExt.RemoveFromStart(TEXT("/"));
+		RelativeFilePathWithoutExt.RemoveFromEnd(BloodStainFileUtils_Internal::FILE_EXTENSION);
+
+		FRecordHeaderData LoadedData;
+		if (LoadHeaderFromFile(RelativeFilePathWithoutExt, LoadedData))
+		{
+			// If loading was successful, add to the map
+			OutLoadedHeaders.Add(RelativeFilePathWithExt, LoadedData);
+		}
+	}
+
+	return OutLoadedHeaders.Num();
+}
+
+int32 BloodStainFileUtils::LoadAllFilesInLevel(TMap<FString, FRecordSaveData>& OutLoadedDataMap, const FString& LevelName)
 {
 	OutLoadedDataMap.Empty();
 
@@ -273,6 +377,71 @@ int32 BloodStainFileUtils::LoadAllFiles(TMap<FString, FRecordSaveData>& OutLoade
 	return OutLoadedDataMap.Num();
 }
 
+int32 BloodStainFileUtils::LoadAllFilesInLevel(TMap<FString, FRecordSaveData>& OutLoadedDataMap, const TArray<FString>& LevelNames)
+{
+	OutLoadedDataMap.Empty();
+
+	IFileManager& FileManager = IFileManager::Get();
+	const FString FilePattern = FString(TEXT("*")) + BloodStainFileUtils_Internal::FILE_EXTENSION; // "*.bin"
+
+	for (const FString& LevelName : LevelNames)
+	{
+		const FString SearchDirectory = BloodStainFileUtils_Internal::GetSaveDirectory() / LevelName;
+
+		TArray<FString> FoundFileNamesWithExt;
+		FileManager.FindFiles(FoundFileNamesWithExt, *SearchDirectory, *FilePattern);
+
+		UE_LOG(LogBloodStain, Log, TEXT("Found %d recording files in %s."), FoundFileNamesWithExt.Num(), *SearchDirectory);
+
+		for (const FString& FileNameWithExt : FoundFileNamesWithExt)
+		{
+			FString BaseFileName = FileNameWithExt;
+			BaseFileName.RemoveFromEnd(BloodStainFileUtils_Internal::FILE_EXTENSION);
+
+			FRecordSaveData LoadedData;
+			if (LoadFromFile(BaseFileName, LevelName, LoadedData))
+			{
+				OutLoadedDataMap.Add(BaseFileName, LoadedData);
+			}
+		}
+	}
+
+	return OutLoadedDataMap.Num();
+}
+
+int32 BloodStainFileUtils::LoadAllFiles(TMap<FString, FRecordSaveData>& OutLoadedDataMap)
+{
+	OutLoadedDataMap.Empty();
+
+	IFileManager& FileManager = IFileManager::Get();
+
+	const FString SearchDirectory = BloodStainFileUtils_Internal::GetSaveDirectory();
+	const FString FilePattern = FString(TEXT("*")) + BloodStainFileUtils_Internal::FILE_EXTENSION; // "*.bin"
+
+	TArray<FString> FoundFileNamesWithExt;
+	FileManager.FindFilesRecursive(FoundFileNamesWithExt, *SearchDirectory, *FilePattern, true, false);
+
+	UE_LOG(LogBloodStain, Log, TEXT("Found %d recording files in %s."), FoundFileNamesWithExt.Num(), *SearchDirectory);
+
+	for (const FString& FileNameWithExt : FoundFileNamesWithExt)
+	{
+		const FString RelativeFilePathWithExt = FileNameWithExt.Replace(*SearchDirectory, TEXT(""));
+		
+		FString RelativeFilePathWithoutExt = RelativeFilePathWithExt;
+		RelativeFilePathWithoutExt.RemoveFromStart(TEXT("/"));
+		RelativeFilePathWithoutExt.RemoveFromEnd(BloodStainFileUtils_Internal::FILE_EXTENSION);
+
+		FRecordSaveData LoadedData;
+		if (LoadFromFile(RelativeFilePathWithoutExt, LoadedData))
+		{
+			OutLoadedDataMap.Add(RelativeFilePathWithoutExt, LoadedData);
+		}
+	}
+
+	return OutLoadedDataMap.Num();
+}
+
+
 bool BloodStainFileUtils::DeleteFile(const FString& FileName, const FString& LevelName)
 {
 	const FString Path = BloodStainFileUtils_Internal::GetFullFilePath(FileName, LevelName);
@@ -293,7 +462,60 @@ bool BloodStainFileUtils::DeleteFile(const FString& FileName, const FString& Lev
 	}
 }
 
+TArray<FString> BloodStainFileUtils::GetSavedLevelNames()
+{
+	IFileManager& FileManager = IFileManager::Get();
+
+	const FString SearchDirectory = BloodStainFileUtils_Internal::GetSaveDirectory();
+
+	TArray<FString> SubDirectories;
+	FileManager.FindFiles(SubDirectories, *(SearchDirectory / TEXT("*")), false, true);
+
+	TArray<FString> LevelNames;
+	
+	for (const FString& SubDirName : SubDirectories)
+	{
+		const FString FullSubDirPath = SearchDirectory / SubDirName;
+
+		TArray<FString> FilesInSubDir;
+		FileManager.FindFiles(FilesInSubDir, *(FullSubDirPath / TEXT("*.*")), true, false);
+
+		if (FilesInSubDir.Num() > 0)
+		{
+			LevelNames.Add(SubDirName);
+		}
+	}
+
+	return LevelNames;
+}
+
+TArray<FString> BloodStainFileUtils::GetSavedFileNames(const FString& LevelName)
+{
+	IFileManager& FileManager = IFileManager::Get();
+	
+	const FString SearchDirectory = BloodStainFileUtils_Internal::GetSaveDirectory();
+	const FString LevelDirectory = SearchDirectory / LevelName;
+	
+	TArray<FString> FileNamesWithExt;
+	FileManager.FindFiles(FileNamesWithExt, *(LevelDirectory / TEXT("*.*")), true, false);
+
+	TArray<FString> FileNames;
+
+	for (const FString& FileNameWithExt : FileNamesWithExt)
+	{
+		const FString FileName = FPaths::GetBaseFilename(FileNameWithExt);
+		FileNames.Add(FileName);
+	}
+	
+	return FileNames;
+}
+
 FString BloodStainFileUtils::GetFullFilePath(const FString& FileName, const FString& LevelName)
 {
 	return BloodStainFileUtils_Internal::GetFullFilePath(FileName, LevelName);
+}
+
+FString BloodStainFileUtils::GetRelativeFilePath(const FString& FileName, const FString& LevelName)
+{
+	return LevelName/FileName;
 }

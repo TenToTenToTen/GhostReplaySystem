@@ -34,6 +34,8 @@ namespace BloodStainFileUtils
 	 */
 	bool LoadFromFile(const FString& FileName, const FString& LevelName, FRecordSaveData& OutData);
 
+	bool LoadFromFile(const FString& RelativeFilePath, FRecordSaveData& OutData);
+
 	/**
 	 * @brief Directly loads the header and compressed original data payload from the file.
 	 * @param FileName Name of the file
@@ -45,19 +47,34 @@ namespace BloodStainFileUtils
 	 */
 	bool LoadRawPayloadFromFile(const FString& FileName, const FString& LevelName, FBloodStainFileHeader& OutFileHeader, FRecordHeaderData& OutRecordHeader, TArray<uint8>& OutCompressedPayload);
 
-
 	bool LoadHeaderFromFile(const FString& FileName, const FString& LevelName, FRecordHeaderData& OutRecordHeaderData);
 
-	int32 LoadHeadersForAllFiles(TMap<FString, FRecordHeaderData>& OutLoadedHeaders, const FString& LevelName);
+	bool LoadHeaderFromFile(const FString& RelativeFilePath, FRecordHeaderData& OutRecordHeaderData);
+
+	int32 LoadHeadersForAllFilesInLevel(TMap<FString, FRecordHeaderData>& OutLoadedHeaders, const TArray<FString>& LevelNames);
+	
+	int32 LoadHeadersForAllFilesInLevel(TMap<FString, FRecordHeaderData>& OutLoadedHeaders, const FString& LevelName);
+
+	int32 LoadHeadersForAllFiles(TMap<FString, FRecordHeaderData>& OutLoadedHeaders);
 	
 	/**
 	 * Finds and loads all recording files from the save directory.
 	 * @param OutLoadedDataMap A map where the key is the file name (without extension) and the value is the loaded data.
 	 * @return The number of files successfully loaded.
 	 */
-	int32 LoadAllFiles(TMap<FString, FRecordSaveData>& OutLoadedDataMap, const FString& LevelName);
+	int32 LoadAllFilesInLevel(TMap<FString, FRecordSaveData>& OutLoadedDataMap, const FString& LevelName);
 
+	int32 LoadAllFilesInLevel(TMap<FString, FRecordSaveData>& OutLoadedDataMap, const TArray<FString>& LevelNames);
+
+	int32 LoadAllFiles(TMap<FString, FRecordSaveData>& OutLoadedDataMap);
+	
 	bool DeleteFile(const FString& FileName, const FString& LevelName);
+
+	TArray<FString> GetSavedLevelNames();
+
+	TArray<FString> GetSavedFileNames(const FString& LevelName);
 	
 	FString GetFullFilePath(const FString& FileName, const FString& LevelName);
+
+	FString GetRelativeFilePath(const FString& FileName, const FString& LevelName);
 };

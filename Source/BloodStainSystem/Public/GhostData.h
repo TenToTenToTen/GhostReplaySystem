@@ -308,7 +308,8 @@ USTRUCT(BlueprintType)
 struct FRecordHeaderData
 {
 	GENERATED_BODY()
-	
+
+	// This doesn't contains extension
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "BloodStain|Header")
 	FName FileName;
 	

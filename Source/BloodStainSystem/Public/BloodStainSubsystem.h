@@ -238,8 +238,17 @@ public:
 	 *	@param LevelName The name of the level to search for replay files. If empty, uses the current level.
 	 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
-	void LoadAllHeadersInLevel(const FString& LevelName);
+	int32 LoadAllHeadersInLevel(const FString& LevelName);
 
+	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
+	int32 LoadAllHeadersInLevels(const TArray<FString>& LevelNames);
+	
+	/**
+	 *	Finds all replay files and loads their headers into the cache.
+	 */
+	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
+	void LoadAllHeaders();
+	
 	/**
 	 *  Loads full replay data (header) for a file, loading it from disk it not already cached
 	 *  You may use this to quickly search for the header data before spawning a BloodStainActor.
@@ -254,11 +263,11 @@ public:
 	
 	/** Returns if the header data for a given replay file is currently in the memory cache. */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
-	bool IsFileHeaderLoaded(const FString& FileName);
+	bool IsFileHeaderLoaded(const FString& FileName, const FString& LevelName) const;
 
 	/** Returns if the full body data for a given replay file is currently in the memory cache. */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
-	bool IsFileBodyLoaded(const FString& FileName);
+	bool IsFileBodyLoaded(const FString& FileName, const FString& LevelName) const;
 	
 	/** Gets a read-only reference to the cached replay headers. */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
@@ -270,14 +279,39 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
 	TArray<FRecordHeaderData> GetCachedHeadersByTags(const FGameplayTagContainer& FilterTags) const ;
+
+	// Clear Body Data (do not clear header)
+	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
+	void ClearCachedBodyData(const FString& FileName, const FString& LevelName);
 	
+	// Clear Header & Body
+	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
+	void ClearCachedData(const FString& FileName, const FString& LevelName);
+
+	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
+	void ClearAllCachedBodyData();
+	
+	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
+	void ClearAllCachedData();
+	
+	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
+	bool DeleteFile(const FString& FileName, const FString& LevelName);
+
+public:
 	/** @return The complete absolute file path in the project's standard save directory. */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
 	FString GetFullFilePath(const FString& FileName, const FString& LevelName) const;
 
+	/** @return The relative file path in the project's standard save directory. */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
-	bool DeleteFile(const FString& FileName, const FString& LevelName);
+	FString GetRelativeFilePath(const FString& FileName, const FString& LevelName) const;
 
+	/** If no files match, nothing is returned even if the directory exists. */
+	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
+	TArray<FString> GetSavedLevelNames() const;
+
+	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
+	TArray<FString> GetSavedFileNames(const FString& LevelName) const;
 	
 public:
 	/** Spawns a BloodStainActor to the ground using the file name and level name. */
@@ -306,6 +340,9 @@ public:
 	
 	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
 	void SetFileSaveOptions(const FBloodStainFileOptions& InOptions);
+
+	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
+	void SetReplayCustomUserData(const FReplayCustomUserData& ReplayCustomUserData, FName GroupName = NAME_None);
 	
 private:
 	/** The core implementation for spawning an ABloodStainActor at a specific transform. */
@@ -349,9 +386,6 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "BloodStain|File")
 	FOnBuildRecordingHeader OnBuildRecordingHeader;
-
-	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
-	void SetReplayCustomUserData(const FReplayCustomUserData& ReplayCustomUserData, FName GroupName = NAME_None);
 	
 protected:
 	/** The ABloodStainActor class to spawn, loaded from a hardcoded path in the constructor. */
@@ -368,14 +402,14 @@ private:
 	TMap<FGuid, FBloodStainPlaybackGroup> BloodStainPlaybackGroups;
 
 	/**
-	 * Key is FileName
+	 * Key is "LevelName/FileName" 
 	 * Cached replay data's headers */
 	UPROPERTY()
 	TMap<FString, FRecordHeaderData> CachedHeaders;
 	
 	/**
-	 * Key is FileName
-	 * Cached full replay datas */
+	* Key is "LevelName/FileName"
+	 * Cached full replay data */
 	UPROPERTY()
 	TMap<FString, FRecordSaveData> CachedRecordings;
 

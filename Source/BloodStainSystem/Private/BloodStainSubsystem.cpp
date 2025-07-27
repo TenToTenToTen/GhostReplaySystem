@@ -212,7 +212,7 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 	
 		if (BloodStainRecordGroup.RecordOptions.FileName == NAME_None)
 		{
-			BloodStainRecordGroup.RecordOptions.FileName = FName(FString::Printf(TEXT("%s-%s.sav"), *GroupNameString, *UniqueTimestamp));
+			BloodStainRecordGroup.RecordOptions.FileName = FName(FString::Printf(TEXT("%s-%s"), *GroupNameString, *UniqueTimestamp));
 		}
 		
 		FRecordSaveData RecordSaveData = ConvertToSaveData(FrameBaseEndTime, GroupName, BloodStainRecordGroup.RecordOptions.FileName, FName(MapName), RecordSaveDataArray);
@@ -399,19 +399,22 @@ void UBloodStainSubsystem::StopReplayPlayComponent(AReplayActor* GhostActor)
 	}
 }
 
-bool UBloodStainSubsystem::IsFileHeaderLoaded(const FString& FileName)
+bool UBloodStainSubsystem::IsFileHeaderLoaded(const FString& FileName, const FString& LevelName) const
 {
-	return CachedHeaders.Contains(FileName);		
+	const FString RelativeFilePath = GetRelativeFilePath(FileName, LevelName);
+	return CachedHeaders.Contains(RelativeFilePath);		
 }
 
-bool UBloodStainSubsystem::IsFileBodyLoaded(const FString& FileName)
+bool UBloodStainSubsystem::IsFileBodyLoaded(const FString& FileName, const FString& LevelName) const
 {
-	return CachedRecordings.Contains(FileName);
+	const FString RelativeFilePath = GetRelativeFilePath(FileName, LevelName);
+	return CachedRecordings.Contains(RelativeFilePath);
 }
 
 bool UBloodStainSubsystem::FindOrLoadRecordHeader(const FString& FileName, const FString& LevelName, FRecordHeaderData& OutRecordHeaderData)
 {
-	if (FRecordHeaderData* Cached = CachedHeaders.Find(FileName))
+	const FString RelativeFilePath = GetRelativeFilePath(FileName, LevelName);
+	if (FRecordHeaderData* Cached = CachedHeaders.Find(RelativeFilePath))
 	{
 		OutRecordHeaderData = *Cached;
 		return true;
@@ -424,14 +427,15 @@ bool UBloodStainSubsystem::FindOrLoadRecordHeader(const FString& FileName, const
 		return false;
 	}
 
-	CachedHeaders.Add(FileName, Loaded);
+	CachedHeaders.Add(RelativeFilePath, Loaded);
 	OutRecordHeaderData = MoveTemp(Loaded);
 	return true;
 }
 
 bool UBloodStainSubsystem::FindOrLoadRecordBodyData(const FString& FileName, const FString& LevelName, FRecordSaveData& OutData)
 {
-	if (FRecordSaveData* Cached = CachedRecordings.Find(FileName))
+	const FString RelativeFilePath = GetRelativeFilePath(FileName, LevelName);
+	if (FRecordSaveData* Cached = CachedRecordings.Find(RelativeFilePath))
 	{
 		OutData = *Cached;
 		return true;
@@ -444,7 +448,7 @@ bool UBloodStainSubsystem::FindOrLoadRecordBodyData(const FString& FileName, con
 		return false;
 	}
 
-	CachedRecordings.Add(FileName, Loaded);
+	CachedRecordings.Add(RelativeFilePath, Loaded);
 	OutData = MoveTemp(Loaded);
 	return true;
 }
@@ -460,7 +464,7 @@ TArray<FRecordHeaderData> UBloodStainSubsystem::GetCachedHeadersByTags(const FGa
 {
 	TArray<FRecordHeaderData> Result;
 
-	for (const auto& [FileName, HeaderData] : CachedHeaders)
+	for (const auto& [RelativeFilePath, HeaderData] : CachedHeaders)
 	{
 		if (HeaderData.Tags.HasAll(FilterTags))
 		{
@@ -471,14 +475,66 @@ TArray<FRecordHeaderData> UBloodStainSubsystem::GetCachedHeadersByTags(const FGa
 	return Result;
 }
 
-void UBloodStainSubsystem::LoadAllHeadersInLevel(const FString& LevelName)
+int32 UBloodStainSubsystem::LoadAllHeadersInLevel(const FString& LevelName)
 {
 	FString LevelStr = LevelName;
 	if (LevelStr.IsEmpty())
 	{
 		LevelStr = UGameplayStatics::GetCurrentLevelName(GetWorld());
 	}
-	BloodStainFileUtils::LoadHeadersForAllFiles(CachedHeaders, LevelStr);
+	return BloodStainFileUtils::LoadHeadersForAllFilesInLevel(CachedHeaders, LevelStr);
+}
+
+int32 UBloodStainSubsystem::LoadAllHeadersInLevels(const TArray<FString>& LevelNames)
+{
+	int32 HeaderCount = 0;
+	for (const FString& LevelName : LevelNames)
+	{
+		HeaderCount += LoadAllHeadersInLevel(LevelName);
+	}
+	return HeaderCount;
+}
+
+void UBloodStainSubsystem::LoadAllHeaders()
+{
+	BloodStainFileUtils::LoadHeadersForAllFiles(CachedHeaders);
+}
+
+void UBloodStainSubsystem::ClearCachedBodyData(const FString& FileName, const FString& LevelName)
+{
+	const FString RelativeFilePath = GetRelativeFilePath(FileName, LevelName);
+	if (CachedRecordings.Contains(RelativeFilePath))
+	{
+		CachedRecordings.Remove(RelativeFilePath);
+	}
+}
+
+void UBloodStainSubsystem::ClearCachedData(const FString& FileName, const FString& LevelName)
+{
+	const FString RelativeFilePath = GetRelativeFilePath(FileName, LevelName);
+	if (CachedHeaders.Contains(RelativeFilePath))
+	{
+		CachedHeaders.Remove(RelativeFilePath);
+	}
+
+	ClearCachedBodyData(FileName, LevelName);
+}
+
+void UBloodStainSubsystem::ClearAllCachedBodyData()
+{
+	CachedHeaders.Empty();
+}
+
+void UBloodStainSubsystem::ClearAllCachedData()
+{
+	CachedHeaders.Empty();
+	CachedRecordings.Empty();
+}
+
+bool UBloodStainSubsystem::DeleteFile(const FString& FileName, const FString& LevelName)
+{
+	ClearCachedBodyData(FileName, LevelName);
+	return BloodStainFileUtils::DeleteFile(FileName, LevelName);
 }
 
 FString UBloodStainSubsystem::GetFullFilePath(const FString& FileName, const FString& LevelName) const
@@ -486,9 +542,19 @@ FString UBloodStainSubsystem::GetFullFilePath(const FString& FileName, const FSt
 	return BloodStainFileUtils::GetFullFilePath(FileName, LevelName);
 }
 
-bool UBloodStainSubsystem::DeleteFile(const FString& FileName, const FString& LevelName)
+FString UBloodStainSubsystem::GetRelativeFilePath(const FString& FileName, const FString& LevelName) const
 {
-	return BloodStainFileUtils::DeleteFile(FileName, LevelName);
+	return BloodStainFileUtils::GetRelativeFilePath(FileName, LevelName);
+}
+
+TArray<FString> UBloodStainSubsystem::GetSavedLevelNames() const
+{
+	return BloodStainFileUtils::GetSavedLevelNames();
+}
+
+TArray<FString> UBloodStainSubsystem::GetSavedFileNames(const FString& LevelName) const
+{
+	return BloodStainFileUtils::GetSavedFileNames(LevelName);
 }
 
 ABloodStainActor* UBloodStainSubsystem::SpawnBloodStain(const FString& FileName, const FString& LevelName)
@@ -527,20 +593,19 @@ TArray<ABloodStainActor*> UBloodStainSubsystem::SpawnAllBloodStainInLevel()
 		UE_LOG(LogBloodStain, Warning, TEXT("Cannot spawn BloodStain actors on client. Only server can spawn them."));
 		return TArray<ABloodStainActor*>(); 
 	}
-	
-	FString LevelName = UGameplayStatics::GetCurrentLevelName(GetWorld());
-	
-	// TODO - Currently Reload all cached data
-	
-	const int32 LoadedCount = BloodStainFileUtils::LoadHeadersForAllFiles(CachedHeaders, LevelName);
+
+	const FString LevelName = UGameplayStatics::GetCurrentLevelName(GetWorld());
+
+	const int32 LoadedCount = LoadAllHeadersInLevel(LevelName);
 
 	TArray<ABloodStainActor*> SpawnedActors;
 	if (LoadedCount > 0)
 	{
 		UE_LOG(LogBloodStain, Log, TEXT("Subsystem successfully loaded %d recording Headers into cache."), LoadedCount);
 		
-		for (const auto& [FileName, _] : CachedHeaders)
+		for (const auto& [RelativeFilePath, RecordHeaderData] : CachedHeaders)
 		{
+			const FString FileName = RecordHeaderData.FileName.ToString();
 			if (ABloodStainActor* BloodStainActor = SpawnBloodStain(FileName, LevelName))
 			{
 				SpawnedActors.Add(BloodStainActor);
@@ -612,9 +677,19 @@ FRecordSaveData UBloodStainSubsystem::ConvertToSaveData(float EndTime, const FNa
 	return RecordSaveData;
 }
 
+void UBloodStainSubsystem::SetFileSaveOptions(const FBloodStainFileOptions& InOptions)
+{
+	FileSaveOptions = InOptions;
+}
+
+void UBloodStainSubsystem::SetReplayCustomUserData(const FReplayCustomUserData& ReplayCustomUserData, const FName GroupName)
+{
+	ReplayCustomUserDataMap.Add(GroupName, ReplayCustomUserData);
+}
+
 ABloodStainActor* UBloodStainSubsystem::SpawnBloodStain_Internal(const FVector& Location, const FRotator& Rotation, const FString& FileName, const FString& LevelName)
 {
-	if (!IsFileHeaderLoaded(FileName))
+	if (!IsFileHeaderLoaded(FileName, LevelName))
 	{
 		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] Invalid file '%s'"), *FileName);
 		return nullptr;
@@ -646,13 +721,12 @@ ABloodStainActor* UBloodStainSubsystem::SpawnBloodStain_Internal(const FVector& 
 bool UBloodStainSubsystem::StartReplay_Standalone(const FRecordSaveData& RecordSaveData, const FBloodStainPlaybackOptions& PlaybackOptions, FGuid& OutGuid)
 {
 	OutGuid = FGuid();
-	if (RecordSaveData.RecordActorDataArray.IsEmpty())
+
+	if (!RecordSaveData.IsValid())
 	{
-		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StartReplay failed: RecordActor is Empty"));
+		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StartReplay failed: RecordActor is not valid"));
 		return false;
 	}
-
-	// TODO - Check if RecordSaveData is valid
 
 	const FRecordHeaderData& Header = RecordSaveData.Header;
 	const TArray<FRecordActorSaveData>& ActorDataArray = RecordSaveData.RecordActorDataArray;
@@ -716,6 +790,26 @@ bool UBloodStainSubsystem::StartReplay_Networked(const FString& FileName, const 
 	return true;
 }
 
+bool UBloodStainSubsystem::IsValidReplayGroup(const FName& GroupName)
+{
+	if (!BloodStainRecordGroups.Contains(GroupName))
+	{
+		return false;
+	}
+	
+	FBloodStainRecordGroup& BloodStainRecordGroup = BloodStainRecordGroups[GroupName];
+	
+	bool bActiveRecordEmpty = BloodStainRecordGroup.ActiveRecorders.IsEmpty();
+	bool bRecordDataManaged = ReplayTerminatedActorManager->ContainsGroup(GroupName);
+
+	if (bActiveRecordEmpty && !bRecordDataManaged)
+	{
+		return false;
+	}
+
+	return true;
+}
+
 void UBloodStainSubsystem::CleanupInvalidRecordGroups()
 {
 	TSet<FName> InvalidRecordGroups;
@@ -745,36 +839,6 @@ FReplayCustomUserData UBloodStainSubsystem::GetReplayCustomUserData(const FName&
 	}
 	
 	return ReplayCustomUserData;
-}
-
-void UBloodStainSubsystem::SetReplayCustomUserData(const FReplayCustomUserData& ReplayCustomUserData, const FName GroupName)
-{
-	ReplayCustomUserDataMap.Add(GroupName, ReplayCustomUserData);
-}
-
-bool UBloodStainSubsystem::IsValidReplayGroup(const FName& GroupName)
-{
-	if (!BloodStainRecordGroups.Contains(GroupName))
-	{
-		return false;
-	}
-	
-	FBloodStainRecordGroup& BloodStainRecordGroup = BloodStainRecordGroups[GroupName];
-	
-	bool bActiveRecordEmpty = BloodStainRecordGroup.ActiveRecorders.IsEmpty();
-	bool bRecordDataManaged = ReplayTerminatedActorManager->ContainsGroup(GroupName);
-
-	if (bActiveRecordEmpty && !bRecordDataManaged)
-	{
-		return false;
-	}
-
-	return true;
-}
-
-void UBloodStainSubsystem::SetFileSaveOptions(const FBloodStainFileOptions& InOptions)
-{
-	FileSaveOptions = InOptions;
 }
 
 void UBloodStainSubsystem::AddToPendingGroup(AActor* Actor, FName GroupName)
