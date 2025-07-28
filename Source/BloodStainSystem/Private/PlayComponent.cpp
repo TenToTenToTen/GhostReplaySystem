@@ -166,7 +166,7 @@ bool UPlayComponent::CalculatePlaybackTime(float& OutElapsedTime)
 	static float Epsilon = FLT_EPSILON;  
 
 	// Calculate elapsed time based on the current world time
-	OutElapsedTime = FMath::Max((GetWorld()->GetTimeSeconds() - PlaybackStartTime) * PlaybackOptions.PlaybackRate, 0.f);
+	OutElapsedTime = (GetWorld()->GetTimeSeconds() - PlaybackStartTime) * PlaybackOptions.PlaybackRate;
 
 	if (PlaybackOptions.bIsLooping)
 	{

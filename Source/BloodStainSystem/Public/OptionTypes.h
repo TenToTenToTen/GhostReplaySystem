@@ -87,7 +87,7 @@ struct FBloodStainPlaybackOptions
 	bool bUseGhostMaterial = true;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (EditCondition = "bUseGhostMaterial", EditConditionHides))
-	UMaterialInterface* GroupGhostMaterial = nullptr;
+	TObjectPtr<UMaterialInterface> GroupGhostMaterial = nullptr;
 
 	
 	friend FArchive& operator<<(FArchive& Ar, FBloodStainPlaybackOptions& Data)

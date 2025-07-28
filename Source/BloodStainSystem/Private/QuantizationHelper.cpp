@@ -174,8 +174,6 @@ void SerializeSaveData(FArchive& RawAr, FRecordSaveData& SaveData, FQuantization
         for (FRecordFrame& Frame : ActorData.RecordedFrames)
         {
             RawAr << Frame.TimeStamp;
-            RawAr << Frame.AddedComponents;
-            RawAr << Frame.RemovedComponentNames;
             RawAr << Frame.FrameIndex;
 
             // Component's World Transforms
@@ -243,8 +241,6 @@ void DeserializeSaveData(FArchive& DataAr, FRecordSaveData& OutData, const FQuan
         {
             FRecordFrame Frame;
             DataAr << Frame.TimeStamp;
-            DataAr << Frame.AddedComponents;
-            DataAr << Frame.RemovedComponentNames;
             DataAr << Frame.FrameIndex; 
 
             // Component's Transforms

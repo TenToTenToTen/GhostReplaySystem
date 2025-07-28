@@ -38,32 +38,20 @@ void URecordComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 {
 	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_TickComponent);
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
-	if (RecordOptions.bTrackAttachmentChanges)
-	{
-		HandleAttachedActorChangesByBit();
-	}
-
+	
 	TimeSinceLastRecord += DeltaTime;
 	if (TimeSinceLastRecord >= RecordOptions.SamplingInterval)
 	{
+		if (RecordOptions.bTrackAttachmentChanges)
+		{
+			HandleAttachedActorChangesByBit();
+		}
+		
 		TimeSinceLastRecord -= RecordOptions.SamplingInterval;
 
 		FRecordFrame NewFrame;
 		NewFrame.FrameIndex = CurrentFrameIndex++;
 		NewFrame.TimeStamp = GetWorld()->GetTimeSeconds() - StartTime;
-
-		// Update Pending Component List
-		if (PendingAddedComponents.Num() > 0)
-		{
-			NewFrame.AddedComponents = PendingAddedComponents;
-			PendingAddedComponents.Empty();
-		}
-		if (PendingRemovedComponentNames.Num() > 0)
-		{
-			NewFrame.RemovedComponentNames = PendingRemovedComponentNames;
-			PendingRemovedComponentNames.Empty();
-		}
 
 		// Record All Owned Component Transform (support for StaticMeshComponent, SkeletalMeshComponent)
 		for (TObjectPtr<UMeshComponent>& MeshComp : OwnedComponentsForRecord)
@@ -206,8 +194,7 @@ void URecordComponent::OnComponentAttached(UMeshComponent* NewComponent)
 		int32 NewIdx = ComponentActiveIntervals.Add(I);
 		IntervalIndexMap.Add(I.Meta.ComponentName, NewIdx);
 	}
-
-	PendingAddedComponents.Add(Record);
+	
 	UE_LOG(LogBloodStain, Warning, TEXT("[OnComponentAttached] Component %s Attached"), *ComponentName);
 }
 
@@ -228,12 +215,10 @@ void URecordComponent::OnComponentDetached(UMeshComponent* DetachedComponent)
 	}
 
 	OwnedComponentsForRecord.Remove(DetachedComponent);
-
-	PendingRemovedComponentNames.Add(ComponentName);
 	
 	if (const int32* Idx = IntervalIndexMap.Find(ComponentName))
 	{
-		ComponentActiveIntervals[*Idx].EndFrame = CurrentFrameIndex;
+		ComponentActiveIntervals[*Idx].EndFrame = CurrentFrameIndex - 1;
 		IntervalIndexMap.Remove(ComponentName);
 	}
 

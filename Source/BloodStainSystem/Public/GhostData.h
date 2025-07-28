@@ -168,15 +168,7 @@ struct FRecordFrame
 	/** Map of skeletal mesh components' names to their bone transforms */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "BloodStain")
 	TMap<FString, FBoneComponentSpace> SkeletalMeshBoneTransforms;
-
-	/** Components added on this frame */
-	UPROPERTY()
-	TArray<FComponentRecord> AddedComponents;
-
-	/** Component names removed on this frame */
-	UPROPERTY()
-	TArray<FString> RemovedComponentNames;
-
+	
 	/** Original frame index from the recorded data */
 	UPROPERTY()
 	int32 FrameIndex;
@@ -192,8 +184,6 @@ struct FRecordFrame
 		Ar << Frame.TimeStamp;
 		Ar << Frame.ComponentTransforms;
 		Ar << Frame.SkeletalMeshBoneTransforms;
-		Ar << Frame.AddedComponents;
-		Ar << Frame.RemovedComponentNames;
 		Ar << Frame.FrameIndex;
 		return Ar;
 	}

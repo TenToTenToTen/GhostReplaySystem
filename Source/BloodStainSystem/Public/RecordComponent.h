@@ -96,10 +96,6 @@ protected:
 	 * O(log N) access when detaching
 	 */
 	TMap<FString, int32> IntervalIndexMap;
-	
-	/** Attached / Detached Component list to record in next frame */
-	TArray<FComponentRecord> PendingAddedComponents;
-	TArray<FString> PendingRemovedComponentNames;
 
 private:
 	FName PrimaryComponentName;
