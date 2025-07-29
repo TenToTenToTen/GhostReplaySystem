@@ -7,7 +7,7 @@
 
 #include "CoreMinimal.h"
 #include "GameplayTagContainer.h"
-#include "ReplayCustomUserData.h"
+#include "StructUtils/InstancedStruct.h"
 #include "GhostData.generated.h"
 
 class AReplayActor;
@@ -315,20 +315,23 @@ struct FRecordHeaderData
 	FTransform SpawnPointTransform;
 	
 	/** Maximum recording duration in seconds */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="BloodStain|Header")
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="BloodStain|Header")
 	float MaxRecordTime;
 
 	/** Sampling interval between frames in seconds (0.1 sec - 10fps) */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="BloodStain|Header")
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="BloodStain|Header")
 	float SamplingInterval;
+	
+	/** Group Total Length, Duration (s) */
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="BloodStain|Header")
+	float TotalLength;
 	
 	/** User Custom Data struct. (e.g. description, character info, etc) */
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "BloodStain|Header")
-	FReplayCustomUserData ReplayCustomUserData;
+	FInstancedStruct RecordGroupUserData;
 
-	/** Group Total Length, Duration (s) */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="BloodStain|Header")
-	float TotalLength;
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="BloodStain|Header")
+	TArray<FInstancedStruct> RecordActorUserData;
 
 	FRecordHeaderData()
 		: MaxRecordTime(5.f)
@@ -347,9 +350,77 @@ struct FRecordHeaderData
 		Ar << Data.SpawnPointTransform;
 		Ar << Data.MaxRecordTime;
 		Ar << Data.SamplingInterval;
-		Ar << Data.ReplayCustomUserData;
 		Ar << Data.TotalLength;
-	
+		
+		int32 Count = Data.RecordActorUserData.Num();		
+		
+		Ar << Count;
+		SerializeInstancedStruct(Ar, Data.RecordGroupUserData);
+		if (Ar.IsLoading())
+		{
+			Data.RecordActorUserData.SetNum(Count);
+		}
+		
+		for (int32 i = 0; i < Count; i++)
+		{
+			SerializeInstancedStruct(Ar, Data.RecordActorUserData[i]);
+		}
+		
+		return Ar;
+	}
+
+	static FArchive& SerializeInstancedStruct(FArchive& Ar, FInstancedStruct& InstanceData)
+	{
+		FString StructPath;
+		int32 StructSize = 0;
+
+		if (Ar.IsSaving())
+		{
+			if (InstanceData.IsValid())
+			{
+				StructPath = InstanceData.GetScriptStruct()->GetPathName();
+				StructSize = InstanceData.GetScriptStruct()->GetStructureSize();
+			}
+		}
+		
+		Ar << StructPath;
+		Ar << StructSize;
+
+		if (StructPath.IsEmpty())
+		{
+			return Ar;
+		}
+		
+		if (Ar.IsLoading())
+		{
+			UScriptStruct* FoundStruct = FindObject<UScriptStruct>(nullptr, *StructPath);
+			if (FoundStruct == nullptr)
+			{
+				FoundStruct = LoadObject<UScriptStruct>(nullptr, *StructPath);
+			}
+
+			if (FoundStruct == nullptr)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Struct is not loaded: %s"), *StructPath);
+				return Ar;
+			}
+			Ar.Preload(FoundStruct);
+			InstanceData.InitializeAs(FoundStruct);
+			
+			if (!InstanceData.IsValid())
+			{
+				// TODO - Test do not insert Struct & check come here
+				UE_LOG(LogTemp, Warning, TEXT("InstanceData failed to initialize as struct: %s"), *StructPath);
+				return Ar;
+			}
+		}
+
+		if (InstanceData.IsValid())
+		{
+			UScriptStruct* NonConstStruct = const_cast<UScriptStruct*>(InstanceData.GetScriptStruct());
+			NonConstStruct->SerializeItem(Ar, InstanceData.GetMutableMemory(), nullptr);
+		}
+		
 		return Ar;
 	}
 

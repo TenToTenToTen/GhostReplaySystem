@@ -16,6 +16,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "StructUtils/InstancedStruct.h"
 
 DECLARE_CYCLE_STAT(TEXT("RecordComp TickComponent"), STAT_RecordComponent_TickComponent, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("RecordComp Initialize"), STAT_RecordComponent_Initialize, STATGROUP_BloodStain);
@@ -281,6 +282,22 @@ void URecordComponent::FillMaterialData(const UMeshComponent* InMeshComponent, F
 			OutRecord.MaterialPaths.Add(TEXT(""));
 		}
 	}
+}
+
+void URecordComponent::SetRecordActorUserData(const FInstancedStruct& InInstancedStruct)
+{
+	if (!InInstancedStruct.IsValid())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[URecordComponent::AcceptBuffer()] Invalid InstancedStruct passed."));
+		return;
+	}
+
+	InstancedStruct = InInstancedStruct;
+}
+
+FInstancedStruct URecordComponent::GetRecordActorUserData()
+{
+	return InstancedStruct;
 }
 
 void URecordComponent::CollectOwnedMeshComponents()

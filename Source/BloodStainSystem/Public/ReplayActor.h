@@ -61,7 +61,7 @@ public:
 
 	void SetIsOrchestrator(bool bValue) { bIsOrchestrator = bValue; }
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Replay|Network")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BloodStain|Replay|Network")
 	float RateLimitMbps = 0.5f;
 
 protected:
@@ -70,7 +70,7 @@ protected:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	/** The component that handles the actual playback logic and visual updates. */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Replay")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "BloodStain|Replay")
 	TObjectPtr<UPlayComponent> PlayComponent;
 
 	/** The current playback time, replicated from the server to all clients. */

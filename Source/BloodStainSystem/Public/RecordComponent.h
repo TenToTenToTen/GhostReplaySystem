@@ -45,9 +45,16 @@ public:
 	void OnComponentDetached(UMeshComponent* DetachedComponent);
 
 	/** Recording group name */
-	UFUNCTION(BlueprintCallable, Category="Record")
+	UFUNCTION(BlueprintCallable, Category="BloodStain|Record")
 	FName GetRecordGroupName() const { return RecordOptions.RecordingGroupName; }
 
+	UFUNCTION(BlueprintCallable, Category="BloodStain|Record")
+	void SetRecordActorUserData(const struct FInstancedStruct& InInstancedStruct);
+	
+	
+	UFUNCTION(BlueprintCallable, Category="BloodStain|Record")
+	FInstancedStruct GetRecordActorUserData();
+	
 private:
 	/** Collect mesh components from the current actor and sub-actor */
 	void CollectOwnedMeshComponents();
@@ -71,7 +78,7 @@ private:
 protected:
 	
 	/** Record Option */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Record")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BloodStain|Record")
 	FBloodStainRecordOptions RecordOptions;
 	
 	float StartTime;
@@ -96,6 +103,8 @@ protected:
 	 * O(log N) access when detaching
 	 */
 	TMap<FString, int32> IntervalIndexMap;
+
+	FInstancedStruct InstancedStruct;
 
 private:
 	FName PrimaryComponentName;

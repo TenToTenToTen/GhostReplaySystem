@@ -90,7 +90,7 @@ void UPlayComponent::Initialize(FGuid InPlaybackKey, const FRecordHeaderData& In
 	UE_LOG(LogBloodStain, Log, TEXT("Pre-loaded %d unique assets."), AssetCache.Num());
 	
 	ReconstructedComponents.Empty();
-	for (FComponentActiveInterval& Interval : ReplayData.ComponentIntervals)
+	for (const FComponentActiveInterval& Interval : ReplayData.ComponentIntervals)
 	{
 		if (USceneComponent* NewComp = CreateComponentFromRecord(Interval.Meta, AssetCache))
 		{
@@ -234,6 +234,115 @@ void UPlayComponent::UpdatePlaybackToTime(float ElapsedTime)
 	
 	ApplyComponentTransforms(Prev, Next, Alpha);
 	ApplySkeletalBoneTransforms(Prev, Next, Alpha);
+}
+
+void UPlayComponent::ApplyMaterial(UMaterialInterface* InMaterial) const
+{
+	AActor* Owner = GetOwner();
+	if (Owner == nullptr)
+	{
+		UE_LOG(LogBloodStain, Warning, TEXT("[UPlayComponent::ApplyMaterial] Failed Owner is null"));
+		return;
+	}
+
+	TSet<FString> UniqueAssetPaths;
+	for (const FComponentActiveInterval& Interval : ReplayData.ComponentIntervals)
+	{
+		if (!Interval.Meta.AssetPath.IsEmpty())
+		{
+			UniqueAssetPaths.Add(Interval.Meta.AssetPath);
+		}
+		for (const FString& MaterialPath : Interval.Meta.MaterialPaths)
+		{
+			if (!MaterialPath.IsEmpty())
+			{
+				UniqueAssetPaths.Add(MaterialPath);
+			}
+		}
+	}
+
+	TMap<FString, TObjectPtr<UObject>> AssetCache;
+
+	// Iterate through the collected unique paths to pre-load assets and store them in the cache.
+	for (const FString& Path : UniqueAssetPaths)
+	{
+		// Using FSoftObjectPath allows loading without needing to distinguish between UStaticMesh, USkeletalMesh, UMaterialInterface, etc.
+		FSoftObjectPath AssetRef(Path);
+		UObject* LoadedAsset = AssetRef.TryLoad();
+		if (LoadedAsset)
+		{
+			AssetCache.Add(Path, LoadedAsset);
+		}
+		else
+		{
+			// StaticLoadObject can also be useful for loading specific types like Blueprint classes.
+			// SoftObjectPath covers most cases.
+			UE_LOG(LogBloodStain, Warning, TEXT("Initialize: Failed to pre-load asset at path: %s"), *Path);
+		}
+	}
+    
+	UE_LOG(LogBloodStain, Log, TEXT("Pre-loaded %d unique assets."), AssetCache.Num());
+	
+	for (const FComponentActiveInterval& Interval : ReplayData.ComponentIntervals)
+	{
+		const FComponentRecord& Record = Interval.Meta;
+
+		UMeshComponent* MeshComponent = FindObject<UMeshComponent>(Owner, *Record.ComponentName);
+		
+		// Apply materials in order.
+		for (int32 MatIndex = 0; MatIndex < Record.MaterialPaths.Num(); ++MatIndex)
+		{
+			// Force the ghost material if the option is enabled
+			if (InMaterial)
+			{
+				MeshComponent->SetMaterial(MatIndex, InMaterial);
+				continue; // Move to the next material slot.
+			}
+
+			// If the original material path is not empty and bUseGhostMaterial is false.
+			if (!Record.MaterialPaths[MatIndex].IsEmpty())
+			{
+				// Get the material directly from the cache instead of using StaticLoadObject.
+				UMaterialInterface* OriginalMaterial = nullptr;
+				if (const TObjectPtr<UObject>* FoundMaterial = AssetCache.Find(Record.MaterialPaths[MatIndex]))
+				{
+					OriginalMaterial = Cast<UMaterialInterface>(*FoundMaterial);
+				}
+
+				if (!OriginalMaterial)
+				{
+					UE_LOG(LogBloodStain, Warning, TEXT("Failed to find pre-loaded material: %s"), *Record.MaterialPaths[MatIndex]);
+					continue;
+				}
+			
+				// Check if there are saved dynamic parameters for the current material index.
+				if (Record.MaterialParameters.Contains(MatIndex))
+				{
+					UMaterialInstanceDynamic* DynMaterial = MeshComponent->CreateAndSetMaterialInstanceDynamicFromMaterial(MatIndex, OriginalMaterial);
+
+					if (DynMaterial)
+					{
+						const FMaterialParameters& SavedParams = Record.MaterialParameters[MatIndex];
+					
+						for (const auto& Pair : SavedParams.VectorParams)
+						{
+							DynMaterial->SetVectorParameterValue(Pair.Key, Pair.Value);
+						}
+						for (const auto& Pair : SavedParams.ScalarParams)
+						{
+							DynMaterial->SetScalarParameterValue(Pair.Key, Pair.Value);
+						}
+						UE_LOG(LogBloodStain, Log, TEXT("Restored dynamic material for component %s at index %d"), *Record.ComponentName, MatIndex);
+					}
+				}
+				else
+				{
+					// If no parameters are saved, apply the original material directly.
+					MeshComponent->SetMaterial(MatIndex, OriginalMaterial);
+				}
+			}
+		}
+	}
 }
 
 bool UPlayComponent::IsTickable() const
@@ -385,31 +494,30 @@ USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecor
         }
     }
 
-	UMaterialInterface* DefaultMaterial = nullptr;
+	UMaterialInterface* TargetMaterial = nullptr;
 	if (UWorld* World = GetWorld())
 	{
 		if (UGameInstance* GI = World->GetGameInstance())
 		{
 			if (UBloodStainSubsystem* Sub = GI->GetSubsystem<UBloodStainSubsystem>())
 			{
-				DefaultMaterial = Sub->GetDefaultMaterial();
+				TargetMaterial = Sub->GetDefaultMaterial();
 			}
 		}
 	}
+
+	if (PlaybackOptions.GroupGhostMaterial != nullptr)
+	{
+		TargetMaterial = PlaybackOptions.GroupGhostMaterial;
+	}
+	
 	// Apply materials in order.
 	for (int32 MatIndex = 0; MatIndex < Record.MaterialPaths.Num(); ++MatIndex)
 	{
 		// Force the ghost material if the option is enabled
-		if ((PlaybackOptions.bUseGhostMaterial || Record.MaterialPaths[MatIndex].IsEmpty()) && DefaultMaterial)
+		if ((PlaybackOptions.bUseGhostMaterial || Record.MaterialPaths[MatIndex].IsEmpty()) && TargetMaterial)
 		{
-			if (PlaybackOptions.GroupGhostMaterial != nullptr)
-			{
-				NewMeshComponent->SetMaterial(MatIndex, PlaybackOptions.GroupGhostMaterial);
-			}
-			else
-			{
-				NewMeshComponent->SetMaterial(MatIndex, DefaultMaterial);
-			}
+			NewMeshComponent->SetMaterial(MatIndex, TargetMaterial);
 			continue; // Move to the next material slot.
 		}
 

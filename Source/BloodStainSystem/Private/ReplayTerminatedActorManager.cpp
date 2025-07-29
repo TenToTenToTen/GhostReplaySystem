@@ -34,6 +34,7 @@ void UReplayTerminatedActorManager::AddToRecordGroup(const FName& GroupName, URe
 	RecordComponentData.GhostSaveData.PrimaryComponentName = MoveTemp(RecordComponent->PrimaryComponentName);
 
 	RecordComponentData.ComponentIntervals = MoveTemp(RecordComponent->ComponentActiveIntervals);
+	RecordComponentData.InstancedStruct = RecordComponent->GetRecordActorUserData();	
 
 	FRecordGroupData& RecordGroup = RecordGroups[GroupName];
 	RecordGroup.RecordOptions = RecordComponent->RecordOptions;
@@ -101,7 +102,7 @@ void UReplayTerminatedActorManager::CollectRecordGroups(float DeltaTime)
 	}
 }
 
-TArray<FRecordActorSaveData> UReplayTerminatedActorManager::CookQueuedFrames(const FName& GroupName, const float& BaseTime, TArray<FName>& OutActorNameArray)
+TArray<FRecordActorSaveData> UReplayTerminatedActorManager::CookQueuedFrames(const FName& GroupName, const float& BaseTime, TArray<FName>& OutActorNameArray, TArray<FInstancedStruct>& OutInstancedStructArray)
 {
 	TArray<FRecordActorSaveData> Result = TArray<FRecordActorSaveData>();
 	OutActorNameArray.Empty();
@@ -112,7 +113,7 @@ TArray<FRecordActorSaveData> UReplayTerminatedActorManager::CookQueuedFrames(con
 		return Result;
 	}
 
-	auto RecordGroupData = RecordGroups[GroupName];
+	FRecordGroupData& RecordGroupData = RecordGroups[GroupName];
 
 	if (RecordGroupData.RecordComponentData.Num() == 0)
 	{
@@ -127,8 +128,11 @@ TArray<FRecordActorSaveData> UReplayTerminatedActorManager::CookQueuedFrames(con
 		{
 			OutActorNameArray.Add(RecordComponentData.ActorName);
 			Result.Add(RecordComponentData.GhostSaveData);
+			OutInstancedStructArray.Add(RecordComponentData.InstancedStruct);
 		}
 	}
+
+	RecordGroups.Remove(GroupName);
 	
 	return Result;
 }

@@ -76,9 +76,22 @@ bool BloodStainFileUtils::SaveToFile(
     FBufferArchive FileAr;
 
 	FileAr.SetIsSaving(true);
+
+	int64 StartPos = FileAr.Tell();
+	int32 HeaderByteSize = 0;
+	FileAr << HeaderByteSize;
 	
     FileAr << FileHeader;
 	FileAr << LocalCopy.Header;
+
+	int64 EndPos = FileAr.Tell();
+	HeaderByteSize = static_cast<int32>(EndPos - StartPos);
+
+	FileAr.Seek(StartPos);
+	FileAr << HeaderByteSize;
+
+	FileAr.Seek(EndPos);
+
     FileAr.Serialize(Payload.GetData(), Payload.Num());
 
     const FString Path = BloodStainFileUtils_Internal::GetFullFilePath(FileName, LevelName);
@@ -133,9 +146,13 @@ bool BloodStainFileUtils::LoadFromFile(const FString& RelativeFilePath, FRecordS
 		return false;	
 	}
 
+	int32 HeaderByteSize;
+	
 	// Header Deserialization
 	FMemoryReader MemR(AllBytes, true);
 	FBloodStainFileHeader FileHeader;
+	
+	MemR << HeaderByteSize;
 	MemR << FileHeader;
 	MemR << OutData.Header;
 
@@ -178,9 +195,12 @@ bool BloodStainFileUtils::LoadRawPayloadFromFile(const FString& FileName, const 
 		return false;
 	}
 
+	int32 HeaderByteSize;
+	
 	FMemoryReader MemR(AllBytes, true);
 
 	// Only Deserialize the file header and record header
+	MemR << HeaderByteSize;
 	MemR << OutFileHeader;
 	MemR << OutRecordHeader;
 	
@@ -213,19 +233,45 @@ bool BloodStainFileUtils::LoadHeaderFromFile(const FString& RelativeFilePath, FR
 		UE_LOG(LogBloodStain, Error, TEXT("[BS] Failed to open file for reading: %s"), *Path);
 		return false;
 	}
-	
-	constexpr int64 BytesToRead = sizeof(FBloodStainFileHeader) + sizeof(FRecordHeaderData);
 
-	if (FileHandle->Size() < BytesToRead)
+	if (FileHandle->Size() <= 0)
+	{
+		UE_LOG(LogBloodStain, Error, TEXT("[BS] File is smaller than the expected header size: %s"), *Path);
+		return false;
+	}
+	
+	int32 HeaderByteSize = 0;
+
+	int32 IntByteSize = sizeof(int32);
+	{
+		TArray<uint8> IntBuffer;
+		IntBuffer.SetNum(IntByteSize);
+		
+		if (FileHandle->Size() < IntByteSize)
+		{
+			UE_LOG(LogBloodStain, Error, TEXT("[BS] File is smaller than the expected header size: %s"), *Path);
+			return false;
+		}
+		
+		if (!FileHandle->Read(IntBuffer.GetData(), IntByteSize))
+		{
+			UE_LOG(LogBloodStain, Error, TEXT("[BS] Failed to read header size from file: %s"), *Path);
+			return false;
+		}
+
+		FMemoryReader IntReader(IntBuffer, true);
+		IntReader << HeaderByteSize;
+	}
+
+	if (FileHandle->Size() < HeaderByteSize)
 	{
 		UE_LOG(LogBloodStain, Error, TEXT("[BS] File is smaller than the expected header size: %s"), *Path);
 		return false;
 	}
 
 	TArray<uint8> HeaderBytes;
-	HeaderBytes.SetNum(BytesToRead);
-
-	if (!FileHandle->Read(HeaderBytes.GetData(), BytesToRead))
+	HeaderBytes.SetNum(HeaderByteSize);
+	if (!FileHandle->Read(HeaderBytes.GetData(), HeaderByteSize - IntByteSize))
 	{
 		UE_LOG(LogBloodStain, Error, TEXT("[BS] Failed to read header data from file: %s"), *Path);
 		return false;

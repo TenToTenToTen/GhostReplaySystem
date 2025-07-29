@@ -57,14 +57,14 @@ struct FBloodStainRecordGroup
 
 /** @brief Playback group: tracks active replay actors for a single replay session.
  */
-USTRUCT()
+USTRUCT(BlueprintType)
 struct FBloodStainPlaybackGroup
 {
 	GENERATED_BODY()
 
 	/** Set of currently active replay actors */
-	UPROPERTY()
-	TSet<TObjectPtr<AReplayActor>> ActiveReplayers;
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category="BloodStain|Replay")
+	TArray<TObjectPtr<AReplayActor>> ActiveReplayers;
 };
 
 USTRUCT()
@@ -204,6 +204,9 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
 	void StopReplayPlayComponent(AReplayActor* GhostActor);
+
+	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay", meta=(BlueprintPure = false))
+	bool GetPlaybackGroup(const FGuid& InGuid, FBloodStainPlaybackGroup& OutBloodStainPlaybackGroup);
 	
 	/**
 	 *  @brief Notifies the recording system that a mesh component has been attached to a recorded actor.
@@ -342,7 +345,11 @@ public:
 	void SetFileSaveOptions(const FBloodStainFileOptions& InOptions);
 
 	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
-	void SetReplayCustomUserData(const FReplayCustomUserData& ReplayCustomUserData, FName GroupName = NAME_None);
+	void SetReplayUserGroupData(const FInstancedStruct& ReplayCustomUserData, FName GroupName = NAME_None);
+
+	FInstancedStruct GetReplayUserHeaderData(const FName& GroupName);
+
+	void ClearReplayUserHeaderData(const FName& GroupName);
 	
 private:
 	/** The core implementation for spawning an ABloodStainActor at a specific transform. */
@@ -373,8 +380,6 @@ private:
 	
 	/** Iterates through all active recording groups and removes any that are no longer valid. */
 	void CleanupInvalidRecordGroups();
-
-	FReplayCustomUserData GetReplayCustomUserData(const FName& GroupName);
 	
 public:
 	/**
@@ -421,7 +426,8 @@ private:
 	UPROPERTY()
 	TObjectPtr<UMaterialInterface> GhostMaterial;
 
-	TMap<FName, FReplayCustomUserData> ReplayCustomUserDataMap;
+	/** Key is GroupName */
+	TMap<FName, FInstancedStruct> ReplayUserHeaderDataMap;
 	
 	/** Default group name to use if one is not specified when starting a recording. */
 	FName DefaultGroupName = TEXT("BloodStainReplay");

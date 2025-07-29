@@ -61,6 +61,12 @@ public:
 	/** Update Replay Frame by Calculated Time & Apply Interpolation */
 	void UpdatePlaybackToTime(float ElapsedTime);
 
+	/**
+	 * @param InMaterial if null, use OriginalMaterial (If OriginalMaterial is null, do not Apply)  
+	 */
+	UFUNCTION(BlueprintCallable, Category = "BloodStain|Playback", meta=(BlueprintPure = false))
+	void ApplyMaterial(UMaterialInterface* InMaterial) const;
+	
 public:
 	bool IsTickable() const;
 	

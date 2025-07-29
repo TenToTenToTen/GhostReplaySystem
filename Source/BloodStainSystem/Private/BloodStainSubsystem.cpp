@@ -128,9 +128,10 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 		const float EffectiveStartTime = FrameBaseEndTime - BloodStainRecordGroup.RecordOptions.MaxRecordTime;
 		const float FrameBaseStartTime = EffectiveStartTime > 0 ? EffectiveStartTime : 0;
 
-		TMap<FName, int32> RecordDataIndexMap;
-		TArray<FRecordActorSaveData> RecordSaveDataArray;
-		
+		TMap<FName, int32> ActorNameToRecordDataIndexMap;
+		TArray<FRecordActorSaveData> RecordActorSaveDataArray;
+		TArray<FInstancedStruct> ActorHeaderDataArray;
+				
 		for (const auto& [Actor, RecordComponent] : BloodStainRecordGroup.ActiveRecorders)
 		{
 			if (!Actor)
@@ -151,29 +152,38 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 				UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording Warning: Frame is 0: %s"), *Actor->GetName());
 				continue;
 			}
-			RecordSaveDataArray.Add(RecordSaveData);
-			int32 RecordDataIndex = RecordSaveDataArray.Num() - 1;
-			RecordDataIndexMap.Add(Actor->GetFName(), RecordDataIndex);
+
+			FInstancedStruct RecordActorUserData = RecordComponent->GetRecordActorUserData();
+			ActorHeaderDataArray.Add(RecordActorUserData);
+			
+			RecordActorSaveDataArray.Add(RecordSaveData);
+			int32 RecordDataIndex = RecordActorSaveDataArray.Num() - 1;
+			ActorNameToRecordDataIndexMap.Add(Actor->GetFName(), RecordDataIndex);
 		}
 
-		TArray<FName> ActorNameArray;
-		TArray<FRecordActorSaveData> TerminatedActorSaveDataArray = ReplayTerminatedActorManager->CookQueuedFrames(GroupName, FrameBaseStartTime, ActorNameArray);
+		TArray<FName> TerminateActorNameArray;
+		TArray<FInstancedStruct> TerminateRecordActorUserDataArray;
+		TArray<FRecordActorSaveData> TerminatedActorSaveDataArray = ReplayTerminatedActorManager->CookQueuedFrames(GroupName, FrameBaseStartTime, TerminateActorNameArray, TerminateRecordActorUserDataArray);		
 		for (int32 Index = 0; Index < TerminatedActorSaveDataArray.Num(); Index++)
 		{
 			const FRecordActorSaveData& RecordActorSaveData = TerminatedActorSaveDataArray[Index];
-			const FName& ActorName = ActorNameArray[Index];
+			const FName& ActorName = TerminateActorNameArray[Index];
+			const FInstancedStruct& RecordActorUserData = TerminateRecordActorUserDataArray[Index];
 
 			if (!RecordActorSaveData.IsValid())
 			{
 				UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording Warning: Frame num is 0"));
 				continue;
 			}
-			RecordSaveDataArray.Add(RecordActorSaveData);
-			int32 RecordDataIndex = RecordSaveDataArray.Num() - 1;
-			RecordDataIndexMap.Add(ActorName, RecordDataIndex);
+
+			ActorHeaderDataArray.Add(RecordActorUserData);
+			
+			RecordActorSaveDataArray.Add(RecordActorSaveData);
+			int32 RecordDataIndex = RecordActorSaveDataArray.Num() - 1;
+			ActorNameToRecordDataIndexMap.Add(ActorName, RecordDataIndex);
 		}
 	
-		if (RecordSaveDataArray.Num() == 0)
+		if (RecordActorSaveDataArray.Num() == 0)
 		{
 			UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording Failed: There is no Valid Recorder Group[%s]"), GetData(GroupName.ToString()));
 			return;
@@ -188,16 +198,16 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 			GroupNameString = DefaultGroupName.ToString();
 		}
 
-		if (BloodStainRecordGroup.RecordingMainActor.Get() != nullptr && RecordDataIndexMap.Contains(BloodStainRecordGroup.RecordingMainActor->GetFName()))
+		if (BloodStainRecordGroup.RecordingMainActor.Get() != nullptr && ActorNameToRecordDataIndexMap.Contains(BloodStainRecordGroup.RecordingMainActor->GetFName()))
 		{
-			const int32 Index = RecordDataIndexMap[BloodStainRecordGroup.RecordingMainActor->GetFName()];
-			const FRecordActorSaveData& SaveData = RecordSaveDataArray[Index];
+			const int32 Index = ActorNameToRecordDataIndexMap[BloodStainRecordGroup.RecordingMainActor->GetFName()];
+			const FRecordActorSaveData& SaveData = RecordActorSaveDataArray[Index];
 			
 			BloodStainRecordGroup.SpawnPointTransform = SaveData.RecordedFrames[0].ComponentTransforms[SaveData.PrimaryComponentName.ToString()];
 		}
 		else
 		{
-			const FRecordActorSaveData& SaveData = RecordSaveDataArray[0];
+			const FRecordActorSaveData& SaveData = RecordActorSaveDataArray[0];
 			BloodStainRecordGroup.SpawnPointTransform = SaveData.RecordedFrames[0].ComponentTransforms[SaveData.PrimaryComponentName.ToString()];
 		}
 	
@@ -206,11 +216,14 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 			BloodStainRecordGroup.RecordOptions.FileName = FName(FString::Printf(TEXT("%s-%s"), *GroupNameString, *UniqueTimestamp));
 		}
 		
-		FRecordSaveData RecordSaveData = ConvertToSaveData(FrameBaseEndTime, GroupName, BloodStainRecordGroup.RecordOptions.FileName, FName(MapName), RecordSaveDataArray);
+		FRecordSaveData RecordSaveData = ConvertToSaveData(FrameBaseEndTime, GroupName, BloodStainRecordGroup.RecordOptions.FileName, FName(MapName), RecordActorSaveDataArray);
 
 		OnBuildRecordingHeader.Broadcast(GroupName);
 
-		RecordSaveData.Header.ReplayCustomUserData = GetReplayCustomUserData(GroupName);
+		RecordSaveData.Header.RecordGroupUserData = GetReplayUserHeaderData(GroupName);
+		RecordSaveData.Header.RecordActorUserData = ActorHeaderDataArray;		
+		
+		ClearReplayUserHeaderData(GroupName);
 		
 		(new FAutoDeleteAsyncTask<FSaveRecordingTask>(
 			MoveTemp(RecordSaveData), MapName, BloodStainRecordGroup.RecordOptions.FileName.ToString(), FileSaveOptions
@@ -387,6 +400,53 @@ void UBloodStainSubsystem::StopReplayPlayComponent(AReplayActor* GhostActor)
 	if (BloodStainPlaybackGroup.ActiveReplayers.Num() == 0)
 	{
 		StopReplay(PlaybackKey);
+	}
+}
+
+bool UBloodStainSubsystem::GetPlaybackGroup(const FGuid& InGuid, FBloodStainPlaybackGroup& OutBloodStainPlaybackGroup)
+{
+	if (BloodStainPlaybackGroups.Contains(InGuid))
+	{
+		OutBloodStainPlaybackGroup = BloodStainPlaybackGroups[InGuid];
+		return true;
+	}
+	return false;
+}
+
+void UBloodStainSubsystem::NotifyComponentAttached(AActor* TargetActor, UMeshComponent* NewComponent)
+{
+	if (!TargetActor || !NewComponent)
+	{
+		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] NotifyComponentAttached failed: TargetActor or NewComponent is null."));
+		return;
+	}
+
+	if (URecordComponent* RecordComponent = TargetActor->GetComponentByClass<URecordComponent>())
+	{
+		RecordComponent->OnComponentAttached(NewComponent);
+	}
+}
+
+void UBloodStainSubsystem::NotifyComponentDetached(AActor* TargetActor, UMeshComponent* DetachedComponent)
+{
+	if (!TargetActor || !DetachedComponent)
+	{
+		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] NotifyComponentDetached failed: TargetActor or DetachedComponent is null."));
+		return;
+	}
+
+	if (URecordComponent* RecordComponent = TargetActor->GetComponentByClass<URecordComponent>())
+	{
+		RecordComponent->OnComponentDetached(DetachedComponent);
+	}
+}
+
+void UBloodStainSubsystem::SetRecordingGroupMainActor(AActor* TargetActor, FName GroupName)
+{	
+	if (BloodStainRecordGroups.Contains(GroupName))
+	{
+		FBloodStainRecordGroup& BloodStainRecordGroup = BloodStainRecordGroups[GroupName];
+		BloodStainRecordGroup.RecordingMainActor = TargetActor;
 	}
 }
 
@@ -610,43 +670,6 @@ TArray<ABloodStainActor*> UBloodStainSubsystem::SpawnAllBloodStainInLevel()
 	return SpawnedActors;
 }
 
-void UBloodStainSubsystem::NotifyComponentAttached(AActor* TargetActor, UMeshComponent* NewComponent)
-{
-	if (!TargetActor || !NewComponent)
-	{
-		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] NotifyComponentAttached failed: TargetActor or NewComponent is null."));
-		return;
-	}
-
-	if (URecordComponent* RecordComponent = TargetActor->GetComponentByClass<URecordComponent>())
-	{
-		RecordComponent->OnComponentAttached(NewComponent);
-	}
-}
-
-void UBloodStainSubsystem::NotifyComponentDetached(AActor* TargetActor, UMeshComponent* DetachedComponent)
-{
-	if (!TargetActor || !DetachedComponent)
-	{
-		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] NotifyComponentDetached failed: TargetActor or DetachedComponent is null."));
-		return;
-	}
-
-	if (URecordComponent* RecordComponent = TargetActor->GetComponentByClass<URecordComponent>())
-	{
-		RecordComponent->OnComponentDetached(DetachedComponent);
-	}
-}
-
-void UBloodStainSubsystem::SetRecordingGroupMainActor(AActor* TargetActor, FName GroupName)
-{	
-	if (BloodStainRecordGroups.Contains(GroupName))
-	{
-		FBloodStainRecordGroup& BloodStainRecordGroup = BloodStainRecordGroups[GroupName];
-		BloodStainRecordGroup.RecordingMainActor = TargetActor;
-	}
-}
-
 bool UBloodStainSubsystem::IsPlaying(const FGuid& InPlaybackKey) const
 {
 	return BloodStainPlaybackGroups.Contains(InPlaybackKey);
@@ -673,9 +696,26 @@ void UBloodStainSubsystem::SetFileSaveOptions(const FBloodStainFileOptions& InOp
 	FileSaveOptions = InOptions;
 }
 
-void UBloodStainSubsystem::SetReplayCustomUserData(const FReplayCustomUserData& ReplayCustomUserData, const FName GroupName)
+void UBloodStainSubsystem::SetReplayUserGroupData(const FInstancedStruct& ReplayUserHeaderData, const FName GroupName)
 {
-	ReplayCustomUserDataMap.Add(GroupName, ReplayCustomUserData);
+	ReplayUserHeaderDataMap.Add(GroupName, ReplayUserHeaderData);
+}
+
+FInstancedStruct UBloodStainSubsystem::GetReplayUserHeaderData(const FName& GroupName)
+{
+	FInstancedStruct InstancedStruct;
+
+	if (ReplayUserHeaderDataMap.Contains(GroupName))
+	{
+		InstancedStruct = ReplayUserHeaderDataMap[GroupName];
+	}
+	
+	return InstancedStruct;
+}
+
+void UBloodStainSubsystem::ClearReplayUserHeaderData(const FName& GroupName)
+{
+	ReplayUserHeaderDataMap.Remove(GroupName);
 }
 
 ABloodStainActor* UBloodStainSubsystem::SpawnBloodStain_Internal(const FVector& Location, const FRotator& Rotation, const FString& FileName, const FString& LevelName)
@@ -817,19 +857,6 @@ void UBloodStainSubsystem::CleanupInvalidRecordGroups()
 		BloodStainRecordGroups.Remove(InvalidRecordGroupName);
 		ReplayTerminatedActorManager->ClearRecordGroup(InvalidRecordGroupName);
 	}
-}
-
-FReplayCustomUserData UBloodStainSubsystem::GetReplayCustomUserData(const FName& GroupName)
-{
-	FReplayCustomUserData ReplayCustomUserData;
-
-	if (ReplayCustomUserDataMap.Contains(GroupName))
-	{
-		ReplayCustomUserData = ReplayCustomUserDataMap[GroupName];
-		ReplayCustomUserDataMap.Remove(GroupName);
-	}
-	
-	return ReplayCustomUserData;
 }
 
 void UBloodStainSubsystem::AddToPendingGroup(AActor* Actor, FName GroupName)

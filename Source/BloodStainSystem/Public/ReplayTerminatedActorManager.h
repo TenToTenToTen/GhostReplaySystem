@@ -30,7 +30,8 @@ public:
 	virtual TStatId GetStatId() const override;
 
 	/** Cook Data from FrameQueue to GhostSaveData */
-	TArray<FRecordActorSaveData> CookQueuedFrames(const FName& GroupName, const float& BaseTime, TArray<FName>& OutActorNameArray);
+	TArray<FRecordActorSaveData> CookQueuedFrames(const FName& GroupName, const float& BaseTime, TArray<FName>& OutActorNameArray, TArray<FInstancedStruct>&
+	                                              OutInstancedStructArray);
 
 	/** if the group already exists, RecordComponent join the group */
 	void AddToRecordGroup(const FName& GroupName, URecordComponent* RecordComponent);
@@ -58,6 +59,7 @@ private:
 		TSharedPtr<TCircularQueue<FRecordFrame>> FrameQueuePtr = nullptr;
 		FRecordActorSaveData GhostSaveData = FRecordActorSaveData();
 		TArray<FComponentActiveInterval> ComponentIntervals;
+		FInstancedStruct InstancedStruct = FInstancedStruct();
 	};
 	
 	struct FRecordGroupData
