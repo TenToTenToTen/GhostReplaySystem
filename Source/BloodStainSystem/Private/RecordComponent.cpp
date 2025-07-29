@@ -445,6 +445,11 @@ void URecordComponent::HandleAttachedActorChangesByBit()
 
 bool URecordComponent::AddComponentToRecordList(UMeshComponent* MeshComp)
 {
+	if (!MeshComp->IsVisible())
+	{
+		return false;
+	}
+	
 	FComponentRecord Record;
 	if (CreateRecordFromMeshComponent(MeshComp, Record))
 	{
