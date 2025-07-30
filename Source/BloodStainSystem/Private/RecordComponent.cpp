@@ -375,16 +375,17 @@ bool URecordComponent::CreateRecordFromMeshComponent(UMeshComponent* InMeshCompo
 		return false;
 	}
 
-	if (TSharedPtr<FComponentRecord> CachedRecord = MetaDataCache.FindRef(AssetPath))
+	if (TSharedPtr<FComponentRecord> CachedRecord = MetaDataCache.FindRef(CreateUniqueComponentName(InMeshComponent)))
 	{
 		OutRecord = *CachedRecord;
 	}
 	else
 	{
 		TSharedPtr<FComponentRecord> NewRecord = MakeShared<FComponentRecord>();
+		NewRecord->ComponentName = CreateUniqueComponentName(InMeshComponent);
+		NewRecord->ComponentClassPath = InMeshComponent->GetClass()->GetPathName();
 		NewRecord->AssetPath = AssetPath;
 		FillMaterialData(InMeshComponent, *NewRecord);
-		NewRecord->ComponentClassPath = InMeshComponent->GetClass()->GetPathName();
 
 		if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(InMeshComponent))
 		{
@@ -395,11 +396,10 @@ bool URecordComponent::CreateRecordFromMeshComponent(UMeshComponent* InMeshCompo
 			}
 		}
 		
-		MetaDataCache.Add(AssetPath, NewRecord);
+		MetaDataCache.Add(OutRecord.ComponentName, NewRecord);
 		OutRecord = *NewRecord;
 	}
-
-	OutRecord.ComponentName = CreateUniqueComponentName(InMeshComponent);
+	
 	return true;
 }
 
