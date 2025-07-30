@@ -60,7 +60,7 @@ struct FComponentRecord
 	/** Array of material slot paths applied to this component */
 	UPROPERTY(BlueprintReadWrite, Category = "BloodStain")
 	TArray<FString> MaterialPaths;
-
+	
 	/** Map of slot index to saved material parameters */
 	UPROPERTY()
 	TMap<int32, FMaterialParameters> MaterialParameters;

@@ -19,6 +19,8 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "GroomComponent.h"
+#include "GroomAsset.h"
 #include "GhostAnimInstance.h"
 
 DECLARE_CYCLE_STAT(TEXT("PlayComp TickComponent"), STAT_PlayComponent_TickComponent, STATGROUP_BloodStain);
@@ -381,7 +383,8 @@ void UPlayComponent::ApplyComponentTransforms(const FRecordFrame& Prev, const FR
 	{
 		const FString& ComponentName = Pair.Key;
 		const FTransform& NextT = Pair.Value;
-
+		
+		
 		if (USceneComponent* TargetComponent = ReconstructedComponents.FindRef(ComponentName))
 		{
 			if (const FTransform* PrevT = Prev.ComponentTransforms.Find(ComponentName))
@@ -459,7 +462,7 @@ USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecor
 	// Load the component class from the FComponentRecord.
 	UClass* ComponentClass = FindObject<UClass>(nullptr, *Record.ComponentClassPath);
 	if (!ComponentClass ||
-		!(ComponentClass->IsChildOf(UStaticMeshComponent::StaticClass()) || ComponentClass->IsChildOf(USkeletalMeshComponent::StaticClass())))
+		!(ComponentClass->IsChildOf(UStaticMeshComponent::StaticClass()) || ComponentClass->IsChildOf(USkeletalMeshComponent::StaticClass())||ComponentClass->IsChildOf(UGroomComponent::StaticClass())))
 	{
 		UE_LOG(LogBloodStain, Warning, TEXT("Failed to load or invalid component class: %s"), *Record.ComponentClassPath);
 		return nullptr;
@@ -486,6 +489,20 @@ USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecor
 		StaticMeshComponent->SetSimulatePhysics(false);
 		NewComponent = StaticMeshComponent;
 	}
+	
+	else if (ComponentClass->IsChildOf(UGroomComponent::StaticClass()))
+	{
+		UGroomComponent* GroomComp = NewObject<UGroomComponent>(Owner, UGroomComponent::StaticClass(), FName(*Record.ComponentName));
+		if (const TObjectPtr<UObject>* FoundAsset = AssetCache.Find(Record.AssetPath))
+		{
+			GroomComp->SetGroomAsset(Cast<UGroomAsset>(*FoundAsset));
+			// TODO Check
+			//GroomComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		}
+		GroomComp->SetWorldTransform(ReplayData.RecordedFrames[0].ComponentTransforms[Record.ComponentName]);
+		NewComponent = GroomComp;
+	}
+
 	else
 	{
 		return nullptr;

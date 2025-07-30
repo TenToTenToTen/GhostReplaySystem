@@ -17,6 +17,8 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "StructUtils/InstancedStruct.h"
+#include "GroomComponent.h"
+#include "GroomAsset.h"
 
 DECLARE_CYCLE_STAT(TEXT("RecordComp TickComponent"), STAT_RecordComponent_TickComponent, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("RecordComp Initialize"), STAT_RecordComponent_Initialize, STATGROUP_BloodStain);
@@ -169,10 +171,12 @@ void URecordComponent::OnComponentAttached(UMeshComponent* NewComponent)
 	}
 	
 	const UClass* ComponentClass = NewComponent->GetClass();
-	const bool bIsExactStaticMesh = (ComponentClass == UStaticMeshComponent::StaticClass());
-	const bool bIsExactSkeletalMesh = (ComponentClass == USkeletalMeshComponent::StaticClass());
+	const bool bIsSupported =
+		ComponentClass == UStaticMeshComponent::StaticClass() ||
+		ComponentClass == USkeletalMeshComponent::StaticClass() ||
+		ComponentClass == UGroomComponent::StaticClass();
 
-	if (!bIsExactStaticMesh && !bIsExactSkeletalMesh)
+	if (!bIsSupported)
 	{
 		return;
 	}
@@ -321,13 +325,16 @@ void URecordComponent::CollectOwnedMeshComponents()
 		{
 			const UClass* ComponentClass = MeshComp->GetClass();
 
-			const bool bIsExactStaticMesh = (ComponentClass == UStaticMeshComponent::StaticClass());
-			const bool bIsExactSkeletalMesh = (ComponentClass == USkeletalMeshComponent::StaticClass());
+			const bool bIsSupported =
+				ComponentClass == UStaticMeshComponent::StaticClass() ||
+				ComponentClass == USkeletalMeshComponent::StaticClass() ||
+				ComponentClass == UGroomComponent::StaticClass();
 
-			if (bIsExactStaticMesh || bIsExactSkeletalMesh)
+			if (!bIsSupported)
 			{
-				AddComponentToRecordList(MeshComp);
+				continue;
 			}
+			AddComponentToRecordList(MeshComp);
 		}
 	}
 
@@ -368,6 +375,18 @@ bool URecordComponent::CreateRecordFromMeshComponent(UMeshComponent* InMeshCompo
 			AssetPath = SkeletalMesh->GetPathName();
 		}
 	}
+	else if (UGroomComponent* GroomComp = Cast<UGroomComponent>(InMeshComponent))
+	{
+		if (GroomComp->GroomAsset)
+		{
+			if (USkeletalMeshComponent* ParentSkeletal = Cast<USkeletalMeshComponent>(GroomComp->GetAttachParent()))
+			{
+				AssetPath = GroomComp->GroomAsset->GetPathName();
+			}
+		}
+	}
+
+	
 
 	if (AssetPath.IsEmpty())
 	{
