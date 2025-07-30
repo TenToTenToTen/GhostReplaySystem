@@ -37,7 +37,8 @@ public class BloodStainSystem : ModuleRules
 				"SlateCore",
 				"UMG",
 				"NetCore",
-				"StructUtils"
+				"StructUtils",
+				"HairStrandsCore"
 			}
 		);
 		
