@@ -182,34 +182,32 @@ bool UPlayComponent::CalculatePlaybackTime(float& OutElapsedTime)
 		return false;
 	}
 
-	static float Epsilon = FLT_EPSILON;  
+    // Calculate elapsed time based on the current world time
+    OutElapsedTime = (static_cast<float>(GetWorld()->GetTimeSeconds()) - PlaybackStartTime) * PlaybackOptions.PlaybackRate;
 
-	// Calculate elapsed time based on the current world time
-	OutElapsedTime = (GetWorld()->GetTimeSeconds() - PlaybackStartTime) * PlaybackOptions.PlaybackRate;
+    if (PlaybackOptions.bIsLooping)
+    {
+        // Looping playback: wrap the time to the [0, Duration) range.
+        OutElapsedTime = FMath::Fmod(OutElapsedTime, Duration);
+        if (OutElapsedTime < 0)
+        {
+            OutElapsedTime += Duration;
+        }
+    }
+    else
+    {
+        // Single playback: check if the time is out of bounds.
+        // For reverse playback, values start as negative, so add Duration to map to the [0, Duration] range.
+        if (PlaybackOptions.PlaybackRate < 0.f)
+        {
+            OutElapsedTime += Duration;
+        }
 
-	if (PlaybackOptions.bIsLooping)
-	{
-		// Looping playback: wrap the time to the [0, Duration) range.
-		OutElapsedTime = FMath::Fmod(OutElapsedTime, Duration);
-		if (OutElapsedTime < -Epsilon)
-		{
-			OutElapsedTime += Duration;
-		}
-	}
-	else
-	{
-		// Single playback: check if the time is out of bounds.
-		// For reverse playback, values start as negative, so add Duration to map to the [0, Duration] range.
-		if (PlaybackOptions.PlaybackRate < 0.f)
-		{
-			OutElapsedTime += Duration;
-		}
-
-		if (OutElapsedTime < -Epsilon || OutElapsedTime > Duration)
-		{
-			return false;
-		}
-	}
+        if (OutElapsedTime < 0 || OutElapsedTime > Duration)
+        {
+            return false;
+        }
+    }
 
 	return true;
 }
