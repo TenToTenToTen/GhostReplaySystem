@@ -473,14 +473,20 @@ USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecor
 	if (ComponentClass->IsChildOf(USkeletalMeshComponent::StaticClass()))
 	{
 		USkeletalMeshComponent* SkeletalComp = NewObject<USkeletalMeshComponent>(Owner, USkeletalMeshComponent::StaticClass(), FName(*Record.ComponentName));
+		SkeletalComp->SetAnimationMode(EAnimationMode::AnimationCustomMode);
 		SkeletalComp->SetAnimInstanceClass(UGhostAnimInstance::StaticClass());
 		SkeletalComp->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+		SkeletalComp->SetDisablePostProcessBlueprint(true);
+		SkeletalComp->SetSimulatePhysics(false);
+		
 		NewComponent = SkeletalComp;
-
 	}
 	else if (ComponentClass->IsChildOf(UStaticMeshComponent::StaticClass()))
 	{
-		NewComponent = NewObject<UStaticMeshComponent>(Owner, ComponentClass, FName(*Record.ComponentName));
+		UStaticMeshComponent* StaticMeshComponent = NewObject<UStaticMeshComponent>(Owner, ComponentClass, FName(*Record.ComponentName));
+
+		StaticMeshComponent->SetSimulatePhysics(false);
+		NewComponent = StaticMeshComponent;
 	}
 	else
 	{
