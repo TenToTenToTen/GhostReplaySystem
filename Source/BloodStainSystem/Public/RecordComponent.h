@@ -51,6 +51,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Record")
 	void SetRecordActorUserData(const struct FInstancedStruct& InInstancedStruct);
 	
+	template <typename T>
+	bool SetRecordActorUserData(const T& InUserData);
 	
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Record")
 	FInstancedStruct GetRecordActorUserData();
@@ -75,12 +77,15 @@ private:
 
 	/** Adds the given mesh component to the list of components to be recorded. */
 	bool AddComponentToRecordList(UMeshComponent* MeshComp);
-protected:
+
+	static FString CreateUniqueComponentName(const UActorComponent* Component);
 	
+public:
 	/** Record Option */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="BloodStain|Record")
 	FBloodStainRecordOptions RecordOptions;
-	
+
+protected:
 	float StartTime;
 	int32 MaxRecordFrames;
 	
@@ -115,3 +120,28 @@ private:
 	TBitArray<> PrevAttachedBits;
 	TBitArray<> CurAttachedBits;
 };
+
+template <typename T>
+bool URecordComponent::SetRecordActorUserData(const T& InUserData)
+{
+	static_assert(std::is_same_v<decltype(T::StaticStruct()), UScriptStruct*>, "T must be a USTRUCT with StaticStruct()");
+
+	const UScriptStruct* ScriptStruct = T::StaticStruct();
+	check(ScriptStruct);
+
+	if (ScriptStruct == nullptr)
+	{
+		return false;
+	}
+	
+	InstancedStruct = FInstancedStruct::Make(InUserData);
+
+	if (!InstancedStruct.IsValid())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[URecordComponent::AcceptBuffer()] Invalid InstancedStruct passed."));
+		InstancedStruct.Reset();
+		return false;
+	}
+	
+	return true;
+}

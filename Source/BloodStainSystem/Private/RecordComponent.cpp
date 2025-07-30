@@ -57,7 +57,7 @@ void URecordComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 		// Record All Owned Component Transform (support for StaticMeshComponent, SkeletalMeshComponent)
 		for (TObjectPtr<UMeshComponent>& MeshComp : OwnedComponentsForRecord)
 		{
-			FString ComponentName = FString::Printf(TEXT("%s_%u"), *MeshComp->GetName(), MeshComp->GetUniqueID());
+			FString ComponentName = CreateUniqueComponentName(MeshComp);
 
 			if (USkeletalMeshComponent* SkeletalComp = Cast<USkeletalMeshComponent>(MeshComp))
 			{
@@ -177,7 +177,7 @@ void URecordComponent::OnComponentAttached(UMeshComponent* NewComponent)
 		return;
 	}
 	
-	const FString ComponentName = FString::Printf(TEXT("%s_%u"), *NewComponent->GetName(), NewComponent->GetUniqueID());
+	const FString ComponentName = CreateUniqueComponentName(NewComponent);
 	if (IntervalIndexMap.Contains(ComponentName))
 	{
 		// If it's already registered, do nothing
@@ -207,7 +207,7 @@ void URecordComponent::OnComponentDetached(UMeshComponent* DetachedComponent)
 		return;
 	}
 
-	const FString ComponentName = FString::Printf(TEXT("%s_%u"), *DetachedComponent->GetName(), DetachedComponent->GetUniqueID());
+	const FString ComponentName = CreateUniqueComponentName(DetachedComponent);
 	
 	if (!OwnedComponentsForRecord.Contains(DetachedComponent))
 	{
@@ -286,12 +286,6 @@ void URecordComponent::FillMaterialData(const UMeshComponent* InMeshComponent, F
 
 void URecordComponent::SetRecordActorUserData(const FInstancedStruct& InInstancedStruct)
 {
-	if (!InInstancedStruct.IsValid())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[URecordComponent::AcceptBuffer()] Invalid InstancedStruct passed."));
-		return;
-	}
-
 	InstancedStruct = InInstancedStruct;
 }
 
@@ -343,7 +337,7 @@ void URecordComponent::CollectOwnedMeshComponents()
 		const UMeshComponent* PrimaryComp = OwnedComponentsForRecord[0].Get();
 		if (PrimaryComp != nullptr)
 		{
-			PrimaryComponentName = FName(FString::Printf(TEXT("%s_%u"), *PrimaryComp->GetName(), PrimaryComp->GetUniqueID()));
+			PrimaryComponentName = FName(CreateUniqueComponentName(PrimaryComp));
 		}
 	}
 	
@@ -392,11 +386,20 @@ bool URecordComponent::CreateRecordFromMeshComponent(UMeshComponent* InMeshCompo
 		FillMaterialData(InMeshComponent, *NewRecord);
 		NewRecord->ComponentClassPath = InMeshComponent->GetClass()->GetPathName();
 
+		if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(InMeshComponent))
+		{
+			if (SkeletalMeshComponent->LeaderPoseComponent.Get() != nullptr)
+			{
+				const FString ComponentName = CreateUniqueComponentName(SkeletalMeshComponent->LeaderPoseComponent.Get());
+				NewRecord->LeaderPoseComponentName = ComponentName;
+			}
+		}
+		
 		MetaDataCache.Add(AssetPath, NewRecord);
 		OutRecord = *NewRecord;
 	}
 
-	OutRecord.ComponentName = FString::Printf(TEXT("%s_%u"), *InMeshComponent->GetName(), InMeshComponent->GetUniqueID());
+	OutRecord.ComponentName = CreateUniqueComponentName(InMeshComponent);
 	return true;
 }
 
@@ -477,4 +480,10 @@ bool URecordComponent::AddComponentToRecordList(UMeshComponent* MeshComp)
 		return true;
 	}
 	return false;
+}
+
+FString URecordComponent::CreateUniqueComponentName(const UActorComponent* Component)
+{
+	FString ComponentName = FString::Printf(TEXT("%s_%u"), *Component->GetName(), Component->GetUniqueID());
+	return ComponentName;
 }

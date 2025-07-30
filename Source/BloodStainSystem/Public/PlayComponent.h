@@ -90,7 +90,7 @@ private:
 	static TUniquePtr<FIntervalTreeNode> BuildIntervalTree(const TArray<FComponentActiveInterval*>& InComponentIntervals);
 	static void QueryIntervalTree(FIntervalTreeNode* Node, int32 FrameIndex, TArray<FComponentActiveInterval*>& OutComponentIntervals);
 
-protected:
+public:
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "BloodStain|Playback")
 	FRecordHeaderData RecordHeaderData;
 	
@@ -99,7 +99,8 @@ protected:
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "BloodStain|Playback")
 	FGuid PlaybackKey;
-	
+
+protected:
 	UPROPERTY()
 	FRecordActorSaveData ReplayData;
 

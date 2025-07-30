@@ -68,11 +68,26 @@ struct FBloodStainPlaybackGroup
 };
 
 USTRUCT()
+struct FPendingActorData
+{
+	GENERATED_BODY()
+	UPROPERTY()
+	TWeakObjectPtr<AActor> Actor = nullptr;
+		
+	UPROPERTY()
+	FInstancedStruct InstancedStruct = FInstancedStruct();
+};
+
+USTRUCT()
 struct FPendingGroup
 {
 	GENERATED_BODY()
-	
-	TSet<TWeakObjectPtr<AActor>> Actors;
+
+	UPROPERTY()
+	TMap<uint32, FPendingActorData> ActorData;
+
+	UPROPERTY()
+	FBloodStainRecordOptions RecordOptions = FBloodStainRecordOptions();
 
 	UPROPERTY()
 	TWeakObjectPtr<AActor> RecordingMainActor = nullptr;
@@ -343,9 +358,12 @@ public:
 	
 	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
 	void SetFileSaveOptions(const FBloodStainFileOptions& InOptions);
-
+	
 	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
 	void SetReplayUserGroupData(const FInstancedStruct& ReplayCustomUserData, FName GroupName = NAME_None);
+
+	template <typename T>
+	bool SetReplayUserGroupData(const T& InUserData, FName GroupName = NAME_None);
 
 	FInstancedStruct GetReplayUserHeaderData(const FName& GroupName);
 
@@ -390,7 +408,7 @@ public:
 	FBloodStainFileOptions FileSaveOptions;
 
 	UPROPERTY(BlueprintAssignable, Category = "BloodStain|File")
-	FOnBuildRecordingHeader OnBuildRecordingHeader;
+	FOnBuildRecordingHeader OnCompleteBuildRecordingHeader;
 	
 protected:
 	/** The ABloodStainActor class to spawn, loaded from a hardcoded path in the constructor. */
@@ -456,6 +474,62 @@ public:
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Pending|Experimental", meta=(ToolTip="This is Experimental Function"))
 	void SetPendingGroupMainActor(AActor* TargetActor, FName GroupName = NAME_None);
 
+	UFUNCTION(BlueprintCallable, Category="BloodStain|Pending|Experimental", meta=(ToolTip="This is Experimental Function"))
+	void SetPendingActorUserData(FName GroupName, AActor* Actor, const struct FInstancedStruct& InInstancedStruct);
+
+	template <typename T>
+	bool SetPendingActorUserData(FName GroupName, AActor* Actor, const T& InUserData); 
+
 private:
 	TMap<FName, FPendingGroup> PendingGroups;
 };
+
+template <typename T>
+bool UBloodStainSubsystem::SetReplayUserGroupData(const T& InUserData, FName GroupName)
+{
+	static_assert(std::is_same_v<decltype(T::StaticStruct()), UScriptStruct*>, "T must be a USTRUCT with StaticStruct()");
+
+	const UScriptStruct* ScriptStruct = T::StaticStruct();
+	check(ScriptStruct);
+
+	if (ScriptStruct == nullptr)
+	{
+		return false;
+	}
+	
+	FInstancedStruct InstancedStruct = FInstancedStruct::Make(InUserData);
+
+	if (!InstancedStruct.IsValid())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[URecordComponent::AcceptBuffer()] Invalid InstancedStruct passed."));
+		InstancedStruct.Reset();
+		return false;
+	}
+	
+	ReplayUserHeaderDataMap.Add(GroupName, InstancedStruct);
+	
+	return true;
+}
+
+template <typename T>
+bool UBloodStainSubsystem::SetPendingActorUserData(const FName GroupName, AActor* Actor, const T& InUserData)
+{
+	if (PendingGroups.Contains(GroupName))
+	{
+		FPendingGroup& PendingGroup = PendingGroups[GroupName];
+
+		if (PendingGroup.ActorData.Contains(Actor->GetUniqueID()))
+		{
+			FPendingActorData& PendingActorData = PendingGroup.ActorData[Actor->GetUniqueID()];
+			const FInstancedStruct InstancedStruct = FInstancedStruct::Make(InUserData);
+
+			if (InstancedStruct.IsValid())
+			{
+				PendingActorData.InstancedStruct = InstancedStruct;
+				return true;
+			}
+		}
+	}
+
+	return false;
+}

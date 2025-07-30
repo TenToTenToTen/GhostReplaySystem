@@ -7,6 +7,7 @@
 
 #include "CoreMinimal.h"
 #include "GameplayTagContainer.h"
+#include "Materials/MaterialInterface.h"
 #include "OptionTypes.generated.h"
 
 /** @brief Recording options for the BloodStain system.
@@ -30,7 +31,7 @@ struct FBloodStainRecordOptions
 	FName FileName = NAME_None;
 
 	/** BloodStain GamePlayTags. This is stored in FRecordHeaderData */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Record")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Record")
 	FGameplayTagContainer Tags;
 
 	/** Maximum recording duration in seconds */
@@ -86,7 +87,7 @@ struct FBloodStainPlaybackOptions
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Replay")
 	bool bUseGhostMaterial = true;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (EditCondition = "bUseGhostMaterial", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Replay", meta = (EditCondition = "bUseGhostMaterial", EditConditionHides))
 	TObjectPtr<UMaterialInterface> GroupGhostMaterial = nullptr;
 
 	

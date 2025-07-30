@@ -24,5 +24,11 @@
 				"Mac" 
 			]
 		}
+	],
+	"Plugins": [
+		{
+			"Name": "StructUtils",
+			"Enabled": true
+		}
 	]
 }

@@ -105,6 +105,25 @@ void UPlayComponent::Initialize(FGuid InPlaybackKey, const FRecordHeaderData& In
 		}
 	}
 
+	for (const FComponentActiveInterval& Interval : ReplayData.ComponentIntervals)
+	{
+		if (!Interval.Meta.LeaderPoseComponentName.IsEmpty())
+		{
+			if (ReconstructedComponents.Contains(Interval.Meta.LeaderPoseComponentName) && ReconstructedComponents.Contains(Interval.Meta.ComponentName))
+			{
+				USceneComponent* LeaderPoseComponent = ReconstructedComponents[Interval.Meta.LeaderPoseComponentName];
+				USceneComponent* MeshComponent = ReconstructedComponents[Interval.Meta.ComponentName];
+				USkeletalMeshComponent* LeaderPoseSkeletalComponent = Cast<USkeletalMeshComponent>(LeaderPoseComponent);
+				USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(MeshComponent);
+				
+				if (LeaderPoseSkeletalComponent != nullptr && SkeletalMeshComponent != nullptr)
+				{
+					SkeletalMeshComponent->SetLeaderPoseComponent(LeaderPoseSkeletalComponent);
+				}
+			}
+		}
+	}
+	
 	SkelInfos.Reset();
 	for (auto& [ComponentName, Component] : ReconstructedComponents)
 	{

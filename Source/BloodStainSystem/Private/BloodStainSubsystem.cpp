@@ -217,11 +217,11 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 		}
 		
 		FRecordSaveData RecordSaveData = ConvertToSaveData(FrameBaseEndTime, GroupName, BloodStainRecordGroup.RecordOptions.FileName, FName(MapName), RecordActorSaveDataArray);
-
-		OnBuildRecordingHeader.Broadcast(GroupName);
-
+		
 		RecordSaveData.Header.RecordGroupUserData = GetReplayUserHeaderData(GroupName);
-		RecordSaveData.Header.RecordActorUserData = ActorHeaderDataArray;		
+		RecordSaveData.Header.RecordActorUserData = ActorHeaderDataArray;
+		
+		OnCompleteBuildRecordingHeader.Broadcast(GroupName);
 		
 		ClearReplayUserHeaderData(GroupName);
 		
@@ -865,7 +865,11 @@ void UBloodStainSubsystem::AddToPendingGroup(AActor* Actor, FName GroupName)
 	{
 		PendingGroups.Add(GroupName, FPendingGroup());
 	}
-	PendingGroups[GroupName].Actors.Add(Actor);
+
+	FPendingActorData PendingActorData;
+	PendingActorData.Actor = Actor;
+	
+	PendingGroups[GroupName].ActorData.Add(Actor->GetUniqueID(), PendingActorData);
 }
 
 void UBloodStainSubsystem::AddToPendingGroupWithActors(TArray<AActor*> Actors, FName GroupName)
@@ -880,8 +884,8 @@ void UBloodStainSubsystem::RemoveFromPendingGroup(AActor* Actor, FName GroupName
 {
 	if (PendingGroups.Contains(GroupName))
 	{
-		PendingGroups[GroupName].Actors.Remove(Actor);
-		if (PendingGroups[GroupName].Actors.Num() == 0)
+		PendingGroups[GroupName].ActorData.Remove(Actor->GetUniqueID());
+		if (PendingGroups[GroupName].ActorData.Num() == 0)
 		{
 			PendingGroups.Remove(GroupName);
 		}
@@ -901,11 +905,16 @@ void UBloodStainSubsystem::StartRecordingWithPendingGroup(FBloodStainRecordOptio
 	if (PendingGroups.Contains(RecordOptions.RecordingGroupName))
 	{
 		FPendingGroup& PendingGroup = PendingGroups[RecordOptions.RecordingGroupName];
-		for (TWeakObjectPtr<AActor>& Actor : PendingGroup.Actors)
+		for (auto& [Key, PendingActorData] : PendingGroup.ActorData)
 		{
-			if (Actor.IsValid())
+			if (PendingActorData.Actor.IsValid())
 			{
-				StartRecording(Actor.Get(), RecordOptions);
+				bool bSuccess = StartRecording(PendingActorData.Actor.Get(), RecordOptions);
+				
+				if (bSuccess && PendingActorData.InstancedStruct.IsValid())
+				{
+					BloodStainRecordGroups[RecordOptions.RecordingGroupName].ActiveRecorders[PendingActorData.Actor.Get()]->SetRecordActorUserData(PendingActorData.InstancedStruct);
+				}
 			}
 		}
 
@@ -924,5 +933,19 @@ void UBloodStainSubsystem::SetPendingGroupMainActor(AActor* TargetActor, FName G
 	{
 		FPendingGroup& PendingGroup = PendingGroups[GroupName];
 		PendingGroup.RecordingMainActor = TargetActor;
+	}
+}
+
+void UBloodStainSubsystem::SetPendingActorUserData(const FName GroupName, AActor* Actor, const FInstancedStruct& InInstancedStruct)
+{
+	if (PendingGroups.Contains(GroupName))
+	{
+		FPendingGroup& PendingGroup = PendingGroups[GroupName];
+
+		if (PendingGroup.ActorData.Contains(Actor->GetUniqueID()))
+		{
+			FPendingActorData& PendingActorData = PendingGroup.ActorData[Actor->GetUniqueID()];
+			PendingActorData.InstancedStruct = InInstancedStruct;
+		}
 	}
 }

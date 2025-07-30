@@ -64,6 +64,10 @@ struct FComponentRecord
 	/** Map of slot index to saved material parameters */
 	UPROPERTY()
 	TMap<int32, FMaterialParameters> MaterialParameters;
+
+	/** Skeletal Mesh Leader Pose Component Name */
+	UPROPERTY(BlueprintReadWrite, Category = "BloodStain")
+	FString LeaderPoseComponentName;
 	
 	friend FArchive& operator<<(FArchive& Ar, FComponentRecord& ComponentRecord)
 	{
@@ -72,6 +76,7 @@ struct FComponentRecord
 		Ar << ComponentRecord.AssetPath;
 		Ar << ComponentRecord.MaterialPaths;
 		Ar << ComponentRecord.MaterialParameters;
+		Ar << ComponentRecord.LeaderPoseComponentName;
 		return Ar;
 	}
 };
@@ -340,6 +345,31 @@ struct FRecordHeaderData
 	{
 	}
 
+	template<typename T>
+	static bool GetInstancedStruct(FInstancedStruct& InUserData, T& OutUserData)
+	{
+		static_assert(std::is_same_v<decltype(T::StaticStruct()), UScriptStruct*>, "T must be a USTRUCT with StaticStruct()");
+		
+		if (!InUserData.IsValid())
+		{
+			return false;
+		}
+
+		if (InUserData.GetScriptStruct() != T::StaticStruct())
+		{
+			return false;
+		}
+
+		const T* SourceData = InUserData.GetPtr<T>();
+		if (SourceData != nullptr)
+		{
+			OutUserData = *SourceData;
+			return true;
+		}
+
+		return false;
+	}
+
 	friend FArchive& operator<<(FArchive& Ar, FRecordHeaderData& Data)
 	{
 		Ar << Data.FileName;
@@ -409,7 +439,6 @@ struct FRecordHeaderData
 			
 			if (!InstanceData.IsValid())
 			{
-				// TODO - Test do not insert Struct & check come here
 				UE_LOG(LogTemp, Warning, TEXT("InstanceData failed to initialize as struct: %s"), *StructPath);
 				return Ar;
 			}
