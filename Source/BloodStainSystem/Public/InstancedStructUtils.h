@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
+#include "Kismet/BlueprintFunctionLibrary.h"
 #include "InstancedStructUtils.generated.h"
 
 struct FInstancedStruct;
@@ -17,6 +18,6 @@ class BLOODSTAINSYSTEM_API UInstancedStructUtils : public UBlueprintFunctionLibr
 	GENERATED_BODY()
 
 public:
-	UFUNCTION(BlueprintCallable, Category="BloodStain|InstancedStructUtils")
+	UFUNCTION(BlueprintPure, Category="BloodStain|InstancedStructUtils")
 	static bool AreInstancedStructsSameType(const FInstancedStruct& A, const FInstancedStruct& B);
 };
