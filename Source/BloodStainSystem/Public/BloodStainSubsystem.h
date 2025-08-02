@@ -12,6 +12,7 @@
 #include "BloodStainFileOptions.h" 
 #include "BloodStainSubsystem.generated.h"
 
+class AGhostPlayerController;
 class ABloodStainManager;
 class AReplayActor;
 class URecordComponent;
@@ -19,8 +20,14 @@ class UReplayTerminatedActorManager;
 struct FBloodStainRecordOptions;
 struct FGameplayTagContainer;
 
-
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnBuildRecordingHeader, FName, GroupName);
+
+struct FIncomingClientFile
+{
+	FRecordHeaderData Header;
+	TArray<uint8> FileBuffer;
+	int64 ExpectedSize;
+};
 
 /** @brief Recording group for one or more actors, saved as a single file.
  * 
@@ -405,6 +412,18 @@ private:
 	void CleanupInvalidRecordGroups();
 
 	ABloodStainManager* GetManager();
+
+public:
+	/** Send Replay file to the server from the client-side */
+	void StopRecordingAndUploadToServer(FName GroupName);
+	
+	void HandleBeginFileUpload(AGhostPlayerController* Uploader, const FRecordHeaderData& Header, int64 FileSize);
+
+	void HandleReceiveFileChunk(AGhostPlayerController* Uploader, const TArray<uint8>& ChunkData);
+
+	void HandleEndFileUpload(AGhostPlayerController* Uploader);
+private:
+	TMap<TWeakObjectPtr<APlayerController>, FIncomingClientFile> IncomingFileTransfers;
 	
 public:
 	/**

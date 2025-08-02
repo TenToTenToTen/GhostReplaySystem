@@ -20,12 +20,16 @@ public:
 	FString LevelName;
 	FString FileName;
 	FBloodStainFileOptions FileOptions;
+
+	/** This Delegate will trigger send replay file to server only if it's client */
+	FSimpleDelegateGraphTask::FDelegate OnTaskCompleted;
 	
-	FSaveRecordingTask(FRecordSaveData&& InData, const FString& InLevelName, const FString& InFileName, const FBloodStainFileOptions& InOptions)
+	FSaveRecordingTask(FRecordSaveData&& InData, const FString& InLevelName, const FString& InFileName, const FBloodStainFileOptions& InOptions, FSimpleDelegateGraphTask::FDelegate&& InOnTaskCompleted)
 		: SavedData(MoveTemp(InData))
 		, LevelName(InLevelName)
 		, FileName(InFileName)
 		, FileOptions(InOptions)
+		, OnTaskCompleted(MoveTemp(InOnTaskCompleted))
 	{ }
 
 	/** Save the recorded data to a file */

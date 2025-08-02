@@ -15,6 +15,7 @@
 #include "ReplayTerminatedActorManager.h"
 #include "SaveRecordingTask.h"
 #include "GameplayTagContainer.h"
+#include "GhostPlayerController.h"
 #include "Engine/World.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Kismet/KismetMathLibrary.h"
@@ -226,9 +227,32 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 		OnCompleteBuildRecordingHeader.Broadcast(GroupName);
 		
 		ClearReplayUserHeaderData(GroupName);
+
+		const FString FinalFileName = FString::Printf(TEXT("BloodStainReplay-%s"), *UniqueTimestamp); 
+		const FString FinalFilePath = BloodStainFileUtils::GetFullFilePath(FinalFileName, MapName);
+
+		RecordSaveData.Header.FileName = FName(FinalFileName);
+		RecordSaveData.Header.LevelName = FName(MapName);
+		
+		auto OnSaveCompleted = [this, FinalFilePath, Header = RecordSaveData.Header]()
+		{
+			if (GetWorld())
+			{
+				if (AGhostPlayerController* PC = Cast<AGhostPlayerController>(GetWorld()->GetFirstPlayerController()))
+				{
+					if (PC->IsLocalController())
+					{
+						UE_LOG(LogBloodStain, Log, TEXT("Async save completed. Starting upload for: %s"), *FinalFilePath);
+						PC->StartFileUpload(FinalFilePath, Header);
+					}
+				}
+			}
+		};
+		
 		
 		(new FAutoDeleteAsyncTask<FSaveRecordingTask>(
 			MoveTemp(RecordSaveData), MapName, BloodStainRecordGroup.RecordOptions.FileName.ToString(), FileSaveOptions
+			, FSimpleDelegateGraphTask::FDelegate::CreateLambda(MoveTemp(OnSaveCompleted))
 		))->StartBackgroundTask();
 	}
 
@@ -973,5 +997,69 @@ void UBloodStainSubsystem::SetPendingActorUserData(const FName GroupName, AActor
 			FPendingActorData& PendingActorData = PendingGroup.ActorData[Actor->GetUniqueID()];
 			PendingActorData.InstancedStruct = InInstancedStruct;
 		}
+	}
+}
+
+void UBloodStainSubsystem::HandleBeginFileUpload(AGhostPlayerController* Uploader, const FRecordHeaderData& Header,
+	int64 FileSize)
+{
+	if (!Uploader)
+	{
+		return;
+	}
+    
+	UE_LOG(LogBloodStain, Log, TEXT("Server: Begin receiving file '%s' from client %s. Size: %lld"), *Header.FileName.ToString(), *Uploader->GetName(), FileSize);
+    
+	FIncomingClientFile& TransferData = IncomingFileTransfers.FindOrAdd(Uploader);
+	TransferData.Header = Header;
+	TransferData.ExpectedSize = FileSize;
+	TransferData.FileBuffer.Empty(FileSize);
+}
+
+void UBloodStainSubsystem::HandleReceiveFileChunk(AGhostPlayerController* Uploader, const TArray<uint8>& ChunkData)
+{
+	if (!Uploader)
+	{
+		return;
+	}
+    
+	if (FIncomingClientFile* TransferData = IncomingFileTransfers.Find(Uploader))
+	{
+		TransferData->FileBuffer.Append(ChunkData);
+	}
+}
+
+void UBloodStainSubsystem::HandleEndFileUpload(AGhostPlayerController* Uploader)
+{
+	if (!Uploader)
+	{
+		return;
+	}
+
+	if (FIncomingClientFile* TransferData = IncomingFileTransfers.Find(Uploader))
+	{
+		UE_LOG(LogBloodStain, Log, TEXT("Server: Finalized file transfer from client %s. Received %d bytes, Expected %lld bytes."), *Uploader->GetName(), TransferData->FileBuffer.Num(), TransferData->ExpectedSize);
+
+		if (TransferData->FileBuffer.Num() == TransferData->ExpectedSize)
+		{
+			const FString FinalLevelName = TransferData->Header.LevelName.ToString();
+			const FString FinalFileName = TransferData->Header.FileName.ToString() + TEXT("_SERVER");
+			
+			const FString FinalPath = BloodStainFileUtils::GetFullFilePath(FinalFileName, FinalLevelName);
+			if (FFileHelper::SaveArrayToFile(TransferData->FileBuffer, *FinalPath))
+			{
+				UE_LOG(LogBloodStain, Log, TEXT("Server successfully saved client replay to: %s"), *FinalPath);
+			}
+			else
+			{
+				UE_LOG(LogBloodStain, Error, TEXT("Server failed to save client replay to: %s"), *FinalPath);
+			}
+		}
+		else
+		{
+			UE_LOG(LogBloodStain, Warning, TEXT("File size mismatch for upload from %s. Upload failed."), *Uploader->GetName());
+		}
+
+		IncomingFileTransfers.Remove(Uploader);
 	}
 }

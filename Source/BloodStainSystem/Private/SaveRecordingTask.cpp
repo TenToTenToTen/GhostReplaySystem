@@ -9,8 +9,16 @@
 
 void FSaveRecordingTask::DoWork()
 {
-	if (!BloodStainFileUtils::SaveToFile(SavedData, LevelName, FileName, FileOptions))
+	const bool bSuccess = BloodStainFileUtils::SaveToFile(SavedData, LevelName, FileName, FileOptions);
+	FGraphEventRef Task = FFunctionGraphTask::CreateAndDispatchWhenReady([LocalOnTaskCompleted = this->OnTaskCompleted, bSuccess]()
 	{
-		UE_LOG(LogBloodStain, Warning, TEXT("FSaveRecordingTask::DoWork() - SaveToFile failed"));
-	}
+		if (bSuccess)
+		{
+			LocalOnTaskCompleted.ExecuteIfBound();
+		}
+		else
+		{
+			UE_LOG(LogBloodStain, Error, TEXT("Async save task failed. Upload will not start."));
+		}
+	}, TStatId(), nullptr, ENamedThreads::GameThread);
 }
