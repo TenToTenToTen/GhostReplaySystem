@@ -70,6 +70,8 @@ namespace BloodStainFileUtils
 	
 	bool DeleteFile(const FString& FileName, const FString& LevelName);
 
+	bool FileExists(const FString& FileName, const FString& LevelName);
+
 	TArray<FString> GetSavedLevelNames();
 
 	TArray<FString> GetSavedFileNames(const FString& LevelName);

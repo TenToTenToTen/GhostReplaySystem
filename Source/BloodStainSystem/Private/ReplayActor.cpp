@@ -6,6 +6,7 @@
 #include "ReplayActor.h"
 #include "PlayComponent.h"
 #include "BloodStainCompressionUtils.h"
+#include "BloodStainFileUtils.h"
 #include "QuantizationHelper.h"
 #include "Net/UnrealNetwork.h"
 #include "Engine/World.h"
@@ -14,6 +15,7 @@
 #include "Engine/ActorChannel.h"
 #include "Serialization/MemoryReader.h"
 #include "BloodStainSystem.h"
+#include "GhostPlayerController.h"
 
 DECLARE_CYCLE_STAT(TEXT("AReplayActor Tick"), STAT_AReplayActor_Tick, STATGROUP_BloodStain);
 
@@ -101,11 +103,18 @@ void AReplayActor::InitializeReplayLocal(const FGuid& InPlaybackKey, const FReco
 	PlayComponent->SetComponentTickEnabled(true);
 }
 
-void AReplayActor::Server_InitializeReplayWithPayload(const FGuid& InPlaybackKey,
+void AReplayActor::Server_InitializeReplayWithPayload(
+	APlayerController* RequestingController, const FGuid& InPlaybackKey,
 	const FBloodStainFileHeader& InFileHeader, const FRecordHeaderData& InRecordHeader,
 	const TArray<uint8>& InCompressedPayload, const FBloodStainPlaybackOptions& InOptions)
 {
 	check(HasAuthority());
+
+	if (GetOwner() == nullptr)
+	{
+		UE_LOG(LogBloodStain, Warning, TEXT("AReplayActor spawned without an owner. Setting owner to RequestingController."));
+		SetOwner(RequestingController);
+	}
 
 	Server_CurrentPayload = InCompressedPayload;
 	UE_LOG(LogBloodStain, Warning, TEXT("[%s] Initialized. Payload size: %d"), *GetName(), Server_CurrentPayload.Num());
@@ -113,10 +122,13 @@ void AReplayActor::Server_InitializeReplayWithPayload(const FGuid& InPlaybackKey
 	Server_BytesSent = 0;
 	Server_AccumulatedTickTime = 0.f;
 	Server_CurrentChunkIndex = 0;
-	bIsTransferInProgress = true;
+	bIsTransferInProgress = false;
 
 	// [Important] Only the orchestrator should handle the transfer and tick playback.
 	SetIsOrchestrator(true);
+
+	ClientTransferRequiredMap.Empty();
+	NumClientsResponded = 0;
 	
 	// Notify clients to initialize the replay and send the header, option data
 
@@ -149,6 +161,78 @@ void AReplayActor::Server_InitializeReplayWithPayload(const FGuid& InPlaybackKey
 			UE_LOG(LogBloodStain, Log, TEXT("No remote clients on Listen Server. Finalizing transfer immediately."));
 			bIsTransferInProgress = false;
 			Server_CurrentPayload.Empty();
+		}
+	}
+}
+
+void AReplayActor::ProcessReceivedChunk(int32 ChunkIndex, const TArray<uint8>& DataChunk, bool bIsLastChunk)
+{
+	UE_LOG(LogBloodStain, Log, TEXT("Processing chunk %d, Size: %d, IsLastChunk: %s"), 
+		ChunkIndex, DataChunk.Num(), bIsLastChunk ? TEXT("True") : TEXT("False"));
+	if (bHasLocalFile)
+	{
+		return;
+	}
+	
+	if (Client_PendingChunks.Contains(ChunkIndex))
+	{
+		return;
+	}
+
+	Client_PendingChunks.Add(ChunkIndex, DataChunk);
+
+	if (bIsLastChunk)
+	{
+		Client_ExpectedChunks = ChunkIndex + 1;
+		Client_AssembleAndFinalize();
+	}
+}
+
+void AReplayActor::UpdateClientCacheStatus(APlayerController* ReportingController, bool bClientHasFile)
+{
+	if (!ReportingController || !ReportingController->GetNetConnection())
+	{
+		return;
+	}
+
+	UNetConnection* Connection = ReportingController->GetNetConnection();
+	if (Connection)
+	{
+		if (!ClientTransferRequiredMap.Contains(Connection))
+		{
+			ClientTransferRequiredMap.Add(Connection, !bClientHasFile);
+			NumClientsResponded++;
+			UE_LOG(LogBloodStain, Log, TEXT("Server received cache status from client %s. Needs transfer: %s. Total responded: %d"), *ReportingController->GetName(), !bClientHasFile ? TEXT("Yes") : TEXT("No"), NumClientsResponded);
+		}
+	}
+
+	UNetDriver* NetDriver = GetNetDriver();
+	if (NetDriver)
+	{
+		if (NumClientsResponded >= NetDriver->ClientConnections.Num())
+		{
+			UE_LOG(LogBloodStain, Log, TEXT("All remote clients have reported. Checking if transfer is needed."));
+			
+			bool bAnyClientNeedsTransfer = false;
+			for (const auto& Elem : ClientTransferRequiredMap)
+			{
+				if (Elem.Value == true)
+				{
+					bAnyClientNeedsTransfer = true;
+					break;
+				}
+			}
+
+			if (bAnyClientNeedsTransfer)
+			{
+				UE_LOG(LogBloodStain, Log, TEXT("At least one client needs the file. Starting transfer process."));
+				bIsTransferInProgress = true;
+			}
+			else
+			{
+				UE_LOG(LogBloodStain, Log, TEXT("No clients need the file. Transfer will be skipped."));
+				Server_CurrentPayload.Empty(); 
+			}
 		}
 	}
 }
@@ -216,6 +300,12 @@ void AReplayActor::Client_FinalizeAndSpawnVisuals()
 	BloodStainFileUtils_Internal::DeserializeSaveData(MemoryReader, AllReplayData, Client_FileHeader.Options.Quantization);
 	AllReplayData.Header = Client_RecordHeader;
 
+	// Save the replay data locally if it doesn't already exist
+	if (!bHasLocalFile)
+	{
+		SaveReplayLocallyIfNotExists(AllReplayData, Client_RecordHeader, Client_FileHeader.Options);
+	}
+
 	if (MemoryReader.IsError())
 	{
 		UE_LOG(LogBloodStain, Error, TEXT("[BS] Client failed to deserialize raw bytes."));
@@ -223,6 +313,22 @@ void AReplayActor::Client_FinalizeAndSpawnVisuals()
 		return;
 	}
 
+	for (const FRecordActorSaveData& Data : AllReplayData.RecordActorDataArray)
+	{
+		AReplayActor* VisualActor = GetWorld()->SpawnActor<AReplayActor>(AReplayActor::StaticClass(), GetActorTransform());
+		if (VisualActor)
+		{
+			VisualActor->SetReplicates(false); 
+			VisualActor->InitializeReplayLocal(Client_PlaybackKey, AllReplayData.Header, Data, Client_PlaybackOptions);
+			VisualActor->SetActorHiddenInGame(true);
+			Client_SpawnedVisualActors.Add(VisualActor);
+		}
+	}
+}
+
+// Called when the client already has the full payload data
+void AReplayActor::Client_FinalizeAndSpawnVisuals(const FRecordSaveData& AllReplayData)
+{
 	for (const FRecordActorSaveData& Data : AllReplayData.RecordActorDataArray)
 	{
 		AReplayActor* VisualActor = GetWorld()->SpawnActor<AReplayActor>(AReplayActor::StaticClass(), GetActorTransform());
@@ -275,12 +381,46 @@ void AReplayActor::Multicast_InitializeForPayload_Implementation(const FGuid& In
 	Client_ReceivedChunks = 0;
 	Client_PendingChunks.Empty();
 	Client_ReceivedPayloadBuffer.Empty();
+
+	FRecordSaveData TempData;
+	bHasLocalFile = BloodStainFileUtils::LoadFromFile(InRecordHeader.FileName.ToString(), InRecordHeader.LevelName.ToString(), TempData);
+	// bHasLocalFile = false; // only if you want to test if the file is not present locally, uncomment this line
+	UE_LOG(LogBloodStain, Log, TEXT("Client checking for file %s. Found: %d"), *InRecordHeader.FileName.ToString(), bHasLocalFile);
+	
+	if (bHasLocalFile)
+	{
+		UE_LOG(LogBloodStain, Log, TEXT("Client has local file: %s. No transfer needed."), *Client_RecordHeader.FileName.ToString());
+	
+		TArray<uint8> SerializedData;
+		FMemoryWriter MemoryWriter(SerializedData, true);
+		BloodStainFileUtils_Internal::SerializeSaveData(MemoryWriter, TempData, Client_FileHeader.Options.Quantization);
+	
+		Client_ReceivedPayloadBuffer = SerializedData;
+		Client_FinalizeAndSpawnVisuals(TempData);
+	}
+	
+	if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
+	{
+		if (PC->IsLocalController())
+		{
+			if (AGhostPlayerController* GhostPC = Cast<AGhostPlayerController>(PC))
+			{
+				GhostPC->Server_ReportReplayFileCacheStatus(this, bHasLocalFile);
+			}
+		}
+	}
 }	
 
 void AReplayActor::Multicast_ReceivePayloadChunk_Implementation(int32 ChunkIndex, const TArray<uint8>& DataChunk, bool bIsLastChunk)
 {
 	if (HasAuthority())
 	{
+		return;
+	}
+
+	if (bHasLocalFile)
+	{
+		UE_LOG(LogBloodStain, Log, TEXT("Client already has local file. Ignoring received chunk %d."), ChunkIndex);
 		return;
 	}
 
@@ -370,7 +510,7 @@ void AReplayActor::Server_TickTransfer(float DeltaSeconds)
 		constexpr int32 MinChunkSize = 256;
 		constexpr int32 MaxChunkSize = 16 * 1024;
 
-		//UE_LOG(LogBloodStain, Log, TEXT("Server_BytesSent: %d"), Server_BytesSent);
+		UE_LOG(LogBloodStain, Log, TEXT("Server_BytesSent: %d"), Server_BytesSent);
 		while (Server_BytesSent < Server_CurrentPayload.Num() &&
 			   BytesSentThisTick < MaxBytesToSendThisTick &&
 			   ChunksSentThisFrame < MaxChunksPerFrame)
@@ -393,7 +533,25 @@ void AReplayActor::Server_TickTransfer(float DeltaSeconds)
 			
 			const int32 ChunkIndex = Server_BytesSent / MaxChunkSize;
 
-			Multicast_ReceivePayloadChunk(Server_CurrentChunkIndex, ChunkData, bIsLastChunk);
+
+			for (UNetConnection* Connection : NetDriver->ClientConnections)
+			{
+				if (!Connection || Connection->PlayerController == nullptr)
+					continue;
+
+				if (bool* bNeedTransfer = ClientTransferRequiredMap.Find(Connection))
+				{
+					if (*bNeedTransfer)
+					{
+						if (AGhostPlayerController* TargetPC = Cast<AGhostPlayerController>(Connection->PlayerController))
+						{
+							TargetPC->Client_ReceiveReplayChunk(this, Server_CurrentChunkIndex, ChunkData, bIsLastChunk);
+						}
+					}
+				}
+			}
+			
+			// Multicast_ReceivePayloadChunk(Server_CurrentChunkIndex, ChunkData, bIsLastChunk);
 
 			Server_BytesSent += ChunkSize;
 			BytesSentThisTick += ChunkSize;
@@ -422,7 +580,7 @@ void AReplayActor::Server_TickPlayback(float DeltaSeconds)
 	// Send data Completed, now we are in the playback phase.
 	UPlayComponent* TimeSourceComponent = nullptr;
 	
-	if (GetNetMode() == NM_ListenServer)
+	if (GetNetMode() == NM_ListenServer || GetNetMode() == NM_DedicatedServer)
 	{
 		// In Listen Server we calculate playback time from the first spawned visual actor.
 		if (Client_SpawnedVisualActors.IsValidIndex(0) && Client_SpawnedVisualActors[0])
@@ -458,5 +616,28 @@ void AReplayActor::Server_TickPlayback(float DeltaSeconds)
 		{
 			SetActorTickEnabled(false);
 		}
+	}
+}
+
+void AReplayActor::SaveReplayLocallyIfNotExists(const FRecordSaveData& SaveData, const FRecordHeaderData& Header, const FBloodStainFileOptions& Options)
+{
+	const FString FileName = Header.FileName.ToString();
+	const FString LevelName = Header.LevelName.ToString();
+
+	if (!BloodStainFileUtils::FileExists(FileName, LevelName))
+	{
+		const bool bSaved = BloodStainFileUtils::SaveToFile(SaveData, LevelName, FileName, Options);
+		if (bSaved)
+		{
+			UE_LOG(LogBloodStain, Log, TEXT("[Client] Replay saved locally: %s / %s"), *LevelName, *FileName);
+		}
+		else
+		{
+			UE_LOG(LogBloodStain, Warning, TEXT("[Client] Failed to save replay locally: %s / %s"), *LevelName, *FileName);
+		}
+	}
+	else
+	{
+		UE_LOG(LogBloodStain, Log, TEXT("[Client] Replay file already exists locally: %s / %s"), *LevelName, *FileName);
 	}
 }

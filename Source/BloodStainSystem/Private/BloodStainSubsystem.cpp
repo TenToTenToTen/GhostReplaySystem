@@ -293,7 +293,7 @@ void UBloodStainSubsystem::StopRecordComponent(URecordComponent* RecordComponent
 	}
 }
 
-bool UBloodStainSubsystem::StartReplayByBloodStain(ABloodStainActor* BloodStainActor, FGuid& OutGuid)
+bool UBloodStainSubsystem::StartReplayByBloodStain(APlayerController* RequestingController, ABloodStainActor* BloodStainActor, FGuid& OutGuid)
 {
 	if (!BloodStainActor)
 	{
@@ -301,10 +301,10 @@ bool UBloodStainSubsystem::StartReplayByBloodStain(ABloodStainActor* BloodStainA
 		return false;
 	}
 	
-	return StartReplayFromFile(BloodStainActor->ReplayFileName, BloodStainActor->LevelName, OutGuid, BloodStainActor->PlaybackOptions);
+	return StartReplayFromFile(RequestingController, BloodStainActor->ReplayFileName, BloodStainActor->LevelName, OutGuid, BloodStainActor->PlaybackOptions);
 }
 
-bool UBloodStainSubsystem::StartReplayFromFile(const FString& FileName, const FString& LevelName, FGuid& OutGuid, FBloodStainPlaybackOptions PlaybackOptions)
+bool UBloodStainSubsystem::StartReplayFromFile(APlayerController* RequestingController, const FString& FileName, const FString& LevelName, FGuid& OutGuid, FBloodStainPlaybackOptions PlaybackOptions)
 {
 	const ENetMode NetMode = GetWorld()->GetNetMode();
 
@@ -331,9 +331,8 @@ bool UBloodStainSubsystem::StartReplayFromFile(const FString& FileName, const FS
 			return false;
 		}
 	
-		return StartReplay_Networked(FileName, LevelName, FileHeader, RecordHeader, CompressedPayload, PlaybackOptions, OutGuid);
+		return StartReplay_Networked(RequestingController, FileName, LevelName, FileHeader, RecordHeader, CompressedPayload, PlaybackOptions, OutGuid);
 	}
-	
 	
 }
 
@@ -785,13 +784,17 @@ bool UBloodStainSubsystem::StartReplay_Standalone(const FRecordSaveData& RecordS
 	return true;
 }
 
-bool UBloodStainSubsystem::StartReplay_Networked(const FString& FileName, const FString& LevelName,
+bool UBloodStainSubsystem::StartReplay_Networked(APlayerController* RequestingController, const FString& FileName, const FString& LevelName,
 	const FBloodStainFileHeader& FileHeader, const FRecordHeaderData& RecordHeader,
 	const TArray<uint8>& CompressedPayload, const FBloodStainPlaybackOptions& PlaybackOptions, FGuid& OutGuid)
 {
 	OutGuid = FGuid::NewGuid();
+	
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.Owner = RequestingController; 
 
-	AReplayActor* GhostActor = GetWorld()->SpawnActor<AReplayActor>(AReplayActor::StaticClass(), RecordHeader.SpawnPointTransform);
+	// Indicates AReplayActor's ownership to the controller
+	AReplayActor* GhostActor = GetWorld()->SpawnActor<AReplayActor>(AReplayActor::StaticClass(), RecordHeader.SpawnPointTransform, SpawnParams);
 
 	if (!GhostActor)
 	{
@@ -799,7 +802,7 @@ bool UBloodStainSubsystem::StartReplay_Networked(const FString& FileName, const 
 		return false;
 	}
 
-	GhostActor->Server_InitializeReplayWithPayload(OutGuid, FileHeader, RecordHeader, CompressedPayload, PlaybackOptions);
+	GhostActor->Server_InitializeReplayWithPayload(RequestingController, OutGuid, FileHeader, RecordHeader, CompressedPayload, PlaybackOptions);
 
 	FBloodStainPlaybackGroup PlaybackGroup;
 	PlaybackGroup.ActiveReplayers.Add(GhostActor);

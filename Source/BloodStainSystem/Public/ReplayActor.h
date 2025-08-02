@@ -14,15 +14,6 @@
 
 class UPlayComponent;
 
-UENUM()
-enum class EReplayActorState : uint8
-{
-	Idle,                
-	TransferringPayload, 
-	Playing,             
-	Finished             
-};
-
 /**
  * @brief An actor responsible for replaying recorded data. Acts as an 'Orchestrator' in a network environment.
  *
@@ -52,17 +43,27 @@ public:
 	 * Called by the server's BloodStainSubsystem when starting a replay.
 	 */
 	void Server_InitializeReplayWithPayload(
+		APlayerController* RequestingController,
 		const FGuid& InPlaybackKey,
 		const FBloodStainFileHeader& InFileHeader,
 		const FRecordHeaderData& InRecordHeader,
-		const TArray<uint8>& InCompressedPayload,
-		const FBloodStainPlaybackOptions& InOptions
+		const TArray<uint8>& InCompressedPayload, const FBloodStainPlaybackOptions& InOptions
 	);
+
+	void ProcessReceivedChunk(int32 ChunkIndex, const TArray<uint8>& DataChunk, bool bIsLastChunk);
+	
+	void UpdateClientCacheStatus(APlayerController* ReportingController, bool bClientHasFile);
 
 	void SetIsOrchestrator(bool bValue) { bIsOrchestrator = bValue; }
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BloodStain|Replay|Network")
 	float RateLimitMbps = 0.5f;
+
+
+	/** [CLIENT-ONLY] : Indicates if the client has the local file available for replay.
+	 * Initialized as true by default, because the server will always have the file already.
+	 */
+	bool bHasLocalFile = true;
 
 protected:
 	virtual void BeginPlay() override;
@@ -83,11 +84,11 @@ protected:
 
 	/** [CLIENT-ONLY] Decompresses the final payload and spawns the visual actors for the replay. */
 	void Client_FinalizeAndSpawnVisuals();
-	
+	void Client_FinalizeAndSpawnVisuals(const FRecordSaveData& AllReplayData);
+
 	bool bIsOrchestrator = false;
 
 private:
-	EReplayActorState CurrentState = EReplayActorState::Idle;
 	
 	/** Network Callback Functions and RPC implementations */
 
@@ -108,6 +109,12 @@ private:
 	UFUNCTION(NetMulticast, Reliable)
 	void Multicast_ReceivePayloadChunk(int32 ChunkIndex, const TArray<uint8>& DataChunk, bool bIsLastChunk);
 
+	/** [SERVER-ONLY] Saves send status for each client */
+	TMap<TWeakObjectPtr<class UNetConnection>, bool> ClientTransferRequiredMap;
+
+	/** [SERVER-ONLY] */
+	int32 NumClientsResponded = 0;
+	
 	/**
 	 * @brief [CLIENT-ONLY]
 	 * State variables used on the client during the data reception and processing phase.
@@ -150,4 +157,8 @@ private:
 
 	/** [SERVER-ONLY] Process Playing Replay data every tick */
 	void Server_TickPlayback(float DeltaSeconds);
+
+	/** [Client-ONLY] Saves the replay data locally if it doesn't already exist. */
+	void SaveReplayLocallyIfNotExists(const FRecordSaveData& SaveData, const FRecordHeaderData& Header,
+	                                  const FBloodStainFileOptions& Options);
 };

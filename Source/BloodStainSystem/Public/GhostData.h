@@ -483,3 +483,12 @@ struct FRecordSaveData
 		return Ar;
 	}
 };
+
+USTRUCT(BlueprintType)
+struct FStructEnemy
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadWrite, Category = "BloodStain|Test")
+	FString CharacterName;
+};

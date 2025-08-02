@@ -174,12 +174,13 @@ public:
 	 *  @brief Starts a replay using a BloodStainActor instance in the world.
 	 *  A user-friendly wrapper that calls StartReplayFromFile with info from the actor.
 	 *  
+	 *  @param RequestingController
 	 *  @param BloodStainActor The actor containing the replay info.
 	 *  @param OutGuid         Returns the unique ID of the new playback session.
 	 *  @return True on success, false otherwise.
 	 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
-	bool StartReplayByBloodStain(ABloodStainActor* BloodStainActor, FGuid& OutGuid);
+	bool StartReplayByBloodStain(APlayerController* RequestingController, ABloodStainActor* BloodStainActor, FGuid& OutGuid);
 
 	/**
 	 *  @brief Starts a replay directly from a file.
@@ -187,6 +188,7 @@ public:
 	 *  
 	 *  TODO : Make this file I/O asynchronous in order to avoid hitches.
 	 *  
+	 *  @param RequestingController
 	 *  @param FileName          The name of the replay file.
 	 *  @param LevelName         The level where the replay was recorded.
 	 *  @param PlaybackOptions Playback settings (rate, looping, etc.).
@@ -194,7 +196,8 @@ public:
 	 *  @return True on success, false otherwise.
 	 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
-	bool StartReplayFromFile(const FString& FileName, const FString& LevelName, FGuid& OutGuid, FBloodStainPlaybackOptions PlaybackOptions = FBloodStainPlaybackOptions());
+	bool StartReplayFromFile(APlayerController* RequestingController, const FString& FileName, const FString& LevelName, FGuid& OutGuid, FBloodStainPlaybackOptions
+	                         PlaybackOptions = FBloodStainPlaybackOptions());
 
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Replay")
 	bool IsPlaying(const FGuid& InPlaybackKey) const;
@@ -386,7 +389,9 @@ private:
  	 * This function is intended for networked replay scenarios.
  	 * In network mode, each ReplayActor is responsible for deserializing, dequantizing, and decompressing its own data.
  	 */
-	bool StartReplay_Networked(const FString& FileName, const FString& LevelName, const FBloodStainFileHeader& FileHeader, const FRecordHeaderData& RecordHeader, const TArray<uint8>& CompressedPayload, const FBloodStainPlaybackOptions& PlaybackOptions, FGuid& OutGuid);
+	bool StartReplay_Networked(APlayerController* RequestingController, const FString& FileName, const FString& LevelName, const FBloodStainFileHeader
+	                           & FileHeader, const FRecordHeaderData& RecordHeader, const TArray<uint8>& CompressedPayload, const
+	                           FBloodStainPlaybackOptions& PlaybackOptions, FGuid& OutGuid);
 	
 	/** Internal helper to package actor-specific data into the final save format.
 	 *  Aggregates multiple FRecordActorSaveData instances into a single FRecordSaveData.

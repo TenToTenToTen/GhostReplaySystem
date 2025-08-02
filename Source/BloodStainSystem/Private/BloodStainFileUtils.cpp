@@ -508,6 +508,12 @@ bool BloodStainFileUtils::DeleteFile(const FString& FileName, const FString& Lev
 	}
 }
 
+bool BloodStainFileUtils::FileExists(const FString& FileName, const FString& LevelName)
+{
+	const FString Path = BloodStainFileUtils_Internal::GetFullFilePath(FileName, LevelName);
+	return FPaths::FileExists(Path);
+}
+
 TArray<FString> BloodStainFileUtils::GetSavedLevelNames()
 {
 	IFileManager& FileManager = IFileManager::Get();
@@ -565,3 +571,4 @@ FString BloodStainFileUtils::GetRelativeFilePath(const FString& FileName, const 
 {
 	return LevelName/FileName;
 }
+

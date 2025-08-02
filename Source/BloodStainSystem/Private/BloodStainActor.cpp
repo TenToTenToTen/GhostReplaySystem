@@ -117,7 +117,7 @@ void ABloodStainActor::StartReplay()
 		{
 			if (bAllowMultiplePlayback || !Subsystem->IsPlaying(LastPlaybackKey))
 			{
-				Subsystem->StartReplayByBloodStain(this, LastPlaybackKey);
+				Subsystem->StartReplayByBloodStain(InteractingPlayerController, this, LastPlaybackKey);
 				if (GetOwner())
 				{
 					Client_HideInteractionWidget();
