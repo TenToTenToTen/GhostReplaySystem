@@ -1043,7 +1043,7 @@ void UBloodStainSubsystem::HandleEndFileUpload(AGhostPlayerController* Uploader)
 		if (TransferData->FileBuffer.Num() == TransferData->ExpectedSize)
 		{
 			const FString FinalLevelName = TransferData->Header.LevelName.ToString();
-			const FString FinalFileName = TransferData->Header.FileName.ToString() + TEXT("_SERVER");
+			const FString FinalFileName = TransferData->Header.FileName.ToString() /*+ TEXT("_SERVER")*/;
 			
 			const FString FinalPath = BloodStainFileUtils::GetFullFilePath(FinalFileName, FinalLevelName);
 			if (FFileHelper::SaveArrayToFile(TransferData->FileBuffer, *FinalPath))
