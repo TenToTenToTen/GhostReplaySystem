@@ -24,6 +24,7 @@ AReplayActor::AReplayActor()
 	PrimaryActorTick.bCanEverTick = true;
 	bReplicates = true;
 	bAlwaysRelevant = true;
+	SetReplicateMovement(false);
 	
 	USceneComponent* Root = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
 	RootComponent = Root;
@@ -44,6 +45,9 @@ void AReplayActor::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	// UE_LOG(LogBloodStain, Log, TEXT("NetMode: %d, FirstPlayerController HasAuthority: %d"),
+	//static_cast<int32>(GetNetMode()),
+	//GetWorld() && GetWorld()->GetFirstPlayerController() ? (int32)GetWorld()->GetFirstPlayerController()->HasAuthority() : -1);
 	if (bIsOrchestrator)
 	{
 		if (HasAuthority())
@@ -117,7 +121,7 @@ void AReplayActor::Server_InitializeReplayWithPayload(const FGuid& InPlaybackKey
 	// Notify clients to initialize the replay and send the header, option data
 
 	const int32 TotalSize = Server_CurrentPayload.Num();
-	constexpr int32 ChunkSize = 16*1024; // 16KB
+	constexpr int32 ChunkSize = 1024; // 16KB
 	const int32 NumChunks = FMath::DivideAndRoundUp(TotalSize, ChunkSize);
 
 	// Notify all Clients to prepare for receiving the payload
@@ -365,7 +369,8 @@ void AReplayActor::Server_TickTransfer(float DeltaSeconds)
 		
 		constexpr int32 MinChunkSize = 256;
 		constexpr int32 MaxChunkSize = 16 * 1024;
-		
+
+		//UE_LOG(LogBloodStain, Log, TEXT("Server_BytesSent: %d"), Server_BytesSent);
 		while (Server_BytesSent < Server_CurrentPayload.Num() &&
 			   BytesSentThisTick < MaxBytesToSendThisTick &&
 			   ChunksSentThisFrame < MaxChunksPerFrame)
