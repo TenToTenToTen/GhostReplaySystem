@@ -357,9 +357,6 @@ public:
 	void SetDefaultGroupName(const FName& InDefaultGroupName) { DefaultGroupName = InDefaultGroupName; }
 	
 	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
-	void SetFileSaveOptions(const FBloodStainFileOptions& InOptions);
-	
-	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
 	void SetReplayUserGroupData(const FInstancedStruct& ReplayCustomUserData, FName GroupName = NAME_None);
 
 	template <typename T>
@@ -404,7 +401,7 @@ public:
 	 *  @brief Global options for saving replay files (e.g., quantization, compression).
 	 *  Can be set from Blueprints.
 	 */
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Config, Category="BloodStain|File")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Config, Category="BloodStain|File")
 	FBloodStainFileOptions FileSaveOptions;
 
 	UPROPERTY(BlueprintAssignable, Category = "BloodStain|File")

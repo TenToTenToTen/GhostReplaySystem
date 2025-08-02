@@ -691,11 +691,6 @@ FRecordSaveData UBloodStainSubsystem::ConvertToSaveData(float EndTime, const FNa
 	return RecordSaveData;
 }
 
-void UBloodStainSubsystem::SetFileSaveOptions(const FBloodStainFileOptions& InOptions)
-{
-	FileSaveOptions = InOptions;
-}
-
 void UBloodStainSubsystem::SetReplayUserGroupData(const FInstancedStruct& ReplayUserHeaderData, const FName GroupName)
 {
 	ReplayUserHeaderDataMap.Add(GroupName, ReplayUserHeaderData);
