@@ -7,6 +7,7 @@
 
 #include "BloodStainActor.h"
 #include "BloodStainFileUtils.h"
+#include "BloodStainManager.h"
 #include "BloodStainSystem.h"
 #include "PlayComponent.h"
 #include "RecordComponent.h"
@@ -43,6 +44,7 @@ void UBloodStainSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Super::Initialize(Collection);
 	ReplayTerminatedActorManager = NewObject<UReplayTerminatedActorManager>(this, UReplayTerminatedActorManager::StaticClass(), "ReplayDeadActorManager");
 	ReplayTerminatedActorManager->OnRecordGroupRemoveByCollecting.BindUObject(this, &UBloodStainSubsystem::CleanupInvalidRecordGroups);
+	FWorldDelegates::OnPostWorldInitialization.AddUObject(this, &UBloodStainSubsystem::OnWorldInitialized);
 }
 
 bool UBloodStainSubsystem::StartRecording(AActor* TargetActor, FBloodStainRecordOptions RecordOptions)
@@ -610,41 +612,17 @@ TArray<FString> UBloodStainSubsystem::GetSavedFileNames(const FString& LevelName
 
 ABloodStainActor* UBloodStainSubsystem::SpawnBloodStain(const FString& FileName, const FString& LevelName)
 {
-	FRecordHeaderData RecordHeaderData;
-
-	if (!FindOrLoadRecordHeader(FileName, LevelName, RecordHeaderData))
+	if (ABloodStainManager* Manager = GetManager())
 	{
-		UE_LOG(LogBloodStain, Warning, TEXT("Failed to SpawnBloodStain. cannot Load Header Filename:[%s]"), *FileName);
-		return nullptr;
+		return Manager->PerformSpawnBloodStain(FileName, LevelName);
 	}
 
-	FVector StartLocation = RecordHeaderData.SpawnPointTransform.GetLocation();
-	FVector EndLocation = StartLocation;
-	EndLocation.Z -= LineTraceLength;
-	FHitResult HitResult;
-	FCollisionResponseParams ResponseParams;
-	
-	ResponseParams.CollisionResponse.SetResponse(ECC_Pawn, ECR_Ignore);
-	bool bHit = GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_WorldStatic, FCollisionQueryParams::DefaultQueryParam, ResponseParams);
-	if (bHit)
-	{
-		FVector Location = HitResult.Location;
-		FRotator Rotation = UKismetMathLibrary::MakeRotFromZ(HitResult.Normal);
-		return SpawnBloodStain_Internal(Location, Rotation, FileName, LevelName);
-	}
-
-	UE_LOG(LogBloodStain, Warning, TEXT("Failed to LineTrace to Floor."));
+	UE_LOG(LogBloodStain, Warning, TEXT("SpawnBloodStain failed: Could not get BloodStainManager."));
 	return nullptr;
 }
 
 TArray<ABloodStainActor*> UBloodStainSubsystem::SpawnAllBloodStainInLevel()
 {
-	if (GetWorld()->GetNetMode() == NM_Client)
-	{
-		UE_LOG(LogBloodStain, Warning, TEXT("Cannot spawn BloodStain actors on client. Only server can spawn them."));
-		return TArray<ABloodStainActor*>(); 
-	}
-
 	const FString LevelName = UGameplayStatics::GetCurrentLevelName(GetWorld());
 
 	const int32 LoadedCount = LoadAllHeadersInLevel(LevelName);
@@ -657,10 +635,7 @@ TArray<ABloodStainActor*> UBloodStainSubsystem::SpawnAllBloodStainInLevel()
 		for (const auto& [RelativeFilePath, RecordHeaderData] : CachedHeaders)
 		{
 			const FString FileName = RecordHeaderData.FileName.ToString();
-			if (ABloodStainActor* BloodStainActor = SpawnBloodStain(FileName, LevelName))
-			{
-				SpawnedActors.Add(BloodStainActor);
-			}
+			SpawnBloodStain(FileName, LevelName);
 		}
 	}
 	else
@@ -711,6 +686,23 @@ FInstancedStruct UBloodStainSubsystem::GetReplayUserHeaderData(const FName& Grou
 void UBloodStainSubsystem::ClearReplayUserHeaderData(const FName& GroupName)
 {
 	ReplayUserHeaderDataMap.Remove(GroupName);
+}
+
+void UBloodStainSubsystem::OnWorldInitialized(UWorld* World, const UWorld::InitializationValues IVS)
+{
+	if (!World || !World->IsGameWorld())
+	{
+		return;
+	}
+
+	if (World->GetNetMode() == NM_ListenServer || World->GetNetMode() == NM_DedicatedServer || World->GetNetMode() == NM_Standalone)
+	{
+		if (!UGameplayStatics::GetActorOfClass(World, ABloodStainManager::StaticClass()))
+		{
+			World->SpawnActor<ABloodStainManager>(ABloodStainManager::StaticClass(), FVector::ZeroVector, FRotator::ZeroRotator);
+			UE_LOG(LogBloodStain, Log, TEXT("BloodStainManager spawned by GameInstanceSubsystem."));
+		}
+	}
 }
 
 ABloodStainActor* UBloodStainSubsystem::SpawnBloodStain_Internal(const FVector& Location, const FRotator& Rotation, const FString& FileName, const FString& LevelName)
@@ -852,6 +844,42 @@ void UBloodStainSubsystem::CleanupInvalidRecordGroups()
 		BloodStainRecordGroups.Remove(InvalidRecordGroupName);
 		ReplayTerminatedActorManager->ClearRecordGroup(InvalidRecordGroupName);
 	}
+}
+
+ABloodStainManager* UBloodStainSubsystem::GetManager()
+{
+	if (CachedManager.IsValid())
+	{
+		return CachedManager.Get();
+	}
+
+	const UWorld* ServerGameWorld = nullptr;
+	for (const FWorldContext& Context : GEngine->GetWorldContexts())
+	{
+		UWorld* CandidateWorld = Context.World();
+		if (CandidateWorld && CandidateWorld->IsGameWorld() && 
+		   (CandidateWorld->IsNetMode(NM_ListenServer) || CandidateWorld->IsNetMode(NM_DedicatedServer)))
+		{
+			ServerGameWorld = CandidateWorld;
+			break;
+		}
+
+		if (CandidateWorld && CandidateWorld->IsGameWorld() &&
+			CandidateWorld->IsNetMode(NM_Standalone))
+		{
+			ServerGameWorld = GetWorld();
+			break;
+		}
+	}
+	
+	if (ServerGameWorld)
+	{
+		ABloodStainManager* FoundManager = Cast<ABloodStainManager>(UGameplayStatics::GetActorOfClass(ServerGameWorld, ABloodStainManager::StaticClass()));
+		CachedManager = FoundManager;
+		return FoundManager;
+	}
+
+	return nullptr;
 }
 
 void UBloodStainSubsystem::AddToPendingGroup(AActor* Actor, FName GroupName)

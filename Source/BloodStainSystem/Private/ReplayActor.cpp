@@ -24,7 +24,6 @@ AReplayActor::AReplayActor()
 	PrimaryActorTick.bCanEverTick = true;
 	bReplicates = true;
 	bAlwaysRelevant = true;
-	SetReplicateMovement(false);
 	
 	USceneComponent* Root = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
 	RootComponent = Root;
@@ -125,7 +124,7 @@ void AReplayActor::Server_InitializeReplayWithPayload(const FGuid& InPlaybackKey
 	Multicast_InitializeForPayload(InPlaybackKey, InFileHeader, InRecordHeader, InOptions);
 
 	// If it's a listen server, also supposed to render for local client
-	if (GetNetMode() == NM_ListenServer)
+	if (GetNetMode() == NM_ListenServer || GetNetMode() == NM_DedicatedServer)
 	{
 		UE_LOG(LogBloodStain, Log, TEXT("Listen Server: Executing local initialization."));
 		
@@ -439,7 +438,7 @@ void AReplayActor::Server_TickPlayback(float DeltaSeconds)
 		{
 			// Orchestrator AReplayActor is the only one updates Replicated PlaybackTime.
 			ReplicatedPlaybackTime = ElapsedTime;
-			if (GetNetMode() == NM_ListenServer)
+			if (GetNetMode() == NM_ListenServer || GetNetMode() == NM_DedicatedServer)
 			{
 				for (AReplayActor* Visualizer : Client_SpawnedVisualActors)
 				{

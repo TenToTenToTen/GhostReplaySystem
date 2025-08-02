@@ -19,10 +19,6 @@ ABloodStainActor::ABloodStainActor()
 	SphereComponent = CreateDefaultSubobject<USphereComponent>(ABloodStainActor::SphereComponentName);
 
 	bReplicates = true;
-	if (GetDecal())
-	{
-		GetDecal()->SetIsReplicated(true);
-	}
 	SphereComponent->SetupAttachment(GetDecal());
 	
 	SphereComponent->InitSphereRadius(50.f);
@@ -102,14 +98,14 @@ void ABloodStainActor::OnOverlapEnd_Implementation(UPrimitiveComponent* Overlapp
 
 void ABloodStainActor::Interact()
 {
-	UE_LOG(LogBloodStain, Log, TEXT("LocalRole: %d"), static_cast<int32>(GetLocalRole()));
+	UE_LOG(LogBloodStain, Log, TEXT("LocalRole: %d, HasAuthority:%d, NetMode:%d"), static_cast<int32>(GetLocalRole()), HasAuthority(), GetNetMode());
 	if (GetLocalRole() < ENetRole::ROLE_Authority)
 	{
 		Server_Interact();
 	}
 	else
 	{
-		StartReplay();	
+		StartReplay();
 	}
 }
 
@@ -125,8 +121,8 @@ void ABloodStainActor::StartReplay()
 				if (GetOwner())
 				{
 					Client_HideInteractionWidget();
-					SetOwner(nullptr);
-					InteractingPlayerController = nullptr;
+					// SetOwner(nullptr);
+					// InteractingPlayerController = nullptr;
 				}
 			}
 		}

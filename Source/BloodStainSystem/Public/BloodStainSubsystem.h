@@ -12,6 +12,7 @@
 #include "BloodStainFileOptions.h" 
 #include "BloodStainSubsystem.generated.h"
 
+class ABloodStainManager;
 class AReplayActor;
 class URecordComponent;
 class UReplayTerminatedActorManager;
@@ -367,9 +368,11 @@ public:
 	void ClearReplayUserHeaderData(const FName& GroupName);
 	
 private:
+	void OnWorldInitialized(UWorld* World, const UWorld::InitializationValues IVS);
+	
 	/** The core implementation for spawning an ABloodStainActor at a specific transform. */
 	ABloodStainActor* SpawnBloodStain_Internal(const FVector& Location, const FRotator& Rotation, const FString& FileName, const FString& LevelName);
-
+	
 	/**
 	 * @brief The core implementation for initiating a replay session in single-player mode.
 	 * Takes fully loaded replay data and spawns all necessary AReplayActor instances,
@@ -395,6 +398,8 @@ private:
 	
 	/** Iterates through all active recording groups and removes any that are no longer valid. */
 	void CleanupInvalidRecordGroups();
+
+	ABloodStainManager* GetManager();
 	
 public:
 	/**
@@ -406,6 +411,9 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "BloodStain|File")
 	FOnBuildRecordingHeader OnCompleteBuildRecordingHeader;
+
+	/** Distance to trace downwards to find the ground when spawning a BloodStainActor. */
+	static float LineTraceLength;
 	
 protected:
 	/** The ABloodStainActor class to spawn, loaded from a hardcoded path in the constructor. */
@@ -441,15 +449,15 @@ private:
 	UPROPERTY()
 	TObjectPtr<UMaterialInterface> GhostMaterial;
 
+	UPROPERTY()
+	TWeakObjectPtr<ABloodStainManager> CachedManager;
+	
 	/** Key is GroupName */
 	TMap<FName, FInstancedStruct> ReplayUserHeaderDataMap;
 	
 	/** Default group name to use if one is not specified when starting a recording. */
 	FName DefaultGroupName = TEXT("BloodStainReplay");
-
-	/** Distance to trace downwards to find the ground when spawning a BloodStainActor. */
-	static float LineTraceLength;
-
+	
 	// Experimental
 	// Pending to Record & Start In an instant
 public:
