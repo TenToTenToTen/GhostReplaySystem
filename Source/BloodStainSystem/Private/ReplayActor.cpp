@@ -39,7 +39,6 @@ void AReplayActor::BeginPlay()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("AReplayActor::BeginPlay");
 	Super::BeginPlay();
-	ENetMode Mode = GetNetMode();
 }
 
 
@@ -65,7 +64,7 @@ void AReplayActor::Tick(float DeltaTime)
 	}
 	else if (GetNetMode() == NM_Standalone) // Local Mode
 	{
-		if (PlayComponent && PlayComponent->IsTickable())
+		if (PlayComponent && PlayComponent->IsComponentTickEnabled())
 		{
 			float ElapsedTime = 0.f;
 			if (PlayComponent->CalculatePlaybackTime(ElapsedTime))
@@ -97,10 +96,7 @@ void AReplayActor::InitializeReplayLocal(const FGuid& InPlaybackKey, const FReco
 	const FRecordActorSaveData& InActorData, const FBloodStainPlaybackOptions& InOptions)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("AReplayActor::InitializeReplayLocal");
-	
-	PlayComponent->PrimaryComponentTick.bCanEverTick = true;
 	PlayComponent->Initialize(InPlaybackKey, InHeader, InActorData, InOptions);
-	PlayComponent->SetComponentTickEnabled(true);
 }
 
 void AReplayActor::Server_InitializeReplayWithPayload(
@@ -313,6 +309,15 @@ void AReplayActor::Client_FinalizeAndSpawnVisuals()
 		return;
 	}
 
+	if (IsNetMode(NM_DedicatedServer))
+	{
+		PlayComponent->SetComponentTickEnabled(true);
+		PlayComponent->RecordHeaderData = Client_RecordHeader;
+		PlayComponent->PlaybackOptions = Client_PlaybackOptions;
+		PlayComponent->SetPlaybackStartTime(GetWorld()->GetTimeSeconds());
+		return;
+	}
+	
 	for (const FRecordActorSaveData& Data : AllReplayData.RecordActorDataArray)
 	{
 		AReplayActor* VisualActor = GetWorld()->SpawnActor<AReplayActor>(AReplayActor::StaticClass(), GetActorTransform());
@@ -354,10 +359,10 @@ void AReplayActor::OnRep_PlaybackTime()
 	
 	for (TObjectPtr<AReplayActor> VisualActor : Client_SpawnedVisualActors)
 	{
-		if (VisualActor && VisualActor->GetPlayComponent() && VisualActor->GetPlayComponent()->IsTickable())
+		if (VisualActor && VisualActor->PlayComponent && VisualActor->PlayComponent->IsComponentTickEnabled())
 		{
 			VisualActor->SetActorTickEnabled(false);
-			VisualActor->GetPlayComponent()->UpdatePlaybackToTime(ReplicatedPlaybackTime);
+			VisualActor->PlayComponent->UpdatePlaybackToTime(ReplicatedPlaybackTime);
 			
 		}
 	}
@@ -580,12 +585,12 @@ void AReplayActor::Server_TickPlayback(float DeltaSeconds)
 	// Send data Completed, now we are in the playback phase.
 	UPlayComponent* TimeSourceComponent = nullptr;
 	
-	if (GetNetMode() == NM_ListenServer || GetNetMode() == NM_DedicatedServer)
+	if (GetNetMode() == NM_ListenServer)
 	{
 		// In Listen Server we calculate playback time from the first spawned visual actor.
 		if (Client_SpawnedVisualActors.IsValidIndex(0) && Client_SpawnedVisualActors[0])
 		{
-			TimeSourceComponent = Client_SpawnedVisualActors[0]->GetPlayComponent();
+			TimeSourceComponent = Client_SpawnedVisualActors[0]->PlayComponent;
 		}
 	}
 	else if (GetNetMode() == NM_DedicatedServer)
@@ -594,7 +599,7 @@ void AReplayActor::Server_TickPlayback(float DeltaSeconds)
 		TimeSourceComponent = this->PlayComponent;
 	}
 
-	if (TimeSourceComponent && TimeSourceComponent->IsTickable())
+	if (TimeSourceComponent && TimeSourceComponent->IsComponentTickEnabled())
 	{
 		float ElapsedTime = 0.f;
 		if (TimeSourceComponent->CalculatePlaybackTime(ElapsedTime))
@@ -605,9 +610,9 @@ void AReplayActor::Server_TickPlayback(float DeltaSeconds)
 			{
 				for (AReplayActor* Visualizer : Client_SpawnedVisualActors)
 				{
-					if (Visualizer && Visualizer->GetPlayComponent())
+					if (Visualizer && Visualizer->PlayComponent)
 					{
-						Visualizer->GetPlayComponent()->UpdatePlaybackToTime(ReplicatedPlaybackTime);
+						Visualizer->PlayComponent->UpdatePlaybackToTime(ReplicatedPlaybackTime);
 					}
 				}
 			}

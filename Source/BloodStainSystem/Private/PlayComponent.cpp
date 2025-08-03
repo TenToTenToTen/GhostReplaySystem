@@ -144,8 +144,8 @@ void UPlayComponent::Initialize(FGuid InPlaybackKey, const FRecordHeaderData& In
 	}
 	IntervalRoot = BuildIntervalTree(Ptrs);
 	SeekFrame(0);
-	
-	bIsInitialized = true;
+
+	SetComponentTickEnabled(true);
 }
 
 void UPlayComponent::FinishReplay() const
@@ -171,13 +171,6 @@ void UPlayComponent::FinishReplay() const
 
 bool UPlayComponent::CalculatePlaybackTime(float& OutElapsedTime)
 {
-	const TArray<FRecordFrame>& Frames = ReplayData.RecordedFrames;
-	constexpr int32 MinFramesRequired = 2;
-	if (Frames.Num() < MinFramesRequired)
-	{
-		return false;
-	}
-
 	const float Duration = RecordHeaderData.TotalLength;
 	if (Duration <= 0.f)
 	{
@@ -216,6 +209,13 @@ bool UPlayComponent::CalculatePlaybackTime(float& OutElapsedTime)
 
 void UPlayComponent::UpdatePlaybackToTime(float ElapsedTime)
 {
+	const TArray<FRecordFrame>& Frames = ReplayData.RecordedFrames;
+	constexpr int32 MinFramesRequired = 2;
+	if (Frames.Num() < MinFramesRequired)
+	{
+		return;
+	}
+	
 	const bool bShouldBeHidden = ReplayData.RecordedFrames.IsEmpty() || 
 							 ElapsedTime < ReplayData.RecordedFrames[0].TimeStamp || 
 							 ElapsedTime > ReplayData.RecordedFrames.Last().TimeStamp;
@@ -225,8 +225,7 @@ void UPlayComponent::UpdatePlaybackToTime(float ElapsedTime)
 	{
 		return;
 	}
-	
-	const TArray<FRecordFrame>& Frames = ReplayData.RecordedFrames;
+
 	const int32 PreviousFrame = CurrentFrame;
 
 	// Find the correct frame index for the current time using a binary search.
@@ -362,11 +361,6 @@ void UPlayComponent::ApplyMaterial(UMaterialInterface* InMaterial) const
 			}
 		}
 	}
-}
-
-bool UPlayComponent::IsTickable() const
-{
-	return bIsInitialized;
 }
 
 FGuid UPlayComponent::GetPlaybackKey() const

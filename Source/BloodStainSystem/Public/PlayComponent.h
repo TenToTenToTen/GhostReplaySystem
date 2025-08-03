@@ -68,11 +68,11 @@ public:
 	void ApplyMaterial(UMaterialInterface* InMaterial) const;
 	
 public:
-	bool IsTickable() const;
-	
 	FGuid GetPlaybackKey() const;
 
 	FRecordActorSaveData GetReplayData() const { return ReplayData; }
+
+	void SetPlaybackStartTime(const float StartTime) { PlaybackStartTime = StartTime; }
 	
 protected:
 	/** Apply Interpolation to Component between Two Frames */
@@ -120,7 +120,4 @@ protected:
 	float PlaybackStartTime = 0.f;
 
 	int32 CurrentFrame = 0;
-	
-private:
-	bool bIsInitialized = false;
 };
