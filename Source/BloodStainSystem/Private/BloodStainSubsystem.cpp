@@ -724,37 +724,6 @@ void UBloodStainSubsystem::ClearReplayUserHeaderData(const FName& GroupName)
 	ReplayUserHeaderDataMap.Remove(GroupName);
 }
 
-ABloodStainActor* UBloodStainSubsystem::SpawnBloodStain_Internal(const FVector& Location, const FRotator& Rotation, const FString& FileName, const FString& LevelName)
-{
-	if (!IsFileHeaderLoaded(FileName, LevelName))
-	{
-		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] Invalid file '%s'"), *FileName);
-		return nullptr;
-	}
-
-	UWorld* World = GetWorld();
-	if (!World)
-	{
-		UE_LOG(LogBloodStain, Error, TEXT("[BloodStain] Cannot get world context")); 
-		return nullptr;
-	}
-
-	FActorSpawnParameters Params;
-	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-
-	ABloodStainActor* BloodStain = World->SpawnActor<ABloodStainActor>(BloodStainActorClass, Location, Rotation, Params);
-
-	if (!BloodStain)
-	{
-		UE_LOG(LogBloodStain, Error, TEXT("[BloodStain] Failed to spawn BloodStainActor at %s"), *Location.ToString());
-		return nullptr;
-	}
-
-	BloodStain->Initialize(FileName, LevelName);
-
-	return BloodStain;
-}
-
 bool UBloodStainSubsystem::StartReplay_Standalone(const FRecordSaveData& RecordSaveData, const FBloodStainPlaybackOptions& PlaybackOptions, FGuid& OutGuid)
 {
 	OutGuid = FGuid();

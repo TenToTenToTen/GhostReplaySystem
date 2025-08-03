@@ -6,9 +6,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "BloodStainActor.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "GhostData.h"
+#include "BloodStainActor.h"
 #include "BloodStainFileOptions.h" 
 #include "BloodStainSubsystem.generated.h"
 
@@ -381,9 +381,6 @@ public:
 	void ClearReplayUserHeaderData(const FName& GroupName);
 	
 private:
-	/** The core implementation for spawning an ABloodStainActor at a specific transform. */
-	ABloodStainActor* SpawnBloodStain_Internal(const FVector& Location, const FRotator& Rotation, const FString& FileName, const FString& LevelName);
-	
 	/**
 	 * @brief The core implementation for initiating a replay session in single-player mode.
 	 * Takes fully loaded replay data and spawns all necessary AReplayActor instances,

@@ -3,11 +3,18 @@
 */
 
 #include "GhostPlayerController.h"
+#include "UObject/ConstructorHelpers.h"
 #include "HAL/PlatformFilemanager.h"
 #include "BloodStainSubsystem.h"
 #include "BloodStainSystem.h"
-#include "Engine/ActorChannel.h"
 #include "Kismet/KismetMathLibrary.h"
+#include "Engine/ActorChannel.h"
+#include "Engine/NetConnection.h"
+#include "Engine/World.h"
+#include "Engine/GameInstance.h"
+#include "Engine/EngineTypes.h"
+#include "Engine/HitResult.h"
+#include "GameFramework/Actor.h"
 
 AGhostPlayerController::AGhostPlayerController()
 {
