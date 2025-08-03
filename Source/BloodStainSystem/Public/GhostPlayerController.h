@@ -55,4 +55,7 @@ private:
 	int64 BytesSent = 0;
 	float AccumulatedTickTime = 0.f;
 	bool bIsUploading = false;
+
+	// from DataChannel.h
+	static const int32 NetMaxConstructedPartialBunchSizeBytes = 1024 * 64;
 };

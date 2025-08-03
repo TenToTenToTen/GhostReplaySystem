@@ -6,6 +6,7 @@
 #include "HAL/PlatformFilemanager.h"
 #include "BloodStainSubsystem.h"
 #include "BloodStainSystem.h"
+#include "Engine/ActorChannel.h"
 
 void AGhostPlayerController::Client_ReceiveReplayChunk_Implementation(AReplayActor* TargetReplayActor, int32 ChunkIndex, const TArray<uint8>& DataChunk, bool bIsLastChunk)
 {
@@ -39,30 +40,59 @@ void AGhostPlayerController::Tick(float DeltaSeconds)
             return;
         }
 
+    	if (!NetConnection)
+    	{
+    		return;
+    	}
+
+    	UActorChannel* Channel = NetConnection->FindActorChannelRef(this);
+    	if (!Channel)
+    	{
+    		return;
+    	}
+
+    	const int32 ReliableBufferLimit = RELIABLE_BUFFER / 2;
+    	const int32 MaxChunkSize = NetMaxConstructedPartialBunchSizeBytes / 2;
+    	const int32 MaxChunksPerFrame = 4;
+    	int32 MaxBytesToSendThisFrame = TotalFileSize; 
+    	
 		const float TotalTimeSinceLastTransfer = DeltaSeconds + AccumulatedTickTime;
 		if (RateLimitMbps > 0)
 		{
 			const float BytesPerSecond = (RateLimitMbps * 1024 * 1024) / 8.0f;
 			MaxBytesToSendThisTick = FMath::Max(1, static_cast<int32>(TotalTimeSinceLastTransfer * BytesPerSecond));
 		}
-		int32 BytesSentThisTick = 0;
+    	
+        int32 BytesSentThisFrame = 0;
         int32 ChunksSentThisFrame = 0;
-        const int32 MaxChunksPerFrame = 4;
 
-        while (BytesSent < TotalFileSize && BytesSentThisTick < MaxBytesToSendThisTick && ChunksSentThisFrame < MaxChunksPerFrame)
+        while (BytesSent < TotalFileSize &&
+        	Channel->NumOutRec < ReliableBufferLimit &&
+        	 BytesSentThisFrame < MaxBytesToSendThisFrame &&
+        	 ChunksSentThisFrame < MaxChunksPerFrame)
         {
-            TArray<uint8> ChunkBuffer;
-            
-            const int64 BytesToRead = FMath::Min((int64)ChunkSize, TotalFileSize - BytesSent);
-            ChunkBuffer.SetNumUninitialized(BytesToRead);
+            int64 BytesToRead = FMath::Min(static_cast<int64>(ChunkSize), TotalFileSize - BytesSent);
+
+        	const int32 RemainingBytesThisFrame = MaxBytesToSendThisFrame - BytesSentThisFrame;
+        	BytesToRead = FMath::Min(BytesToRead, (int64)RemainingBytesThisFrame);
+
+        	if (BytesToRead <= 0)
+        	{
+        		// No more bytes to read this frame or limited by the tick limit
+        		break;
+        	}
         	
-            if (UploadFileHandle->Read(ChunkBuffer.GetData(), BytesToRead))
-            {
-                Server_SendFileChunk(ChunkBuffer);
-                BytesSent += BytesToRead;
-                BytesSentThisTick += BytesToRead;
-                ChunksSentThisFrame++;
-            }
+        	TArray<uint8> ChunkBuffer;
+        	ChunkBuffer.SetNumUninitialized(BytesToRead);
+        	
+        	if (UploadFileHandle->Read(ChunkBuffer.GetData(), BytesToRead))
+        	{
+        		Server_SendFileChunk(ChunkBuffer);
+                
+        		BytesSent += BytesToRead;
+        		BytesSentThisFrame += BytesToRead;
+        		ChunksSentThisFrame++;
+        	}
             else
             {
                 UE_LOG(LogBloodStain, Error, TEXT("Failed to read chunk from file %s. Aborting upload."), *UploadFilePath);
@@ -71,6 +101,19 @@ void AGhostPlayerController::Tick(float DeltaSeconds)
                 return;
             }
         }
+
+    	// If we sent any bytes this frame, reset the accumulated tick time
+    	if (BytesSentThisFrame > 0)
+    	{
+    		UE_LOG(LogBloodStain, Log, TEXT("File Upload Tick: Sent %d bytes in %d chunks. Total sent: %lld / %lld. (NumOutRec: %d)"),
+				BytesSentThisFrame, ChunksSentThisFrame, BytesSent, TotalFileSize, Channel->NumOutRec);
+    		AccumulatedTickTime = 0.f;
+    	}
+    	else
+    	{
+    		AccumulatedTickTime = TotalTimeSinceLastTransfer;
+    	}
+    	
         AccumulatedTickTime = 0.f;
 
         if (BytesSent >= TotalFileSize)
