@@ -639,7 +639,7 @@ TArray<FString> UBloodStainSubsystem::GetSavedFileNames(const FString& LevelName
 	return BloodStainFileUtils::GetSavedFileNames(LevelName);
 }
 
-void UBloodStainSubsystem::SpawnBloodStain(const FString& FileName, const FString& LevelName, const FBloodStainPlaybackOptions& PlaybackOptions)
+void UBloodStainSubsystem::SpawnBloodStain(const FString& FileName, const FString& LevelName, const FBloodStainPlaybackOptions PlaybackOptions)
 {
 	if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
 	{
@@ -657,7 +657,7 @@ void UBloodStainSubsystem::SpawnBloodStain(const FString& FileName, const FStrin
 	}
 }
 
-TArray<ABloodStainActor*> UBloodStainSubsystem::SpawnAllBloodStainInLevel(const FBloodStainPlaybackOptions& PlaybackOptions)
+TArray<ABloodStainActor*> UBloodStainSubsystem::SpawnAllBloodStainInLevel(const FBloodStainPlaybackOptions PlaybackOptions)
 {
 	const FString LevelName = UGameplayStatics::GetCurrentLevelName(GetWorld());
 

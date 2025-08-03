@@ -348,11 +348,11 @@ public:
 public:
 	/** Spawns a BloodStainActor to the ground using the file name and level name. */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|BloodStainActor")
-	void SpawnBloodStain(const FString& FileName, const FString& LevelName, const FBloodStainPlaybackOptions& PlaybackOptions);
+	void SpawnBloodStain(const FString& FileName, const FString& LevelName, const FBloodStainPlaybackOptions PlaybackOptions = FBloodStainPlaybackOptions());
 
 	/** Scans the current level's save directory and spawns all BloodStainActors for every replay file found */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|BloodStainActor")
-	TArray<ABloodStainActor*> SpawnAllBloodStainInLevel(const FBloodStainPlaybackOptions& PlaybackOptions);
+	TArray<ABloodStainActor*> SpawnAllBloodStainInLevel(const FBloodStainPlaybackOptions PlaybackOptions = FBloodStainPlaybackOptions());
 	
 public:
 	/**
