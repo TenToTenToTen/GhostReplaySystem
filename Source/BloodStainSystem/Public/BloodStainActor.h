@@ -25,6 +25,8 @@ class BLOODSTAINSYSTEM_API ABloodStainActor : public ADecalActor
 public:
 	ABloodStainActor();
 
+	virtual void BeginPlay() override;
+	
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	void Initialize(const FString& InReplayFileName, const FString& InLevelName);

@@ -7,6 +7,7 @@
 #include "Engine/GameInstance.h" 
 #include "BloodStainSubsystem.h"
 #include "BloodStainSystem.h"
+#include "GhostPlayerController.h"
 #include "Components/DecalComponent.h"
 #include "Components/SphereComponent.h"
 #include "Blueprint/UserWidget.h"
@@ -30,6 +31,18 @@ ABloodStainActor::ABloodStainActor()
 	
 	InteractionWidgetClass = nullptr;
 	InteractionWidgetInstance = nullptr;
+}
+
+void ABloodStainActor::BeginPlay()
+{
+	Super::BeginPlay();
+	if (UGameInstance* GI = GetGameInstance())
+	{
+		if (UBloodStainSubsystem* Subsystem = GI->GetSubsystem<UBloodStainSubsystem>())
+		{
+			Subsystem->OnBloodStainReady.Broadcast(this);
+		}
+	}
 }
 
 void ABloodStainActor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const

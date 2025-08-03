@@ -7,7 +7,6 @@
 
 #include "BloodStainActor.h"
 #include "BloodStainFileUtils.h"
-#include "BloodStainManager.h"
 #include "BloodStainSystem.h"
 #include "PlayComponent.h"
 #include "RecordComponent.h"
@@ -18,7 +17,6 @@
 #include "GhostPlayerController.h"
 #include "Engine/World.h"
 #include "UObject/ConstructorHelpers.h"
-#include "Kismet/KismetMathLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "Algo/BinarySearch.h"
 
@@ -45,7 +43,7 @@ void UBloodStainSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Super::Initialize(Collection);
 	ReplayTerminatedActorManager = NewObject<UReplayTerminatedActorManager>(this, UReplayTerminatedActorManager::StaticClass(), "ReplayDeadActorManager");
 	ReplayTerminatedActorManager->OnRecordGroupRemoveByCollecting.BindUObject(this, &UBloodStainSubsystem::CleanupInvalidRecordGroups);
-	FWorldDelegates::OnPostWorldInitialization.AddUObject(this, &UBloodStainSubsystem::OnWorldInitialized);
+	OnBloodStainReady.AddDynamic(this, &UBloodStainSubsystem::HandleBloodStainReady);
 }
 
 bool UBloodStainSubsystem::StartRecording(AActor* TargetActor, FBloodStainRecordOptions RecordOptions)
@@ -224,9 +222,6 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 		RecordSaveData.Header.RecordGroupUserData = GetReplayUserHeaderData(GroupName);
 		RecordSaveData.Header.RecordActorUserData = ActorHeaderDataArray;
 		
-		OnCompleteBuildRecordingHeader.Broadcast(GroupName);
-		
-		ClearReplayUserHeaderData(GroupName);
 
 		const FString FinalFileName = FString::Printf(TEXT("BloodStainReplay-%s"), *UniqueTimestamp); 
 		const FString FinalFilePath = BloodStainFileUtils::GetFullFilePath(FinalFileName, MapName);
@@ -249,6 +244,8 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 			}
 		};
 		
+		OnCompleteBuildRecordingHeader.Broadcast(GroupName);
+		ClearReplayUserHeaderData(GroupName);
 		
 		(new FAutoDeleteAsyncTask<FSaveRecordingTask>(
 			MoveTemp(RecordSaveData), MapName, BloodStainRecordGroup.RecordOptions.FileName.ToString(), FileSaveOptions
@@ -475,6 +472,15 @@ void UBloodStainSubsystem::SetRecordingGroupMainActor(AActor* TargetActor, FName
 	}
 }
 
+void UBloodStainSubsystem::HandleBloodStainReady(ABloodStainActor* ReadyActor)
+{
+	if (ReadyActor)
+	{
+		UE_LOG(LogBloodStain, Log, TEXT("Subsystem received a ready actor on the client: %s"), *ReadyActor->GetName());
+		BloodStainActors.Add(ReadyActor);
+	}
+}
+
 bool UBloodStainSubsystem::IsFileHeaderLoaded(const FString& FileName, const FString& LevelName) const
 {
 	const FString RelativeFilePath = GetRelativeFilePath(FileName, LevelName);
@@ -633,18 +639,25 @@ TArray<FString> UBloodStainSubsystem::GetSavedFileNames(const FString& LevelName
 	return BloodStainFileUtils::GetSavedFileNames(LevelName);
 }
 
-ABloodStainActor* UBloodStainSubsystem::SpawnBloodStain(const FString& FileName, const FString& LevelName)
+void UBloodStainSubsystem::SpawnBloodStain(const FString& FileName, const FString& LevelName, const FBloodStainPlaybackOptions& PlaybackOptions)
 {
-	if (ABloodStainManager* Manager = GetManager())
+	if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
 	{
-		return Manager->PerformSpawnBloodStain(FileName, LevelName);
+		if (PC->IsLocalController())
+		{
+			if (AGhostPlayerController* GhostPC = Cast<AGhostPlayerController>(PC))
+			{
+				GhostPC->Server_SpawnBloodStain(FileName, LevelName, PlaybackOptions);
+			}
+		}
 	}
-
-	UE_LOG(LogBloodStain, Warning, TEXT("SpawnBloodStain failed: Could not get BloodStainManager."));
-	return nullptr;
+	else
+	{
+		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] Cannot find PlayerController"));
+	}
 }
 
-TArray<ABloodStainActor*> UBloodStainSubsystem::SpawnAllBloodStainInLevel()
+TArray<ABloodStainActor*> UBloodStainSubsystem::SpawnAllBloodStainInLevel(const FBloodStainPlaybackOptions& PlaybackOptions)
 {
 	const FString LevelName = UGameplayStatics::GetCurrentLevelName(GetWorld());
 
@@ -658,7 +671,7 @@ TArray<ABloodStainActor*> UBloodStainSubsystem::SpawnAllBloodStainInLevel()
 		for (const auto& [RelativeFilePath, RecordHeaderData] : CachedHeaders)
 		{
 			const FString FileName = RecordHeaderData.FileName.ToString();
-			SpawnBloodStain(FileName, LevelName);
+			SpawnBloodStain(FileName, LevelName, PlaybackOptions);
 		}
 	}
 	else
@@ -709,23 +722,6 @@ FInstancedStruct UBloodStainSubsystem::GetReplayUserHeaderData(const FName& Grou
 void UBloodStainSubsystem::ClearReplayUserHeaderData(const FName& GroupName)
 {
 	ReplayUserHeaderDataMap.Remove(GroupName);
-}
-
-void UBloodStainSubsystem::OnWorldInitialized(UWorld* World, const UWorld::InitializationValues IVS)
-{
-	if (!World || !World->IsGameWorld())
-	{
-		return;
-	}
-
-	if (World->GetNetMode() == NM_ListenServer || World->GetNetMode() == NM_DedicatedServer || World->GetNetMode() == NM_Standalone)
-	{
-		if (!UGameplayStatics::GetActorOfClass(World, ABloodStainManager::StaticClass()))
-		{
-			World->SpawnActor<ABloodStainManager>(ABloodStainManager::StaticClass(), FVector::ZeroVector, FRotator::ZeroRotator);
-			UE_LOG(LogBloodStain, Log, TEXT("BloodStainManager spawned by GameInstanceSubsystem."));
-		}
-	}
 }
 
 ABloodStainActor* UBloodStainSubsystem::SpawnBloodStain_Internal(const FVector& Location, const FRotator& Rotation, const FString& FileName, const FString& LevelName)
@@ -871,42 +867,6 @@ void UBloodStainSubsystem::CleanupInvalidRecordGroups()
 		BloodStainRecordGroups.Remove(InvalidRecordGroupName);
 		ReplayTerminatedActorManager->ClearRecordGroup(InvalidRecordGroupName);
 	}
-}
-
-ABloodStainManager* UBloodStainSubsystem::GetManager()
-{
-	if (CachedManager.IsValid())
-	{
-		return CachedManager.Get();
-	}
-
-	const UWorld* ServerGameWorld = nullptr;
-	for (const FWorldContext& Context : GEngine->GetWorldContexts())
-	{
-		UWorld* CandidateWorld = Context.World();
-		if (CandidateWorld && CandidateWorld->IsGameWorld() && 
-		   (CandidateWorld->IsNetMode(NM_ListenServer) || CandidateWorld->IsNetMode(NM_DedicatedServer)))
-		{
-			ServerGameWorld = CandidateWorld;
-			break;
-		}
-
-		if (CandidateWorld && CandidateWorld->IsGameWorld() &&
-			CandidateWorld->IsNetMode(NM_Standalone))
-		{
-			ServerGameWorld = GetWorld();
-			break;
-		}
-	}
-	
-	if (ServerGameWorld)
-	{
-		ABloodStainManager* FoundManager = Cast<ABloodStainManager>(UGameplayStatics::GetActorOfClass(ServerGameWorld, ABloodStainManager::StaticClass()));
-		CachedManager = FoundManager;
-		return FoundManager;
-	}
-
-	return nullptr;
 }
 
 void UBloodStainSubsystem::AddToPendingGroup(AActor* Actor, FName GroupName)

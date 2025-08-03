@@ -7,6 +7,21 @@
 #include "BloodStainSubsystem.h"
 #include "BloodStainSystem.h"
 #include "Engine/ActorChannel.h"
+#include "Kismet/KismetMathLibrary.h"
+
+AGhostPlayerController::AGhostPlayerController()
+{
+	static ConstructorHelpers::FClassFinder<ABloodStainActor> BloodStainActorClassFinder(TEXT("/BloodStainSystem/BP_BloodStainActor.BP_BloodStainActor_C"));
+
+	if (BloodStainActorClassFinder.Succeeded())
+	{
+		BloodStainActorClass = BloodStainActorClassFinder.Class;
+	}
+	else
+	{
+		UE_LOG(LogBloodStain, Fatal, TEXT("Failed to find BloodStainActorClass at path. Subsystem may not function."));
+	}
+}
 
 void AGhostPlayerController::Client_ReceiveReplayChunk_Implementation(AReplayActor* TargetReplayActor, int32 ChunkIndex, const TArray<uint8>& DataChunk, bool bIsLastChunk)
 {
@@ -15,8 +30,6 @@ void AGhostPlayerController::Client_ReceiveReplayChunk_Implementation(AReplayAct
 		TargetReplayActor->ProcessReceivedChunk(ChunkIndex, DataChunk, bIsLastChunk);
 	}
 }
-
-
 
 void AGhostPlayerController::Server_ReportReplayFileCacheStatus_Implementation(AReplayActor* TargetReplayActor,
 	bool bClientHasFile)
@@ -158,6 +171,57 @@ void AGhostPlayerController::StartFileUpload(const FString& FilePath, const FRec
 	// Tick transfer flag to true
 	bIsUploading = true;
 	UE_LOG(LogBloodStain, Log, TEXT("Starting file upload for %s. Size: %lld bytes."), *Header.FileName.ToString(), TotalFileSize);
+}
+
+void AGhostPlayerController::Server_SpawnBloodStain_Implementation(const FString& FileName, const FString& LevelName, const FBloodStainPlaybackOptions& PlaybackOptions)
+{
+	FRecordHeaderData RecordHeaderData;
+
+	UWorld* World = GetWorld();
+	if (World)
+	{
+		if (const UGameInstance* GameInstance = World->GetGameInstance())
+		{
+			if (UBloodStainSubsystem* BloodStainSubsystem = GameInstance->GetSubsystem<UBloodStainSubsystem>())
+			{
+				if (!BloodStainSubsystem->FindOrLoadRecordHeader(FileName, LevelName, RecordHeaderData))
+				{
+					UE_LOG(LogBloodStain, Warning, TEXT("Failed to SpawnBloodStain. cannot Load Header Filename:[%s]"), *FileName);
+					return;
+				}
+			}
+		}
+	}
+
+	FVector StartLocation = RecordHeaderData.SpawnPointTransform.GetLocation();
+	FVector EndLocation = StartLocation;
+	EndLocation.Z -= UBloodStainSubsystem::LineTraceLength;
+	FHitResult HitResult;
+	FCollisionResponseParams ResponseParams;
+	
+	ResponseParams.CollisionResponse.SetResponse(ECC_Pawn, ECR_Ignore);
+	if (World->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_WorldStatic, FCollisionQueryParams::DefaultQueryParam, ResponseParams))
+	{
+		FVector Location = HitResult.Location;
+		FRotator Rotation = UKismetMathLibrary::MakeRotFromZ(HitResult.Normal);
+		
+		FActorSpawnParameters Params;
+		Params.Owner = this;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+		ABloodStainActor* SpawnedActor  = World->SpawnActor<ABloodStainActor>(BloodStainActorClass, Location, Rotation, Params);
+		
+		if (!SpawnedActor)
+		{
+			UE_LOG(LogBloodStain, Error, TEXT("[BloodStain] Failed to spawn BloodStainActor at %s"), *Location.ToString());
+			return;
+		}
+
+		SpawnedActor->PlaybackOptions = PlaybackOptions;
+		SpawnedActor->Initialize(FileName, LevelName);
+		return;
+	}
+	UE_LOG(LogBloodStain, Warning, TEXT("Failed to LineTrace to Floor."))
 }
 
 void AGhostPlayerController::Server_BeginFileUpload_Implementation(const FRecordHeaderData& Header, int64 FileSize)

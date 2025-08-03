@@ -21,6 +21,7 @@ struct FBloodStainRecordOptions;
 struct FGameplayTagContainer;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnBuildRecordingHeader, FName, GroupName);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnBloodStainReadyOnClient, ABloodStainActor*, ReadyActor);
 
 struct FIncomingClientFile
 {
@@ -258,7 +259,9 @@ public:
 	 *  If null, it is set to the middle position of the Actors. */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Record")
 	void SetRecordingGroupMainActor(AActor* TargetActor, FName GroupName = NAME_None);
-	
+
+	UFUNCTION()
+	void HandleBloodStainReady(ABloodStainActor* ReadyActor);
 public:
 	/**
 	 *	Finds all replay files for a given level and loads their headers into the cache.
@@ -345,11 +348,11 @@ public:
 public:
 	/** Spawns a BloodStainActor to the ground using the file name and level name. */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|BloodStainActor")
-	ABloodStainActor* SpawnBloodStain(const FString& FileName, const FString& LevelName);
+	void SpawnBloodStain(const FString& FileName, const FString& LevelName, const FBloodStainPlaybackOptions& PlaybackOptions);
 
 	/** Scans the current level's save directory and spawns all BloodStainActors for every replay file found */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|BloodStainActor")
-	TArray<ABloodStainActor*> SpawnAllBloodStainInLevel();
+	TArray<ABloodStainActor*> SpawnAllBloodStainInLevel(const FBloodStainPlaybackOptions& PlaybackOptions);
 	
 public:
 	/**
@@ -378,8 +381,6 @@ public:
 	void ClearReplayUserHeaderData(const FName& GroupName);
 	
 private:
-	void OnWorldInitialized(UWorld* World, const UWorld::InitializationValues IVS);
-	
 	/** The core implementation for spawning an ABloodStainActor at a specific transform. */
 	ABloodStainActor* SpawnBloodStain_Internal(const FVector& Location, const FRotator& Rotation, const FString& FileName, const FString& LevelName);
 	
@@ -411,8 +412,6 @@ private:
 	/** Iterates through all active recording groups and removes any that are no longer valid. */
 	void CleanupInvalidRecordGroups();
 
-	ABloodStainManager* GetManager();
-
 public:
 	/** Send Replay file to the server from the client-side */
 	void StopRecordingAndUploadToServer(FName GroupName);
@@ -438,6 +437,11 @@ public:
 
 	/** Distance to trace downwards to find the ground when spawning a BloodStainActor. */
 	static float LineTraceLength;
+
+	UPROPERTY(BlueprintAssignable, Category = "BloodStain|Events")
+	FOnBloodStainReadyOnClient OnBloodStainReady;
+	
+	TArray<TObjectPtr<ABloodStainActor>> BloodStainActors;
 	
 protected:
 	/** The ABloodStainActor class to spawn, loaded from a hardcoded path in the constructor. */
@@ -472,9 +476,6 @@ private:
 	/** Default material used for "Replaying actors" if recorded material is null or bUseGhostMaterial is true */
 	UPROPERTY()
 	TObjectPtr<UMaterialInterface> GhostMaterial;
-
-	UPROPERTY()
-	TWeakObjectPtr<ABloodStainManager> CachedManager;
 	
 	/** Key is GroupName */
 	TMap<FName, FInstancedStruct> ReplayUserHeaderDataMap;

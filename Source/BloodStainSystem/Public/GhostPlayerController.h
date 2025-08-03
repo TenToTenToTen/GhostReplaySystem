@@ -10,6 +10,7 @@
 #include "ReplayActor.h"
 #include "GhostPlayerController.generated.h"
 
+class ABloodStainActor;
 /**
  * 
  */
@@ -18,12 +19,16 @@ class BLOODSTAINSYSTEM_API AGhostPlayerController : public APlayerController
 {
 	GENERATED_BODY()
 
+	AGhostPlayerController();
 public:
 	UFUNCTION(Client, Reliable)
 	void Client_ReceiveReplayChunk(AReplayActor* TargetReplayActor, int32 ChunkIndex, const TArray<uint8>& DataChunk, bool bIsLastChunk);
 
 	UFUNCTION(Server, Reliable)
 	void Server_ReportReplayFileCacheStatus(AReplayActor* TargetReplayActor, bool bClientHasFile);
+
+	UFUNCTION(Server, Reliable)
+	void Server_SpawnBloodStain(const FString& FileName, const FString& LevelName, const FBloodStainPlaybackOptions& PlaybackOptions);
 
 	/** [Client-side] Start sending local replay file to the server, called on Tick() */
 	void StartFileUpload(const FString& FilePath, const FRecordHeaderData& Header);
@@ -43,6 +48,9 @@ private:
 	/** [Server RPC] 파일 전송 완료를 서버에 알립니다. */
 	UFUNCTION(Server, Reliable)
 	void Server_EndFileUpload();
+	
+	UPROPERTY()
+	TSubclassOf<ABloodStainActor> BloodStainActorClass;
 	
 	const float RateLimitMbps = 0.5f;
 	int32 MaxBytesToSendThisTick = 1024 * 16; // 16 KB per tick
