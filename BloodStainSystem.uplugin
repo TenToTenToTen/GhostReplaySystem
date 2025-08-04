@@ -1,9 +1,9 @@
 {
 	"FileVersion": 3,
 	"Version": 1,
-	"VersionName": "1.0",
-	"FriendlyName": "BloodStainSystem",
-	"Description": "A Ghost Replay System supports all types of mesh component - Single Player Only",
+	"VersionName": "1.1",
+	"FriendlyName": "Ghost Replay System",
+	"Description": "A Ghost Replay System supports all types of mesh component",
 	"Category": "Other",
 	"CreatedBy": "TTT",
 	"CreatedByURL": "",
