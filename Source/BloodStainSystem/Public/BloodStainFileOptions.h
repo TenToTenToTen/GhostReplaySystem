@@ -21,26 +21,6 @@ enum class ECompressionMethod : uint8
 };
 
 /**
- * @brief Detailed compression settings
- */
-USTRUCT(BlueprintType)
-struct FCompressionOption
-{
-	GENERATED_BODY()
-
-	/** Compression algorithm to use */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Compression")
-	ECompressionMethod Method = ECompressionMethod::Zlib;
-
-	friend FArchive& operator<<(FArchive& Ar, FCompressionOption& Options)
-	{
-		Ar << Options.Method;
-		return Ar;
-	}
-};
-
-
-/**
  * @brief Supported transform quantization methods.
  *
  * - None: No quantization (stores full FTransform).
@@ -58,24 +38,6 @@ enum class ETransformQuantizationMethod : uint8
 };
 
 /**
- * @brief Detailed quantization settings
- */
-USTRUCT(BlueprintType)
-struct FQuantizationOption
-{
-	GENERATED_BODY()
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Quantization")
-	ETransformQuantizationMethod Method = ETransformQuantizationMethod::Standard_Compact;
-
-	friend FArchive& operator<<(FArchive& Ar, FQuantizationOption& Options)
-	{
-		Ar << Options.Method;
-		return Ar;
-	}
-};
-
-/**
  * @brief High-level file I/O options for BloodStain recordings
  */
 USTRUCT(BlueprintType)
@@ -85,16 +47,16 @@ struct FBloodStainFileOptions
 
 	/** Compression settings for file payload */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="File|Compression")
-	FCompressionOption Compression;
+	ECompressionMethod CompressionOption;
 
 	/** Quantization settings for bone transforms */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="File|Quantization")
-	FQuantizationOption Quantization;
+	ETransformQuantizationMethod QuantizationOption;
 	
 	friend FArchive& operator<<(FArchive& Ar, FBloodStainFileOptions& Options)
 	{
-		Ar << Options.Compression;
-		Ar << Options.Quantization;
+		Ar << Options.CompressionOption;
+		Ar << Options.QuantizationOption;
 		return Ar;
 	}
 };

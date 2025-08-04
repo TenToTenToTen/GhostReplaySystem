@@ -132,7 +132,28 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 		TMap<FName, int32> ActorNameToRecordDataIndexMap;
 		TArray<FRecordActorSaveData> RecordActorSaveDataArray;
 		TArray<FInstancedStruct> ActorHeaderDataArray;
-				
+		
+		TArray<FName> TerminateActorNameArray;
+		TArray<FInstancedStruct> TerminateRecordActorUserDataArray;
+		TArray<FRecordActorSaveData> TerminatedActorSaveDataArray = ReplayTerminatedActorManager->CookQueuedFrames(GroupName, FrameBaseStartTime, TerminateActorNameArray, TerminateRecordActorUserDataArray);		
+		for (int32 Index = 0; Index < TerminatedActorSaveDataArray.Num(); Index++)
+		{
+			const FRecordActorSaveData& RecordActorSaveData = TerminatedActorSaveDataArray[Index];
+			const FName& ActorName = TerminateActorNameArray[Index];
+			const FInstancedStruct& RecordActorUserData = TerminateRecordActorUserDataArray[Index];
+
+			if (!RecordActorSaveData.IsValid())
+			{
+				UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording Warning: Frame num is 0"));
+				continue;
+			}
+
+			ActorHeaderDataArray.Add(RecordActorUserData);
+			
+			RecordActorSaveDataArray.Add(RecordActorSaveData);
+			int32 RecordDataIndex = RecordActorSaveDataArray.Num() - 1;
+			ActorNameToRecordDataIndexMap.Add(ActorName, RecordDataIndex);
+		}
 		for (const auto& [Actor, RecordComponent] : BloodStainRecordGroup.ActiveRecorders)
 		{
 			if (!Actor)
@@ -162,28 +183,7 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 			ActorNameToRecordDataIndexMap.Add(Actor->GetFName(), RecordDataIndex);
 		}
 
-		TArray<FName> TerminateActorNameArray;
-		TArray<FInstancedStruct> TerminateRecordActorUserDataArray;
-		TArray<FRecordActorSaveData> TerminatedActorSaveDataArray = ReplayTerminatedActorManager->CookQueuedFrames(GroupName, FrameBaseStartTime, TerminateActorNameArray, TerminateRecordActorUserDataArray);		
-		for (int32 Index = 0; Index < TerminatedActorSaveDataArray.Num(); Index++)
-		{
-			const FRecordActorSaveData& RecordActorSaveData = TerminatedActorSaveDataArray[Index];
-			const FName& ActorName = TerminateActorNameArray[Index];
-			const FInstancedStruct& RecordActorUserData = TerminateRecordActorUserDataArray[Index];
-
-			if (!RecordActorSaveData.IsValid())
-			{
-				UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording Warning: Frame num is 0"));
-				continue;
-			}
-
-			ActorHeaderDataArray.Add(RecordActorUserData);
-			
-			RecordActorSaveDataArray.Add(RecordActorSaveData);
-			int32 RecordDataIndex = RecordActorSaveDataArray.Num() - 1;
-			ActorNameToRecordDataIndexMap.Add(ActorName, RecordDataIndex);
-		}
-	
+		
 		if (RecordActorSaveDataArray.Num() == 0)
 		{
 			UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording Failed: There is no Valid Recorder Group[%s]"), GetData(GroupName.ToString()));

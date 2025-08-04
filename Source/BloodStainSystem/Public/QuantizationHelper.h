@@ -32,7 +32,7 @@ namespace BloodStainFileUtils_Internal
 	 * @param LocRange The location range, required for 'Standard_Low' quantization.
 	 * @param ScaleRange The scale range, required for 'Standard_Low' quantization.
 	 */
-	void SerializeQuantizedTransform(FArchive& Ar, const FTransform& Transform, const FQuantizationOption& QuantOpts, const FLocRange* LocRange = nullptr, const FScaleRange* ScaleRange = nullptr);
+	void SerializeQuantizedTransform(FArchive& Ar, const FTransform& Transform, const ETransformQuantizationMethod& QuantOpts, const FLocRange* LocRange = nullptr, const FScaleRange* ScaleRange = nullptr);
 
 	/**
 	 * Deserializes a quantized transform from an archive and reconstructs the FTransform.
@@ -41,7 +41,7 @@ namespace BloodStainFileUtils_Internal
 	 * @param ScaleRange The scale range, only required for 'Standard_Low' option.
 	 * @return The reconstructed FTransform.
 	 */
-	FTransform DeserializeQuantizedTransform(FArchive& Ar, const FQuantizationOption& QuantOpts, const FLocRange* LocRange = nullptr, const FScaleRange* ScaleRange = nullptr);
+	FTransform DeserializeQuantizedTransform(FArchive& Ar, const ETransformQuantizationMethod& QuantOpts, const FLocRange* LocRange = nullptr, const FScaleRange* ScaleRange = nullptr);
 
 	/**
 	 * Serializes an entire FRecordSaveData object to a raw byte archive.
@@ -49,7 +49,7 @@ namespace BloodStainFileUtils_Internal
 	 * @param SaveData The source replay data to serialize. Its range members will be modified.
 	 * @param QuantOpts The quantization options to apply to all transforms.
 	 */
-	void SerializeSaveData(FArchive& RawAr,FRecordSaveData& SaveData, FQuantizationOption& QuantOpts);
+	void SerializeSaveData(FArchive& RawAr,FRecordSaveData& SaveData, ETransformQuantizationMethod& QuantOpts);
 
 	/**
 	 * Deserializes raw byte data from an archive into an FRecordSaveData object.
@@ -57,5 +57,5 @@ namespace BloodStainFileUtils_Internal
 	 * @param OutData The FRecordSaveData object to populate with the deserialized data.
 	 * @param QuantOpts The quantization options used when the data was originally saved.
 	 */
-	void DeserializeSaveData(FArchive& DataAr, FRecordSaveData& OutData, const FQuantizationOption& QuantOpts);
+	void DeserializeSaveData(FArchive& DataAr, FRecordSaveData& OutData, const ETransformQuantizationMethod& QuantOpts);
 }

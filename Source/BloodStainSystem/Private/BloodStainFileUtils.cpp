@@ -50,19 +50,19 @@ bool BloodStainFileUtils::SaveToFile(
 	FBloodStainFileOptions LocalOptions = Options;
 	FBufferArchive BufferAr;
 
-	BloodStainFileUtils_Internal::SerializeSaveData(BufferAr, LocalCopy,LocalOptions.Quantization);
+	BloodStainFileUtils_Internal::SerializeSaveData(BufferAr, LocalCopy,LocalOptions.QuantizationOption);
 
     TArray<uint8> RawBytes;
     RawBytes.Append(BufferAr.GetData(), BufferAr.Num());
 	
     TArray<uint8> Payload;
-    if (Options.Compression.Method == ECompressionMethod::None)
+    if (Options.CompressionOption == ECompressionMethod::None)
     {
         Payload = MoveTemp(RawBytes);
     }
     else
     {
-        if (!BloodStainCompressionUtils::CompressBuffer(RawBytes, Payload, Options.Compression))
+        if (!BloodStainCompressionUtils::CompressBuffer(RawBytes, Payload, Options.CompressionOption))
         {
             UE_LOG(LogBloodStain, Error, TEXT("[BS] CompressBuffer failed"));
             return false;
@@ -165,13 +165,13 @@ bool BloodStainFileUtils::LoadFromFile(const FString& RelativeFilePath, FRecordS
 	FMemory::Memcpy(Compressed.GetData(), Ptr, Remain);
 
 	TArray<uint8> RawBytes;
-	if (FileHeader.Options.Compression.Method == ECompressionMethod::None)
+	if (FileHeader.Options.CompressionOption == ECompressionMethod::None)
 	{
 		RawBytes = MoveTemp(Compressed);
 	}
 	else
 	{
-		if (!BloodStainCompressionUtils::DecompressBuffer(FileHeader.UncompressedSize, Compressed, RawBytes, FileHeader.Options.Compression))
+		if (!BloodStainCompressionUtils::DecompressBuffer(FileHeader.UncompressedSize, Compressed, RawBytes, FileHeader.Options.CompressionOption))
 		{
 			UE_LOG(LogBloodStain, Error, TEXT("[BS] DecompressBuffer failed"));
 			return false;
@@ -179,7 +179,7 @@ bool BloodStainFileUtils::LoadFromFile(const FString& RelativeFilePath, FRecordS
 	}
 
 	FMemoryReader MemoryReader(RawBytes, true);
-	BloodStainFileUtils_Internal::DeserializeSaveData(MemoryReader,OutData,FileHeader.Options.Quantization);
+	BloodStainFileUtils_Internal::DeserializeSaveData(MemoryReader,OutData,FileHeader.Options.QuantizationOption);
 	
 	return true;
 }

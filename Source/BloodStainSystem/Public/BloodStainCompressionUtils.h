@@ -14,7 +14,7 @@ namespace BloodStainCompressionUtils
 	 */
 	bool CompressBuffer(const TArray<uint8>& InBuffer,
 							  TArray<uint8>& OutCompressed,
-							  FCompressionOption Opts = FCompressionOption());
+							  ECompressionMethod Opts = ECompressionMethod::None);
 
 	/**
 	 * Decompress the compressed data InBuffer to the original size (UncompressedSize)
@@ -24,5 +24,5 @@ namespace BloodStainCompressionUtils
 	bool DecompressBuffer(int64 UncompressedSize,
 						  const TArray<uint8>& Compressed,
 						  TArray<uint8>& OutRaw,
-						  FCompressionOption  Opts = FCompressionOption());
+						  ECompressionMethod  Opts = ECompressionMethod::None);
 }

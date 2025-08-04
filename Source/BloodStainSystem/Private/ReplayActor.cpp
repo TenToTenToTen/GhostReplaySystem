@@ -274,7 +274,7 @@ void AReplayActor::Client_AssembleAndFinalize()
 	}
 
 	UE_LOG(LogBloodStain, Warning, TEXT("Assembling done. Payload Size: %d, Expected Uncompressed Size: %lld, Compression Method: %s"),
-		Client_ReceivedPayloadBuffer.Num(), Client_FileHeader.UncompressedSize, *UEnum::GetValueAsString(Client_FileHeader.Options.Compression.Method)
+		Client_ReceivedPayloadBuffer.Num(), Client_FileHeader.UncompressedSize, *UEnum::GetValueAsString(Client_FileHeader.Options.CompressionOption)
 	);
 	
 	Client_PendingChunks.Empty();
@@ -284,7 +284,7 @@ void AReplayActor::Client_AssembleAndFinalize()
 void AReplayActor::Client_FinalizeAndSpawnVisuals()
 {
 	TArray<uint8> RawBytes;
-	if (!BloodStainCompressionUtils::DecompressBuffer(Client_FileHeader.UncompressedSize, Client_ReceivedPayloadBuffer,RawBytes, Client_FileHeader.Options.Compression))
+	if (!BloodStainCompressionUtils::DecompressBuffer(Client_FileHeader.UncompressedSize, Client_ReceivedPayloadBuffer,RawBytes, Client_FileHeader.Options.CompressionOption))
 	{
 		UE_LOG(LogBloodStain, Error, TEXT("[BS] Client failed to decompress payload."));
 		Destroy();
@@ -293,7 +293,7 @@ void AReplayActor::Client_FinalizeAndSpawnVisuals()
 
 	FRecordSaveData AllReplayData;
 	FMemoryReader MemoryReader(RawBytes, true);
-	BloodStainFileUtils_Internal::DeserializeSaveData(MemoryReader, AllReplayData, Client_FileHeader.Options.Quantization);
+	BloodStainFileUtils_Internal::DeserializeSaveData(MemoryReader, AllReplayData, Client_FileHeader.Options.QuantizationOption);
 	AllReplayData.Header = Client_RecordHeader;
 
 	// Save the replay data locally if it doesn't already exist
@@ -398,7 +398,7 @@ void AReplayActor::Multicast_InitializeForPayload_Implementation(const FGuid& In
 	
 		TArray<uint8> SerializedData;
 		FMemoryWriter MemoryWriter(SerializedData, true);
-		BloodStainFileUtils_Internal::SerializeSaveData(MemoryWriter, TempData, Client_FileHeader.Options.Quantization);
+		BloodStainFileUtils_Internal::SerializeSaveData(MemoryWriter, TempData, Client_FileHeader.Options.QuantizationOption);
 	
 		Client_ReceivedPayloadBuffer = SerializedData;
 		Client_FinalizeAndSpawnVisuals(TempData);

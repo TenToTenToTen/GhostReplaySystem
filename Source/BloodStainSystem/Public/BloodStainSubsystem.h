@@ -409,10 +409,7 @@ private:
 	/** Iterates through all active recording groups and removes any that are no longer valid. */
 	void CleanupInvalidRecordGroups();
 
-public:
-	/** Send Replay file to the server from the client-side */
-	void StopRecordingAndUploadToServer(FName GroupName);
-	
+public:	
 	void HandleBeginFileUpload(AGhostPlayerController* Uploader, const FRecordHeaderData& Header, int64 FileSize);
 
 	void HandleReceiveFileChunk(AGhostPlayerController* Uploader, const TArray<uint8>& ChunkData);
@@ -435,9 +432,10 @@ public:
 	/** Distance to trace downwards to find the ground when spawning a BloodStainActor. */
 	static float LineTraceLength;
 
-	UPROPERTY(BlueprintAssignable, Category = "BloodStain|Events")
+	//UPROPERTY(BlueprintAssignable, Category = "BloodStain|Events")
 	FOnBloodStainReadyOnClient OnBloodStainReady;
-	
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "BloodStain|BloodStainActor")
 	TArray<TObjectPtr<ABloodStainActor>> BloodStainActors;
 	
 protected:

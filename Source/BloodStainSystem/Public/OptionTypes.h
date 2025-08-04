@@ -25,8 +25,10 @@ struct FBloodStainRecordOptions
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Record")
 	FName RecordingGroupName = NAME_None;
-
-	/** Record File Name. If a file already exists, override */
+	
+	/** Name of the recording file (without extension).
+	 * If not specified, it defaults to "{GroupName} + {TimeStamp}".
+	 * If a file with the same name already exists, it will be overridden. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Record")
 	FName FileName = NAME_None;
 

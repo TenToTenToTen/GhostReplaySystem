@@ -88,9 +88,9 @@ void ComputeRanges(FRecordSaveData& SaveData)
     }
     
 }
-void SerializeQuantizedTransform(FArchive& Ar, const FTransform& Transform, const FQuantizationOption& QuantOpts, const FLocRange* LocRange, const FScaleRange* ScaleRange)
+void SerializeQuantizedTransform(FArchive& Ar, const FTransform& Transform, const ETransformQuantizationMethod& QuantOpts, const FLocRange* LocRange, const FScaleRange* ScaleRange)
 {
-    switch (QuantOpts.Method)
+    switch (QuantOpts)
     {
     case ETransformQuantizationMethod::Standard_High:
         {
@@ -121,9 +121,9 @@ void SerializeQuantizedTransform(FArchive& Ar, const FTransform& Transform, cons
     }
 }
 
-FTransform DeserializeQuantizedTransform(FArchive& Ar, const FQuantizationOption& Opts, const FLocRange* LocRange, const FScaleRange* ScaleRange)
+FTransform DeserializeQuantizedTransform(FArchive& Ar, const ETransformQuantizationMethod& Opts, const FLocRange* LocRange, const FScaleRange* ScaleRange)
 {
-    switch (Opts.Method)
+    switch (Opts)
     {
     case ETransformQuantizationMethod::Standard_High:
         {
@@ -152,7 +152,7 @@ FTransform DeserializeQuantizedTransform(FArchive& Ar, const FQuantizationOption
     }
 }
 
-void SerializeSaveData(FArchive& RawAr, FRecordSaveData& SaveData, FQuantizationOption& QuantOpts)
+void SerializeSaveData(FArchive& RawAr, FRecordSaveData& SaveData, ETransformQuantizationMethod& QuantOpts)
 {
     ComputeRanges(SaveData);
 
@@ -217,7 +217,7 @@ void SerializeSaveData(FArchive& RawAr, FRecordSaveData& SaveData, FQuantization
     
 }
 
-void DeserializeSaveData(FArchive& DataAr, FRecordSaveData& OutData, const FQuantizationOption& QuantOpts)
+void DeserializeSaveData(FArchive& DataAr, FRecordSaveData& OutData, const ETransformQuantizationMethod& QuantOpts)
 {
     int32 NumActors = 0;
     DataAr << NumActors;
