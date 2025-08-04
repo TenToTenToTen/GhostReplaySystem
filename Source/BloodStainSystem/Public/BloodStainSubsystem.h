@@ -409,6 +409,12 @@ private:
 	/** Iterates through all active recording groups and removes any that are no longer valid. */
 	void CleanupInvalidRecordGroups();
 
+	/**
+ 	 * @brief Internal function to spawn a BloodStainActor using the given file name, level name, and playback options.
+ 	 *        This is used only in standalone (single-player) mode.
+ 	 */
+	void SpawnBloodStainStandalone_Internal(const FString& FileName, const FString& LevelName, const FBloodStainPlaybackOptions& PlaybackOptions);
+
 public:	
 	void HandleBeginFileUpload(AGhostPlayerController* Uploader, const FRecordHeaderData& Header, int64 FileSize);
 

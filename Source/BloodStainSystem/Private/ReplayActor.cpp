@@ -14,6 +14,7 @@
 #include "Engine/NetConnection.h"
 #include "Engine/ActorChannel.h"
 #include "Serialization/MemoryReader.h"
+#include "Serialization/MemoryWriter.h"
 #include "BloodStainSystem.h"
 #include "GhostPlayerController.h"
 

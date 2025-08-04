@@ -19,6 +19,7 @@
 #include "UObject/ConstructorHelpers.h"
 #include "Kismet/GameplayStatics.h"
 #include "Algo/BinarySearch.h"
+#include "Kismet/KismetMathLibrary.h"
 
 class FSaveRecordingTask;
 
@@ -327,7 +328,11 @@ bool UBloodStainSubsystem::StartReplayByBloodStain(APlayerController* Requesting
 
 bool UBloodStainSubsystem::StartReplayFromFile(APlayerController* RequestingController, const FString& FileName, const FString& LevelName, FGuid& OutGuid, FBloodStainPlaybackOptions PlaybackOptions)
 {
-	const ENetMode NetMode = GetWorld()->GetNetMode();
+	ENetMode NetMode;
+	if (UWorld* World = GetWorld())
+	{
+		NetMode = World->GetNetMode();
+	}
 
 	if (NetMode == ENetMode::NM_Standalone)
 	{
@@ -641,6 +646,17 @@ TArray<FString> UBloodStainSubsystem::GetSavedFileNames(const FString& LevelName
 
 void UBloodStainSubsystem::SpawnBloodStain(const FString& FileName, const FString& LevelName, const FBloodStainPlaybackOptions PlaybackOptions)
 {
+	if (UWorld* World = GetWorld())
+	{
+		ENetMode NetMode = World->GetNetMode();
+		if (NetMode == ENetMode::NM_Standalone)
+		{
+			SpawnBloodStainStandalone_Internal(FileName, LevelName, PlaybackOptions);
+			return;
+		}
+	}
+
+	
 	if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
 	{
 		if (PC->IsLocalController())
@@ -836,6 +852,47 @@ void UBloodStainSubsystem::CleanupInvalidRecordGroups()
 		BloodStainRecordGroups.Remove(InvalidRecordGroupName);
 		ReplayTerminatedActorManager->ClearRecordGroup(InvalidRecordGroupName);
 	}
+}
+
+void UBloodStainSubsystem::SpawnBloodStainStandalone_Internal(const FString& FileName, const FString& LevelName,
+	const FBloodStainPlaybackOptions& PlaybackOptions)
+{
+	UWorld* World = GetWorld();
+	FRecordHeaderData RecordHeaderData;
+	if (!FindOrLoadRecordHeader(FileName, LevelName, RecordHeaderData))
+	{
+		UE_LOG(LogBloodStain, Warning, TEXT("Failed to SpawnBloodStain. cannot Load Header Filename:[%s]"), *FileName);
+		return;
+	}
+
+	FVector StartLocation = RecordHeaderData.SpawnPointTransform.GetLocation();
+	FVector EndLocation = StartLocation;
+	EndLocation.Z -= UBloodStainSubsystem::LineTraceLength;
+	FHitResult HitResult;
+	FCollisionResponseParams ResponseParams;
+	
+	ResponseParams.CollisionResponse.SetResponse(ECC_Pawn, ECR_Ignore);
+	if (World->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_WorldStatic, FCollisionQueryParams::DefaultQueryParam, ResponseParams))
+	{
+		FVector Location = HitResult.Location;
+		FRotator Rotation = UKismetMathLibrary::MakeRotFromZ(HitResult.Normal);
+		
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+		ABloodStainActor* SpawnedActor  = World->SpawnActor<ABloodStainActor>(BloodStainActorClass, Location, Rotation, Params);
+		
+		if (!SpawnedActor)
+		{
+			UE_LOG(LogBloodStain, Error, TEXT("[BloodStain] Failed to spawn BloodStainActor at %s"), *Location.ToString());
+			return;
+		}
+
+		SpawnedActor->PlaybackOptions = PlaybackOptions;
+		SpawnedActor->Initialize(FileName, LevelName);
+		return;
+	}
+	UE_LOG(LogBloodStain, Warning, TEXT("Failed to LineTrace to Floor."))
 }
 
 void UBloodStainSubsystem::AddToPendingGroup(AActor* Actor, FName GroupName)
