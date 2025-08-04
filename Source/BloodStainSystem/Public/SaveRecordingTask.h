@@ -8,6 +8,7 @@
 #include "CoreMinimal.h"
 #include "BloodStainFileOptions.h"
 #include "Async/AsyncWork.h"
+#include "Async/TaskGraphInterfaces.h"
 #include "GhostData.h"
 
 /**

@@ -10,7 +10,7 @@
 void FSaveRecordingTask::DoWork()
 {
 	const bool bSuccess = BloodStainFileUtils::SaveToFile(SavedData, LevelName, FileName, FileOptions);
-	FGraphEventRef Task = FFunctionGraphTask::CreateAndDispatchWhenReady([LocalOnTaskCompleted = this->OnTaskCompleted, bSuccess]()
+	FGraphEventRef Task = FFunctionGraphTask::CreateAndDispatchWhenReady([=, LocalOnTaskCompleted = this->OnTaskCompleted]()
 	{
 		if (bSuccess)
 		{
