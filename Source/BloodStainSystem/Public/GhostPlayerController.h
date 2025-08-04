@@ -38,15 +38,15 @@ protected:
 	virtual void Tick(float DeltaSeconds) override;
 
 private:
-	/** [Server RPC] 파일 업로드 시작을 서버에 알립니다. */
+	/** [Server RPC] Notifies the server that a file upload is about to begin. */
 	UFUNCTION(Server, Reliable)
 	void Server_BeginFileUpload(const FRecordHeaderData& Header, int64 FileSize);
 
-	/** [Server RPC] 파일 데이터 청크를 서버로 전송합니다. */
+	/** [Server RPC] Sends a chunk of file data to the server. */
 	UFUNCTION(Server, Reliable)
 	void Server_SendFileChunk(const TArray<uint8>& ChunkData);
 
-	/** [Server RPC] 파일 전송 완료를 서버에 알립니다. */
+	/** [Server RPC] Notifies the server that the file transfer is complete. */
 	UFUNCTION(Server, Reliable)
 	void Server_EndFileUpload();
 	
