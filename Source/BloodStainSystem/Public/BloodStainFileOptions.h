@@ -47,11 +47,11 @@ struct FBloodStainFileOptions
 
 	/** Compression settings for file payload */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="File|Compression")
-	ECompressionMethod CompressionOption;
+	ECompressionMethod CompressionOption = ECompressionMethod::Zlib;
 
 	/** Quantization settings for bone transforms */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="File|Quantization")
-	ETransformQuantizationMethod QuantizationOption;
+	ETransformQuantizationMethod QuantizationOption = ETransformQuantizationMethod::Standard_Medium;
 	
 	friend FArchive& operator<<(FArchive& Ar, FBloodStainFileOptions& Options)
 	{
