@@ -25,7 +25,7 @@ enum class ECompressionMethod : uint8
  *
  * - None: No quantization (stores full FTransform).
  * - Standard_High: High‑precision quantization (uses FQuantizedTransform_High).
- * - Standard_Compact: Compact quantization (uses FQuantizedTransform_Compact).
+ * - Standard_Medium: Medium quantization (uses FQuantizedTransform_Medium).
  * - Standard_Low: Lowest‑bit quantization (uses FQuantizedTransform_Lowest).
  */
 UENUM(BlueprintType)
@@ -33,7 +33,7 @@ enum class ETransformQuantizationMethod : uint8
 {
 	None,            
 	Standard_High,   
-	Standard_Compact,
+	Standard_Medium,
 	Standard_Low     
 };
 

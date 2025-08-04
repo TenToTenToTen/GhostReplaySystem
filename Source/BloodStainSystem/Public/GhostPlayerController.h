@@ -19,8 +19,9 @@ class BLOODSTAINSYSTEM_API AGhostPlayerController : public APlayerController
 {
 	GENERATED_BODY()
 
-	AGhostPlayerController();
 public:
+	AGhostPlayerController();
+	
 	UFUNCTION(Client, Reliable)
 	void Client_ReceiveReplayChunk(AReplayActor* TargetReplayActor, int32 ChunkIndex, const TArray<uint8>& DataChunk, bool bIsLastChunk);
 

@@ -98,7 +98,7 @@ void SerializeQuantizedTransform(FArchive& Ar, const FTransform& Transform, cons
             Ar << Q;
         }
         break;
-    case ETransformQuantizationMethod::Standard_Compact:
+    case ETransformQuantizationMethod::Standard_Medium:
         {
             FQuantizedTransform_Compact Q(Transform);
             Ar << Q;
@@ -131,7 +131,7 @@ FTransform DeserializeQuantizedTransform(FArchive& Ar, const ETransformQuantizat
             Ar << Q;
             return Q.ToTransform();
         }
-    case ETransformQuantizationMethod::Standard_Compact:
+    case ETransformQuantizationMethod::Standard_Medium:
         {
             FQuantizedTransform_Compact Q;
             Ar << Q;
