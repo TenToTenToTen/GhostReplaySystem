@@ -352,7 +352,7 @@ public:
 
 	/** Scans the current level's save directory and spawns all BloodStainActors for every replay file found */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|BloodStainActor")
-	TArray<ABloodStainActor*> SpawnAllBloodStainInLevel(const FBloodStainPlaybackOptions PlaybackOptions = FBloodStainPlaybackOptions());
+	void SpawnAllBloodStainInLevel(const FBloodStainPlaybackOptions PlaybackOptions = FBloodStainPlaybackOptions());
 	
 public:
 	/**

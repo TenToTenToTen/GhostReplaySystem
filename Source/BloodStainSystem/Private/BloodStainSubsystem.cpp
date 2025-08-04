@@ -673,13 +673,12 @@ void UBloodStainSubsystem::SpawnBloodStain(const FString& FileName, const FStrin
 	}
 }
 
-TArray<ABloodStainActor*> UBloodStainSubsystem::SpawnAllBloodStainInLevel(const FBloodStainPlaybackOptions PlaybackOptions)
+void UBloodStainSubsystem::SpawnAllBloodStainInLevel(const FBloodStainPlaybackOptions PlaybackOptions)
 {
 	const FString LevelName = UGameplayStatics::GetCurrentLevelName(GetWorld());
 
 	const int32 LoadedCount = LoadAllHeadersInLevel(LevelName);
 
-	TArray<ABloodStainActor*> SpawnedActors;
 	if (LoadedCount > 0)
 	{
 		UE_LOG(LogBloodStain, Log, TEXT("Subsystem successfully loaded %d recording Headers into cache."), LoadedCount);
@@ -694,7 +693,6 @@ TArray<ABloodStainActor*> UBloodStainSubsystem::SpawnAllBloodStainInLevel(const 
 	{
 		UE_LOG(LogBloodStain, Log, TEXT("No recording Headers were found or loaded."));
 	}
-	return SpawnedActors;
 }
 
 bool UBloodStainSubsystem::IsPlaying(const FGuid& InPlaybackKey) const
