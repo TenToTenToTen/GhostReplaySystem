@@ -75,6 +75,9 @@ private:
 	/** Checks for newly attached or detached actors since the last frame and updates the recording state accordingly. */
 	void HandleAttachedActorChangesByBit();
 
+	/** Checks for newly attached or detached mesh components since the last frame and updates the recording state accordingly. */
+	void HandleMeshComponentChangesByBit();
+
 	/** Adds the given mesh component to the list of components to be recorded. */
 	bool AddComponentToRecordList(UMeshComponent* MeshComp);
 
@@ -119,6 +122,12 @@ private:
 	TArray<TObjectPtr<AActor>> AttachedIndexToActor;
 	TBitArray<> PrevAttachedBits;
 	TBitArray<> CurAttachedBits;
+
+	TMap<TObjectPtr<UMeshComponent>, int32> AttachedComponentIndexMap;
+	TArray<TObjectPtr<UMeshComponent>> IndexToAttachedComponent;
+	TBitArray<> PrevComponentBits;
+	TBitArray<> CurComponentBits;
+	
 };
 
 template <typename T>

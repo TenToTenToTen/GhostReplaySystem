@@ -30,6 +30,7 @@ DECLARE_CYCLE_STAT(TEXT("RecordComp FillMaterialData"), STAT_RecordComponent_Fil
 DECLARE_CYCLE_STAT(TEXT("RecordComp CreateRecordFromMesh"), STAT_RecordComponent_CreateRecordFromMesh, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("RecordComp HandleAttachedChanges"), STAT_RecordComponent_HandleAttachedChanges, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("RecordComp HandleAttachedChangesByBit"), STAT_RecordComponent_HandleAttachedChangesByBit, STATGROUP_BloodStain);
+DECLARE_CYCLE_STAT(TEXT("RecordComp HandleMeshComponentChangesByBit"), STAT_RecordComponent_HandleMeshComponentChangesByBit, STATGROUP_BloodStain);
 
 URecordComponent::URecordComponent()
 	: StartTime(0), MaxRecordFrames(0), CurrentFrameIndex(0), TimeSinceLastRecord(0)
@@ -47,7 +48,7 @@ void URecordComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 	{
 		if (RecordOptions.bTrackAttachmentChanges)
 		{
-			HandleAttachedActorChangesByBit();
+			HandleMeshComponentChangesByBit();
 		}
 		
 		TimeSinceLastRecord -= RecordOptions.SamplingInterval;
@@ -481,6 +482,98 @@ void URecordComponent::HandleAttachedActorChangesByBit()
 	}
 	
 	PrevAttachedBits = CurAttachedBits;
+}
+
+void URecordComponent::HandleMeshComponentChangesByBit()
+{
+	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_HandleAttachedChangesByBit);
+
+	TArray<UMeshComponent*> CurMeshComponents;
+    if (AActor* Owner = GetOwner())
+    {
+        TArray<AActor*> ActorsToProcess;
+        ActorsToProcess.Add(Owner);
+        Owner->GetAttachedActors(ActorsToProcess, false, true);
+
+        for (AActor* Actor : ActorsToProcess)
+        {
+            TArray<UMeshComponent*> MeshComps;
+            Actor->GetComponents<UMeshComponent>(MeshComps);
+            for (UMeshComponent* MeshComp : MeshComps)
+            {
+                if (MeshComp->IsVisible())
+                {
+                    const UClass* ComponentClass = MeshComp->GetClass();
+                    const bool bIsSupported =
+                        ComponentClass == UStaticMeshComponent::StaticClass() ||
+                        ComponentClass == USkeletalMeshComponent::StaticClass() ||
+                        ComponentClass == UGroomComponent::StaticClass();
+                    
+                    if (bIsSupported)
+                    {
+                        CurMeshComponents.Add(MeshComp);
+                    }
+                }
+            }
+        }
+    }
+
+    auto EnsureMapping = [&](UMeshComponent* Component) {
+        if (!AttachedComponentIndexMap.Contains(Component))
+        {
+            const int32 NewIndex = IndexToAttachedComponent.Add(Component);
+            AttachedComponentIndexMap.Add(Component, NewIndex);
+            PrevComponentBits.Add(false);
+            CurComponentBits.Add(false);
+        }
+    };
+
+    for (UMeshComponent* Component : CurMeshComponents)
+    {
+        EnsureMapping(Component);
+    }
+    
+    CurComponentBits.Init(false, IndexToAttachedComponent.Num());
+    for (UMeshComponent* Component : CurMeshComponents)
+    {
+        if (const int32* IndexPtr = AttachedComponentIndexMap.Find(Component))
+        {
+            CurComponentBits[*IndexPtr] = true;
+        }
+    }
+
+    const TBitArray<> Diff = TBitArray<>::BitwiseXOR(CurComponentBits, PrevComponentBits, EBitwiseOperatorFlags::MaxSize);
+    const TBitArray<> Added = TBitArray<>::BitwiseAND(Diff, CurComponentBits, EBitwiseOperatorFlags::MaxSize);
+    const TBitArray<> Removed = TBitArray<>::BitwiseAND(Diff, PrevComponentBits, EBitwiseOperatorFlags::MaxSize);
+
+    for (TBitArray<>::FConstIterator It(Added); It; ++It)
+    {
+        if (It.GetValue())
+        {
+            if (IndexToAttachedComponent.IsValidIndex(It.GetIndex()))
+            {
+                if (UMeshComponent* NewComponent = IndexToAttachedComponent[It.GetIndex()])
+                {
+                    OnComponentAttached(NewComponent);
+                }
+            }
+        }
+    }
+
+    for (TBitArray<>::FConstIterator It(Removed); It; ++It)
+    {
+        if (It.GetValue())
+        {
+            if (IndexToAttachedComponent.IsValidIndex(It.GetIndex()))
+            {
+                if (UMeshComponent* GoneComponent = IndexToAttachedComponent[It.GetIndex()])
+                {
+                    OnComponentDetached(GoneComponent);
+                }
+            }
+        }
+    }
+    PrevComponentBits = CurComponentBits;
 }
 
 bool URecordComponent::AddComponentToRecordList(UMeshComponent* MeshComp)
