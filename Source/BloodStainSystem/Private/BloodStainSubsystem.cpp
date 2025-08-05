@@ -227,6 +227,10 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 		{
 			BloodStainRecordGroup.RecordOptions.FileName = FName(FString::Printf(TEXT("%s-%s"), *GroupNameString, *UniqueTimestamp));
 		}
+		else
+		{
+			BloodStainRecordGroup.RecordOptions.FileName = FName(BloodStainRecordGroup.RecordOptions.FileName.ToString().Replace(TEXT("\\"), TEXT(" ")).Replace(TEXT("/"), TEXT(" ")));
+		}
 		
 		FRecordSaveData RecordSaveData = ConvertToSaveData(FrameBaseEndTime, GroupName, BloodStainRecordGroup.RecordOptions.FileName, FName(MapName), RecordActorSaveDataArray);
 		
