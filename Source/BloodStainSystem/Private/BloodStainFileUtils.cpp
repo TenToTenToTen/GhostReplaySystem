@@ -155,6 +155,9 @@ bool BloodStainFileUtils::LoadFromFile(const FString& RelativeFilePath, FRecordS
 	MemR << HeaderByteSize;
 	MemR << FileHeader;
 	MemR << OutData.Header;
+	
+	FString FileNameWithoutExtension = FPaths::GetBaseFilename(RelativeFilePath);
+	OutData.Header.FileName = FName(FileNameWithoutExtension);
 
 	int64 Offset = MemR.Tell();
 	int64 Remain = AllBytes.Num() - Offset;
@@ -203,6 +206,7 @@ bool BloodStainFileUtils::LoadRawPayloadFromFile(const FString& FileName, const 
 	MemR << HeaderByteSize;
 	MemR << OutFileHeader;
 	MemR << OutRecordHeader;
+	OutRecordHeader.FileName = FName(FileName);
 	
 	const int64 Offset = MemR.Tell();
 	const int64 PayloadSize = AllBytes.Num() - Offset;
@@ -281,6 +285,9 @@ bool BloodStainFileUtils::LoadHeaderFromFile(const FString& RelativeFilePath, FR
 	FBloodStainFileHeader FileHeader;
 	MemR << FileHeader;
 	MemR << OutRecordHeaderData;
+	
+	FString FileNameWithoutExtension = FPaths::GetBaseFilename(RelativeFilePath);
+	OutRecordHeaderData.FileName = FName(FileNameWithoutExtension);
 	
 	return true;
 }
