@@ -55,6 +55,16 @@ bool UBloodStainSubsystem::StartRecording(AActor* TargetActor, FBloodStainRecord
 		return false;
 	}
 
+	// TODO - Currently, there's no exception handling for the case where a single actor is recorded in multiple groups at the same time.
+	for (const auto& [GroupName, RecordGroup] : BloodStainRecordGroups)
+	{
+		if (RecordGroup.ActiveRecorders.Contains(TargetActor))
+		{
+			UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] Already recording actor %s"), *TargetActor->GetName());
+			return false;
+		}
+	}
+	
 	if (!BloodStainRecordGroups.Contains(RecordOptions.RecordingGroupName))
 	{
 		FBloodStainRecordGroup RecordGroup;
@@ -68,11 +78,11 @@ bool UBloodStainSubsystem::StartRecording(AActor* TargetActor, FBloodStainRecord
 	
 	FBloodStainRecordGroup& RecordGroup = BloodStainRecordGroups[RecordOptions.RecordingGroupName];
 	
-	if (RecordGroup.ActiveRecorders.Contains(TargetActor))
-	{
-		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] Already recording actor %s"), *TargetActor->GetName());
-		return false;
-	}
+	// if (RecordGroup.ActiveRecorders.Contains(TargetActor))
+	// {
+	// 	UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] Already recording actor %s"), *TargetActor->GetName());
+	// 	return false;
+	// }
 
 	URecordComponent* Recorder = NewObject<URecordComponent>(
 		TargetActor,URecordComponent::StaticClass(), NAME_None,RF_Transient);
@@ -254,20 +264,17 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 		))->StartBackgroundTask();
 	}
 
-	TArray<TObjectPtr<AActor>> Keys;
-	BloodStainRecordGroup.ActiveRecorders.GetKeys(Keys);
-	for (AActor* Actor : Keys)
-	{
-		if (URecordComponent* RecordComponent = BloodStainRecordGroup.ActiveRecorders.FindRef(Actor))
-		{
-			RecordComponent->UnregisterComponent();
-			Actor->RemoveInstanceComponent(RecordComponent);
-			RecordComponent->DestroyComponent();
-		}
-	}
+	TMap<TObjectPtr<AActor>, TObjectPtr<URecordComponent>> Temp = BloodStainRecordGroup.ActiveRecorders;
 	
 	BloodStainRecordGroups.Remove(GroupName);
 	ReplayTerminatedActorManager->ClearRecordGroup(GroupName);
+
+	for (const auto& [Actor, RecordComponent] : Temp)
+	{
+		RecordComponent->UnregisterComponent();
+		Actor->RemoveInstanceComponent(RecordComponent);
+		RecordComponent->DestroyComponent();		
+	} 
 	
 	UE_LOG(LogBloodStain, Log, TEXT("[BloodStain] Recording stopped for %s"), GetData(GroupName.ToString()));
 }
@@ -295,13 +302,13 @@ void UBloodStainSubsystem::StopRecordComponent(URecordComponent* RecordComponent
 		return;
 	}
 	
+	BloodStainRecordGroup.ActiveRecorders.Remove(RecordComponent->GetOwner());
+	
 	if (bSaveRecordingData)
 	{	
 		ReplayTerminatedActorManager->AddToRecordGroup(GroupName, RecordComponent);	
-	}
+	}	
 	
-	BloodStainRecordGroup.ActiveRecorders.Remove(RecordComponent->GetOwner());	
-
 	RecordComponent->UnregisterComponent();
 	RecordComponent->GetOwner()->RemoveInstanceComponent(RecordComponent);
 	RecordComponent->DestroyComponent();
