@@ -426,9 +426,10 @@ void URecordComponent::HandleAttachedActorChangesByBit()
 {
 	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_HandleAttachedChangesByBit); 
 	TArray<AActor*> CurActors;
-	if (const AActor* Owner = GetOwner())
+	if (AActor* Owner = GetOwner())
 	{
-		Owner->GetAttachedActors(CurActors, true, true);
+		CurActors.Add(Owner);
+		Owner->GetAttachedActors(CurActors, false, true);
 	}
 
 	auto EnsureMapping = [&](AActor* Actor) {
