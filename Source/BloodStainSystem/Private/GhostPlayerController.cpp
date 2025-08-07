@@ -16,7 +16,8 @@
 #include "Engine/HitResult.h"
 #include "GameFramework/Actor.h"
 
-AGhostPlayerController::AGhostPlayerController()
+AGhostPlayerController::AGhostPlayerController(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
 {
 	static ConstructorHelpers::FClassFinder<ABloodStainActor> BloodStainActorClassFinder(TEXT("/BloodStainSystem/BP_BloodStainActor.BP_BloodStainActor_C"));
 
