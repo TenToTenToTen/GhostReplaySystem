@@ -497,6 +497,19 @@ void UBloodStainSubsystem::HandleBloodStainReady(ABloodStainActor* ReadyActor)
 	}
 }
 
+void UBloodStainSubsystem::DeleteAllBloodStainActors()
+{
+	for (ABloodStainActor* Actor : BloodStainActors)
+	{
+		if (Actor)
+		{
+			Actor->Destroy();
+		}
+	}
+	UE_LOG(LogBloodStain, Log, TEXT("Deleted %d existing BloodStain actors."), BloodStainActors.Num());
+	BloodStainActors.Empty();
+}
+
 bool UBloodStainSubsystem::IsFileHeaderLoaded(const FString& FileName, const FString& LevelName) const
 {
 	const FString RelativeFilePath = GetRelativeFilePath(FileName, LevelName);
@@ -533,10 +546,20 @@ bool UBloodStainSubsystem::FindOrLoadRecordHeader(const FString& FileName, const
 bool UBloodStainSubsystem::FindOrLoadRecordBodyData(const FString& FileName, const FString& LevelName, FRecordSaveData& OutData)
 {
 	const FString RelativeFilePath = GetRelativeFilePath(FileName, LevelName);
-	if (FRecordSaveData* Cached = CachedRecordings.Find(RelativeFilePath))
+	const FString FullFilePath = GetFullFilePath(FileName, LevelName);
+
+	const FDateTime LastModifiedTime = IFileManager::Get().GetTimeStamp(*FullFilePath);
+	
+	if (FCachedRecordData* Cached = CachedRecordings.Find(RelativeFilePath))
 	{
-		OutData = *Cached;
-		return true;
+		if (Cached->Timestamp == LastModifiedTime)
+		{
+			OutData = Cached->RecordData;
+			UE_LOG(LogBloodStain, Log, TEXT("Cache hit and valid for %s"), *RelativeFilePath);
+			return true;
+		}
+		UE_LOG(LogBloodStain, Warning, TEXT("Stale cache detected for %s. Removing old entry and reloading."), *RelativeFilePath);
+		CachedRecordings.Remove(RelativeFilePath);
 	}
 
 	FRecordSaveData Loaded;
@@ -546,8 +569,8 @@ bool UBloodStainSubsystem::FindOrLoadRecordBodyData(const FString& FileName, con
 		return false;
 	}
 
-	CachedRecordings.Add(RelativeFilePath, Loaded);
-	OutData = MoveTemp(Loaded);
+	OutData = Loaded;
+	CachedRecordings.Add(RelativeFilePath, FCachedRecordData(MoveTemp(Loaded), LastModifiedTime));
 	return true;
 }
 
@@ -686,8 +709,9 @@ void UBloodStainSubsystem::SpawnBloodStain(const FString& FileName, const FStrin
 
 void UBloodStainSubsystem::SpawnAllBloodStainInLevel(const FBloodStainPlaybackOptions PlaybackOptions)
 {
+	DeleteAllBloodStainActors();
+	
 	const FString LevelName = UGameplayStatics::GetCurrentLevelName(GetWorld());
-
 	const int32 LoadedCount = LoadAllHeadersInLevel(LevelName);
 
 	if (LoadedCount > 0)

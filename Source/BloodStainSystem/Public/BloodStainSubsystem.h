@@ -102,7 +102,23 @@ struct FPendingGroup
 	TWeakObjectPtr<AActor> RecordingMainActor = nullptr;
 };
 
+USTRUCT()
+struct FCachedRecordData
+{
+	GENERATED_BODY()
+	
+	UPROPERTY()
+	FRecordSaveData RecordData;
 
+	UPROPERTY()
+	FDateTime Timestamp;
+
+	FCachedRecordData() = default;
+	FCachedRecordData(FRecordSaveData&& InData, const FDateTime& InTimestamp)
+		: RecordData(MoveTemp(InData))
+		, Timestamp(InTimestamp)
+	{}
+};
 
 /**
  * @brief BloodStain recording and playback subsystem.
@@ -262,6 +278,9 @@ public:
 
 	UFUNCTION()
 	void HandleBloodStainReady(ABloodStainActor* ReadyActor);
+
+	UFUNCTION()
+	void DeleteAllBloodStainActors();
 public:
 	/**
 	 *	Finds all replay files for a given level and loads their headers into the cache.
@@ -468,7 +487,7 @@ private:
 	* Key is "LevelName/FileName"
 	 * Cached full replay data */
 	UPROPERTY()
-	TMap<FString, FRecordSaveData> CachedRecordings;
+	TMap<FString, FCachedRecordData> CachedRecordings;
 
 	/** Manages data from actors that were destroyed mid-recording, holding it until the session is saved. */
 	UPROPERTY()
