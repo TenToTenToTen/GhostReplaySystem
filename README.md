@@ -26,7 +26,7 @@ Whether you're building death replays, tutorial ghosts, or story moments, Ghost 
 ---
 
 ## 📞 Contact Us
-- 🎮 **Discord**: [Join our Discord](https://discord.com/invite/kkN6dss3Ph)
+- 🎮 **Discord**: [Join our Discord](https://discord.gg/Ab2hA5Eb9Q)
 - ▶ **YouTube**: [Watch our Trailer Video](https://www.youtube.com/watch?v=LHjubAv9SbY)
 - 📧 **Email**: techlab.ttt@gmail.com
 
