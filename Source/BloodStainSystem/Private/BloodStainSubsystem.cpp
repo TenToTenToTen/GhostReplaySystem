@@ -339,7 +339,7 @@ bool UBloodStainSubsystem::StartReplayByBloodStain(APlayerController* Requesting
 
 bool UBloodStainSubsystem::StartReplayFromFile(APlayerController* RequestingController, const FString& FileName, const FString& LevelName, FGuid& OutGuid, FBloodStainPlaybackOptions PlaybackOptions)
 {
-	ENetMode NetMode;
+	ENetMode NetMode = NM_Standalone;
 	if (UWorld* World = GetWorld())
 	{
 		NetMode = World->GetNetMode();
