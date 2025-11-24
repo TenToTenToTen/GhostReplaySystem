@@ -170,14 +170,8 @@ void URecordComponent::OnComponentAttached(UMeshComponent* NewComponent)
 		UE_LOG(LogBloodStain, Warning, TEXT("[On Component Attached] Component is Not Valid"));
 		return;
 	}
-	
-	const UClass* ComponentClass = NewComponent->GetClass();
-	const bool bIsSupported =
-		ComponentClass == UStaticMeshComponent::StaticClass() ||
-		ComponentClass == USkeletalMeshComponent::StaticClass() ||
-		ComponentClass == UGroomComponent::StaticClass();
 
-	if (!bIsSupported)
+	if (!IsComponentSupported(NewComponent))
 	{
 		return;
 	}
@@ -324,14 +318,7 @@ void URecordComponent::CollectOwnedMeshComponents()
 
 		for (UMeshComponent* MeshComp : MeshComponents)
 		{
-			const UClass* ComponentClass = MeshComp->GetClass();
-
-			const bool bIsSupported =
-				ComponentClass == UStaticMeshComponent::StaticClass() ||
-				ComponentClass == USkeletalMeshComponent::StaticClass() ||
-				ComponentClass == UGroomComponent::StaticClass();
-
-			if (!bIsSupported)
+			if (!IsComponentSupported(MeshComp))
 			{
 				continue;
 			}
@@ -419,7 +406,6 @@ bool URecordComponent::CreateRecordFromMeshComponent(UMeshComponent* InMeshCompo
 		MetaDataCache.Add(OutRecord.ComponentName, NewRecord);
 		OutRecord = *NewRecord;
 	}
-	
 	return true;
 }
 
@@ -503,13 +489,7 @@ void URecordComponent::HandleMeshComponentChangesByBit()
             {
                 if (MeshComp->IsVisible())
                 {
-                    const UClass* ComponentClass = MeshComp->GetClass();
-                    const bool bIsSupported =
-                        ComponentClass == UStaticMeshComponent::StaticClass() ||
-                        ComponentClass == USkeletalMeshComponent::StaticClass() ||
-                        ComponentClass == UGroomComponent::StaticClass();
-                    
-                    if (bIsSupported)
+                    if (IsComponentSupported(MeshComp))
                     {
                         CurMeshComponents.Add(MeshComp);
                     }
@@ -593,6 +573,31 @@ bool URecordComponent::AddComponentToRecordList(UMeshComponent* MeshComp)
 		return true;
 	}
 	return false;
+}
+
+bool URecordComponent::IsComponentSupported(UMeshComponent* MeshComp) const
+{
+	const UClass* ComponentClass = MeshComp->GetClass();
+
+	const bool bIsSupported =
+		ComponentClass == UStaticMeshComponent::StaticClass() ||
+		ComponentClass == USkeletalMeshComponent::StaticClass() ||
+		ComponentClass == UGroomComponent::StaticClass();
+
+	if (!bIsSupported)
+	{
+		return false;
+	}
+
+	if (RecordOptions.RequiredTag != NAME_None && !MeshComp->ComponentHasTag(RecordOptions.RequiredTag))
+	{
+		return false;
+	}
+	if (RecordOptions.ExcludedTag != NAME_None && MeshComp->ComponentHasTag(RecordOptions.ExcludedTag))
+	{
+		return false;
+	}
+	return true;
 }
 
 FString URecordComponent::CreateUniqueComponentName(const UActorComponent* Component)
