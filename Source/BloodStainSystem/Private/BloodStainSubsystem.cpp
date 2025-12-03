@@ -658,6 +658,11 @@ bool UBloodStainSubsystem::DeleteFile(const FString& FileName, const FString& Le
 	return BloodStainFileUtils::DeleteFile(FileName, LevelName);
 }
 
+void SetPluginSavedDir(const FString& Dir)
+{
+	return BloodStainFileUtils::SetPluginSavedDir(Dir);
+}
+
 FString UBloodStainSubsystem::GetFullFilePath(const FString& FileName, const FString& LevelName) const
 {
 	return BloodStainFileUtils::GetFullFilePath(FileName, LevelName);
@@ -676,6 +681,11 @@ TArray<FString> UBloodStainSubsystem::GetSavedLevelNames() const
 TArray<FString> UBloodStainSubsystem::GetSavedFileNames(const FString& LevelName) const
 {
 	return BloodStainFileUtils::GetSavedFileNames(LevelName);
+}
+
+const FString& GetPluginSavedDir() const
+{
+	return BloodStainFileUtils::GetPluginSavedDir();
 }
 
 void UBloodStainSubsystem::SpawnBloodStain(const FString& FileName, const FString& LevelName, const FBloodStainPlaybackOptions PlaybackOptions)
