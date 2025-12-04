@@ -15,7 +15,7 @@ namespace BloodStainFileUtils_Internal
 
 	FString& InternalPluginDir()
 	{
-		static FString SaveDir = TEXT("BloodStain");
+		static FString SaveDir = TEXT("GhostReplay");
 		return SaveDir;
 	}
 

@@ -658,7 +658,7 @@ bool UBloodStainSubsystem::DeleteFile(const FString& FileName, const FString& Le
 	return BloodStainFileUtils::DeleteFile(FileName, LevelName);
 }
 
-void SetPluginSavedDir(const FString& Dir)
+void UBloodStainSubsystem::SetPluginSavedDir(const FString& Dir)
 {
 	return BloodStainFileUtils::SetPluginSavedDir(Dir);
 }
@@ -683,7 +683,7 @@ TArray<FString> UBloodStainSubsystem::GetSavedFileNames(const FString& LevelName
 	return BloodStainFileUtils::GetSavedFileNames(LevelName);
 }
 
-const FString& GetPluginSavedDir() const
+const FString& UBloodStainSubsystem::GetPluginSavedDir() const
 {
 	return BloodStainFileUtils::GetPluginSavedDir();
 }
