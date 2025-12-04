@@ -349,6 +349,10 @@ public:
 	bool DeleteFile(const FString& FileName, const FString& LevelName);
 
 public:
+	/** Set the standard directory for replay files under the FPaths::ProjectSavedDir() path. */
+	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
+	void SetPluginSavedDir(const FString& Dir);
+
 	/** @return The complete absolute file path in the project's standard save directory. */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
 	FString GetFullFilePath(const FString& FileName, const FString& LevelName) const;
@@ -363,6 +367,10 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
 	TArray<FString> GetSavedFileNames(const FString& LevelName) const;
+
+	/** @return The standard directory for replay files under the FPaths::ProjectSavedDir() path. */
+	UFUNCTION(BlueprintCallable, Category="BloodStain|File")
+	const FString& GetPluginSavedDir() const;
 	
 public:
 	/** Spawns a BloodStainActor to the ground using the file name and level name. */

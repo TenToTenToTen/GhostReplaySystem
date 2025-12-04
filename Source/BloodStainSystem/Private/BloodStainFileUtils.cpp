@@ -13,9 +13,25 @@ namespace BloodStainFileUtils_Internal
 {
 	const TCHAR* FILE_EXTENSION = TEXT(".bin");
 
+	FString& InternalPluginDir()
+	{
+		static FString SaveDir = TEXT("BloodStain");
+		return SaveDir;
+	}
+
+	void SetPluginSavedDir(const FString& Dir)
+	{
+		InternalPluginDir() = Dir;
+	}
+
+	const FString& GetPluginSavedDir()
+	{
+		return InternalPluginDir();
+	}
+
 	FString GetSaveDirectory()
 	{
-		return FPaths::ProjectSavedDir() / TEXT("BloodStain");
+		return FPaths::ProjectSavedDir() / GetPluginSavedDir();
 	}
 
 	FString GetSaveDirectory(const FString& LevelName)
@@ -521,6 +537,11 @@ bool BloodStainFileUtils::FileExists(const FString& FileName, const FString& Lev
 	return FPaths::FileExists(Path);
 }
 
+void BloodStainFileUtils::SetPluginSavedDir(const FString& Dir)
+{
+	BloodStainFileUtils_Internal::SetPluginSavedDir(Dir);
+}
+
 TArray<FString> BloodStainFileUtils::GetSavedLevelNames()
 {
 	IFileManager& FileManager = IFileManager::Get();
@@ -579,3 +600,7 @@ FString BloodStainFileUtils::GetRelativeFilePath(const FString& FileName, const 
 	return LevelName/FileName;
 }
 
+const FString& BloodStainFileUtils::GetPluginSavedDir()
+{
+	return BloodStainFileUtils_Internal::GetPluginSavedDir();
+}

@@ -72,6 +72,8 @@ namespace BloodStainFileUtils
 
 	bool FileExists(const FString& FileName, const FString& LevelName);
 
+	void SetPluginSavedDir(const FString& Dir);
+
 	TArray<FString> GetSavedLevelNames();
 
 	TArray<FString> GetSavedFileNames(const FString& LevelName);
@@ -79,4 +81,6 @@ namespace BloodStainFileUtils
 	FString GetFullFilePath(const FString& FileName, const FString& LevelName);
 
 	FString GetRelativeFilePath(const FString& FileName, const FString& LevelName);
+
+	const FString& GetPluginSavedDir();
 };
