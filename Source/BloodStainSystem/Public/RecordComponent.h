@@ -81,6 +81,9 @@ private:
 	/** Adds the given mesh component to the list of components to be recorded. */
 	bool AddComponentToRecordList(UMeshComponent* MeshComp);
 
+	/** Check if given mesh component should be recorded */
+	bool IsComponentSupported(UMeshComponent* MeshComp) const;
+
 	static FString CreateUniqueComponentName(const UActorComponent* Component);
 	
 public:

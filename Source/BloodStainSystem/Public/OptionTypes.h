@@ -51,6 +51,14 @@ struct FBloodStainRecordOptions
 	/** Save immediately if all recording actors in group is empty */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Replay")
 	bool bSaveImmediatelyIfGroupEmpty = false;
+
+	/** If not none, only components with this tag will be recorded */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Record")
+	FName RequiredTag = NAME_None;
+
+	/** If not none, components with this tag will not be recorded */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Record")
+	FName ExcludedTag = NAME_None;
 	
 	friend FArchive& operator<<(FArchive& Ar, FBloodStainRecordOptions& Data)
 	{
@@ -63,6 +71,8 @@ struct FBloodStainRecordOptions
 		Ar << Data.SamplingInterval;
 		Ar << Data.bTrackAttachmentChanges;
 		Ar << Data.bSaveImmediatelyIfGroupEmpty;
+		Ar << Data.RequiredTag;
+		Ar << Data.ExcludedTag;
 		return Ar;
 	}
 };
