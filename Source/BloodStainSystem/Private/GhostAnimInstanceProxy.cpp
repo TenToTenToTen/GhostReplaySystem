@@ -28,6 +28,7 @@ bool FGhostAnimInstanceProxy::Evaluate(FPoseContext& Output)
 		{
 			Output.Pose[CompactIndex] = SrcPose[SkeletonIndex];
 		}
+		// TODO : Need to Fix
 		else
 		{
 			Output.Pose[CompactIndex] = FTransform::Identity;

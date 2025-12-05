@@ -216,13 +216,13 @@ void UPlayComponent::UpdatePlaybackToTime(float ElapsedTime)
 		return;
 	}
 	
-	const bool bShouldBeHidden = ReplayData.RecordedFrames.IsEmpty() || 
+	const bool bIsOutOfBounds = ReplayData.RecordedFrames.IsEmpty() || 
 							 ElapsedTime < ReplayData.RecordedFrames[0].TimeStamp || 
 							 ElapsedTime > ReplayData.RecordedFrames.Last().TimeStamp;
-	ReplayActor->SetActorHiddenInGame(bShouldBeHidden);
 
-	if (bShouldBeHidden)
+	if (bIsOutOfBounds)
 	{
+		ReplayActor->SetActorHiddenInGame(true);
 		return;
 	}
 
@@ -433,6 +433,14 @@ void UPlayComponent::ApplySkeletalBoneTransforms(const FRecordFrame& Prev, const
 		if (auto* GhostAnim = Cast<UGhostAnimInstance>(Info.Component->GetAnimInstance()))
 		{
 			GhostAnim->SetTargetPose(OutPose);
+			if (bIsPoseInitialized)
+			{
+				ReplayActor->SetActorHiddenInGame(false);
+			}
+			else
+			{
+				bIsPoseInitialized = true;
+			}
 		}
 	}
 }
