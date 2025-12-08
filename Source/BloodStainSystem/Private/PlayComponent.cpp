@@ -35,11 +35,6 @@ DECLARE_CYCLE_STAT(TEXT("PlayComp BuildIntervalTree"), STAT_PlayComponent_BuildI
 DECLARE_CYCLE_STAT(TEXT("PlayComp QueryIntervalTree"), STAT_PlayComponent_QueryIntervalTree, STATGROUP_BloodStain);
 
 
-UPlayComponent::UPlayComponent()
-{
-	PrimaryComponentTick.bCanEverTick = true;
-}
-
 void UPlayComponent::Initialize(FGuid InPlaybackKey, const FRecordHeaderData& InRecordHeaderData, const FRecordActorSaveData& InReplayData, const FBloodStainPlaybackOptions& InPlaybackOptions)
 {
 	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_Initialize);
@@ -144,8 +139,6 @@ void UPlayComponent::Initialize(FGuid InPlaybackKey, const FRecordHeaderData& In
 	}
 	IntervalRoot = BuildIntervalTree(Ptrs);
 	SeekFrame(0);
-
-	SetComponentTickEnabled(true);
 }
 
 void UPlayComponent::FinishReplay() const
@@ -433,15 +426,15 @@ void UPlayComponent::ApplySkeletalBoneTransforms(const FRecordFrame& Prev, const
 		if (auto* GhostAnim = Cast<UGhostAnimInstance>(Info.Component->GetAnimInstance()))
 		{
 			GhostAnim->SetTargetPose(OutPose);
-			if (bIsPoseInitialized)
-			{
-				ReplayActor->SetActorHiddenInGame(false);
-			}
-			else
-			{
-				bIsPoseInitialized = true;
-			}
 		}
+	}
+	if (bIsPoseInitialized)
+	{
+		ReplayActor->SetActorHiddenInGame(false);
+	}
+	else
+	{
+		bIsPoseInitialized = true;
 	}
 }
 

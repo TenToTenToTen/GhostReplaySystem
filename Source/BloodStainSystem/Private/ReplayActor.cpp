@@ -33,7 +33,6 @@ AReplayActor::AReplayActor()
 	RootComponent = Root;
 	
 	PlayComponent = CreateDefaultSubobject<UPlayComponent>(TEXT("PlayComponent"));
-	PlayComponent->PrimaryComponentTick.bCanEverTick = true;
 }
 
 void AReplayActor::BeginPlay()
@@ -65,7 +64,7 @@ void AReplayActor::Tick(float DeltaTime)
 	}
 	else if (GetNetMode() == NM_Standalone) // Local Mode
 	{
-		if (PlayComponent && PlayComponent->IsComponentTickEnabled())
+		if (PlayComponent)
 		{
 			float ElapsedTime = 0.f;
 			if (PlayComponent->CalculatePlaybackTime(ElapsedTime))

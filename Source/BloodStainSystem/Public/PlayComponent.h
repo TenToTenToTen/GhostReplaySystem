@@ -48,7 +48,6 @@ class BLOODSTAINSYSTEM_API UPlayComponent : public UActorComponent
 	GENERATED_BODY()
 
 public:	
-	UPlayComponent();
 	
 	void Initialize(FGuid PlaybackKey, const FRecordHeaderData& InRecordHeaderData, const FRecordActorSaveData& InReplayData, const FBloodStainPlaybackOptions& InPlaybackOptions);
 	
