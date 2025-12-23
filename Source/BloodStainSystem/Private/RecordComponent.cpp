@@ -27,7 +27,7 @@ DECLARE_CYCLE_STAT(TEXT("RecordComp SaveQueuedFrames"), STAT_RecordComponent_Coo
 DECLARE_CYCLE_STAT(TEXT("RecordComp OnComponentAttached"), STAT_RecordComponent_OnComponentAttached, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("RecordComp OnComponentDetached"), STAT_RecordComponent_OnComponentDetached, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("RecordComp FillMaterialData"), STAT_RecordComponent_FillMaterialData, STATGROUP_BloodStain);
-DECLARE_CYCLE_STAT(TEXT("RecordComp CreateRecordFromMesh"), STAT_RecordComponent_CreateRecordFromMesh, STATGROUP_BloodStain);
+DECLARE_CYCLE_STAT(TEXT("RecordComp CreateRecordFromMesh"), STAT_RecordComponent_CreateRecordFromScene, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("RecordComp HandleAttachedChanges"), STAT_RecordComponent_HandleAttachedChanges, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("RecordComp HandleAttachedChangesByBit"), STAT_RecordComponent_HandleAttachedChangesByBit, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("RecordComp HandleMeshComponentChangesByBit"), STAT_RecordComponent_HandleMeshComponentChangesByBit, STATGROUP_BloodStain);
@@ -58,11 +58,11 @@ void URecordComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 		NewFrame.TimeStamp = GetWorld()->GetTimeSeconds() - StartTime;
 
 		// Record All Owned Component Transform (support for StaticMeshComponent, SkeletalMeshComponent)
-		for (TObjectPtr<UMeshComponent>& MeshComp : OwnedComponentsForRecord)
+		for (TObjectPtr<USceneComponent>& SceneComp : OwnedComponentsForRecord)
 		{
-			FString ComponentName = CreateUniqueComponentName(MeshComp);
+			FString ComponentName = CreateUniqueComponentName(SceneComp);
 
-			if (USkeletalMeshComponent* SkeletalComp = Cast<USkeletalMeshComponent>(MeshComp))
+			if (USkeletalMeshComponent* SkeletalComp = Cast<USkeletalMeshComponent>(SceneComp))
 			{
 				if (SkeletalComp->IsSimulatingPhysics())
 				{
@@ -102,7 +102,7 @@ void URecordComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 				NewFrame.SkeletalMeshBoneTransforms.Add(ComponentName, LocalBaseTransforms);
 				}
 			}
-			NewFrame.ComponentTransforms.Add(ComponentName, MeshComp->GetComponentTransform());
+			NewFrame.RelativeTransforms.Add(ComponentName, SceneComp->GetRelativeTransform());
 		}
 
 		/* If there is no space left, discard the oldest frame */
@@ -147,7 +147,7 @@ void URecordComponent::Initialize(const FBloodStainRecordOptions& InOptions, con
 
 	StartTime = InGroupStartTime;
 	
-	CollectOwnedMeshComponents();
+	CollectOwnedSceneComponents();
 }
 
 FRecordActorSaveData URecordComponent::CookQueuedFrames(const float& BaseTime)
@@ -161,7 +161,7 @@ FRecordActorSaveData URecordComponent::CookQueuedFrames(const float& BaseTime)
 	return Result;
 }
 
-void URecordComponent::OnComponentAttached(UMeshComponent* NewComponent)
+void URecordComponent::OnComponentAttached(USceneComponent* NewComponent)
 {
 	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_OnComponentAttached);
 
@@ -188,7 +188,7 @@ void URecordComponent::OnComponentAttached(UMeshComponent* NewComponent)
 
 	FComponentRecord Record;
 
-	if (CreateRecordFromMeshComponent(NewComponent, Record))
+	if (CreateRecordFromSceneComponent(NewComponent, Record))
 	{
 		FComponentActiveInterval I = FComponentActiveInterval(Record, CurrentFrameIndex, INT32_MAX);
 		int32 NewIdx = ComponentActiveIntervals.Add(I);
@@ -198,7 +198,7 @@ void URecordComponent::OnComponentAttached(UMeshComponent* NewComponent)
 	UE_LOG(LogBloodStain, Warning, TEXT("[OnComponentAttached] Component %s Attached"), *ComponentName);
 }
 
-void URecordComponent::OnComponentDetached(UMeshComponent* DetachedComponent)
+void URecordComponent::OnComponentDetached(USceneComponent* DetachedComponent)
 {
 	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_OnComponentDetached);
 	if (!DetachedComponent)
@@ -293,7 +293,7 @@ FInstancedStruct URecordComponent::GetRecordActorUserData()
 	return InstancedStruct;
 }
 
-void URecordComponent::CollectOwnedMeshComponents()
+void URecordComponent::CollectOwnedSceneComponents()
 {
 	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_CollectMeshComponents);
 	
@@ -311,59 +311,65 @@ void URecordComponent::CollectOwnedMeshComponents()
 	ActorsToProcess.Add(Owner);
 	Owner->GetAttachedActors(ActorsToProcess, false, true);
 
-	for (AActor* CurrentActor: ActorsToProcess)
+	for (AActor* Actor : ActorsToProcess)
 	{
-		TArray<UMeshComponent*> MeshComponents;
-		CurrentActor->GetComponents<UMeshComponent>(MeshComponents);
-
-		for (UMeshComponent* MeshComp : MeshComponents)
+		TArray<USceneComponent*> OrderedComponents;
+		USceneComponent* Root = Actor->GetRootComponent();
+		
+		if (Root)
 		{
-			if (!IsComponentSupported(MeshComp))
+			OrderedComponents.Add(Root);
+			TArray<USceneComponent*> Descendants;
+			Root->GetChildrenComponents(true, Descendants);
+			OrderedComponents.Append(Descendants);
+		}
+		
+		for (USceneComponent* SceneComp : OrderedComponents)
+		{
+			if (IsComponentSupported(SceneComp))
 			{
-				continue;
+				AddComponentToRecordList(SceneComp);
 			}
-			AddComponentToRecordList(MeshComp);
 		}
 	}
-
-    // TODO - to clear out the exact order of GetComponents()
+	
 	if (!OwnedComponentsForRecord.IsEmpty())
 	{
-		const UMeshComponent* PrimaryComp = OwnedComponentsForRecord[0].Get();
+		const USceneComponent* PrimaryComp = OwnedComponentsForRecord[0].Get();
 		if (PrimaryComp != nullptr)
 		{
 			PrimaryComponentName = FName(CreateUniqueComponentName(PrimaryComp));
 		}
 	}
 	
-	UE_LOG(LogBloodStain, Log, TEXT("Collected %d mesh components for %s and its attachments."), OwnedComponentsForRecord.Num(), *Owner->GetName());
+ 	UE_LOG(LogBloodStain, Log, TEXT("Collected %d mesh components for %s and its attachments."), OwnedComponentsForRecord.Num(), *Owner->GetName());
 }
 
-bool URecordComponent::CreateRecordFromMeshComponent(UMeshComponent* InMeshComponent, FComponentRecord& OutRecord)
+bool URecordComponent::CreateRecordFromSceneComponent(USceneComponent* InSceneComponent, FComponentRecord& OutRecord)
 {
-	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_CreateRecordFromMesh);
-	if (!InMeshComponent || !IsValid(InMeshComponent))
+	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_CreateRecordFromScene);
+	if (!InSceneComponent || !IsValid(InSceneComponent))
 	{
-		UE_LOG(LogBloodStain, Warning, TEXT("CreateRecordFromMeshComponent: Invalid or null mesh component provided."));
+		UE_LOG(LogBloodStain, Warning, TEXT("CreateRecordFromSceneComponent: Invalid or null Scene component provided."));
 		return false;
 	}
 
 	FString AssetPath;
-	if (UStaticMeshComponent* StaticMeshComp = Cast<UStaticMeshComponent>(InMeshComponent))
+	if (UStaticMeshComponent* StaticMeshComp = Cast<UStaticMeshComponent>(InSceneComponent))
 	{
 		if (UStaticMesh* StaticMesh = StaticMeshComp->GetStaticMesh())
 		{
 			AssetPath = StaticMesh->GetPathName();
 		}
 	}
-	else if (USkeletalMeshComponent* SkeletalMeshComp = Cast<USkeletalMeshComponent>(InMeshComponent))
+	else if (USkeletalMeshComponent* SkeletalMeshComp = Cast<USkeletalMeshComponent>(InSceneComponent))
 	{
 		if (USkeletalMesh* SkeletalMesh = SkeletalMeshComp->GetSkeletalMeshAsset())
 		{
 			AssetPath = SkeletalMesh->GetPathName();
 		}
 	}
-	else if (UGroomComponent* GroomComp = Cast<UGroomComponent>(InMeshComponent))
+	else if (UGroomComponent* GroomComp = Cast<UGroomComponent>(InSceneComponent))
 	{
 		if (GroomComp->GroomAsset)
 		{
@@ -373,28 +379,28 @@ bool URecordComponent::CreateRecordFromMeshComponent(UMeshComponent* InMeshCompo
 			}
 		}
 	}
-
 	
-
-	if (AssetPath.IsEmpty())
-	{
-		UE_LOG(LogBloodStain, Warning, TEXT("CreateRecordFromMeshComponent: Component %s has no valid mesh asset."), *InMeshComponent->GetName());
-		return false;
-	}
-
-	if (TSharedPtr<FComponentRecord> CachedRecord = MetaDataCache.FindRef(CreateUniqueComponentName(InMeshComponent)))
+	if (TSharedPtr<FComponentRecord> CachedRecord = MetaDataCache.FindRef(CreateUniqueComponentName(InSceneComponent)))
 	{
 		OutRecord = *CachedRecord;
 	}
 	else
 	{
 		TSharedPtr<FComponentRecord> NewRecord = MakeShared<FComponentRecord>();
-		NewRecord->ComponentName = CreateUniqueComponentName(InMeshComponent);
-		NewRecord->ComponentClassPath = InMeshComponent->GetClass()->GetPathName();
+		NewRecord->ComponentName = CreateUniqueComponentName(InSceneComponent);
+		if (USceneComponent* ParentComp = InSceneComponent->GetAttachParent())
+		{
+			NewRecord->AttachParentComponentName = CreateUniqueComponentName(ParentComp);
+			NewRecord->AttachSocketName = InSceneComponent->GetAttachSocketName().ToString(); 
+		}
+		NewRecord->ComponentClassPath = InSceneComponent->GetClass()->GetPathName();
 		NewRecord->AssetPath = AssetPath;
-		FillMaterialData(InMeshComponent, *NewRecord);
+		if (!AssetPath.IsEmpty())
+		{
+			FillMaterialData(Cast<UMeshComponent>(InSceneComponent), *NewRecord);
+		}
 
-		if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(InMeshComponent))
+		if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(InSceneComponent))
 		{
 			if (SkeletalMeshComponent->LeaderPoseComponent.Get() != nullptr)
 			{
@@ -402,7 +408,7 @@ bool URecordComponent::CreateRecordFromMeshComponent(UMeshComponent* InMeshCompo
 				NewRecord->LeaderPoseComponentName = ComponentName;
 			}
 		}
-		
+		NewRecord->bVisible = InSceneComponent->IsVisible();
 		MetaDataCache.Add(OutRecord.ComponentName, NewRecord);
 		OutRecord = *NewRecord;
 	}
@@ -448,11 +454,11 @@ void URecordComponent::HandleAttachedActorChangesByBit()
 	for (int32 Bit = Added.FindFrom(true, 0); Bit != INDEX_NONE; Bit = Added.FindFrom(true, Bit + 1))
 	{
 		const AActor* NewActor = AttachedIndexToActor[Bit];
-		TArray<UMeshComponent*> MeshComps;
-		NewActor->GetComponents<UMeshComponent>(MeshComps);
-		for (UMeshComponent* MeshComp : MeshComps)
+		TArray<USceneComponent*> SceneComps;
+		NewActor->GetComponents<USceneComponent>(SceneComps);
+		for (USceneComponent* SceneComp : SceneComps)
 		{
-			OnComponentAttached(MeshComp);
+			OnComponentAttached(SceneComp);
 		}
 	}
 
@@ -556,44 +562,31 @@ void URecordComponent::HandleMeshComponentChangesByBit()
     PrevComponentBits = CurComponentBits;
 }
 
-bool URecordComponent::AddComponentToRecordList(UMeshComponent* MeshComp)
+bool URecordComponent::AddComponentToRecordList(USceneComponent* SceneComp)
 {
-	if (!MeshComp->IsVisible())
+	if (!SceneComp->IsVisible() && SceneComp->GetNumChildrenComponents() == 0)
 	{
 		return false;
 	}
-	
-	FComponentRecord Record;
-	if (CreateRecordFromMeshComponent(MeshComp, Record))
+	FComponentRecord Record; 
+	if (CreateRecordFromSceneComponent(SceneComp, Record))
 	{
 		FComponentActiveInterval Interval = FComponentActiveInterval(Record, 0, INT32_MAX);
 		const int32 NewIdx = ComponentActiveIntervals.Add(Interval);
 		IntervalIndexMap.Add(Record.ComponentName, NewIdx);
-		OwnedComponentsForRecord.Add(MeshComp);
+		OwnedComponentsForRecord.Add(SceneComp);
 		return true;
 	}
 	return false;
 }
 
-bool URecordComponent::IsComponentSupported(UMeshComponent* MeshComp) const
+bool URecordComponent::IsComponentSupported(const USceneComponent* SceneComp) const
 {
-	const UClass* ComponentClass = MeshComp->GetClass();
-
-	const bool bIsSupported =
-		ComponentClass == UStaticMeshComponent::StaticClass() ||
-		ComponentClass == USkeletalMeshComponent::StaticClass() ||
-		ComponentClass == UGroomComponent::StaticClass();
-
-	if (!bIsSupported)
+	if (RecordOptions.RequiredTag != NAME_None && !SceneComp->ComponentHasTag(RecordOptions.RequiredTag))
 	{
 		return false;
 	}
-
-	if (RecordOptions.RequiredTag != NAME_None && !MeshComp->ComponentHasTag(RecordOptions.RequiredTag))
-	{
-		return false;
-	}
-	if (RecordOptions.ExcludedTag != NAME_None && MeshComp->ComponentHasTag(RecordOptions.ExcludedTag))
+	if (RecordOptions.ExcludedTag != NAME_None && SceneComp->ComponentHasTag(RecordOptions.ExcludedTag))
 	{
 		return false;
 	}

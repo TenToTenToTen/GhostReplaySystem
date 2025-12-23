@@ -56,9 +56,6 @@ namespace BloodStainRecordDataUtils
 	void BuildInitialComponentStructure(int32 FirstFrameIndex, FRecordActorSaveData& OutGhostSaveData, TArray<FComponentActiveInterval>& OutComponentIntervals)
 	{
 		int32 NumSavedFrames = OutGhostSaveData.RecordedFrames.Num();
-		OutComponentIntervals.Sort([](auto& A, auto& B) {
-			return A.EndFrame < B.EndFrame;
-		});
 
 		// StartIdx : first index where EndFrame > FirstFrameIndex 
 		const int32 StartIdx = Algo::UpperBoundBy(OutComponentIntervals, FirstFrameIndex, &FComponentActiveInterval::EndFrame);

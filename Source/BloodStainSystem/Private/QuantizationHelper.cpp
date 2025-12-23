@@ -56,7 +56,7 @@ void ComputeRanges(FRecordSaveData& SaveData)
                 }
             }
             
-            for (const auto& Pair : Frame.ComponentTransforms)
+            for (const auto& Pair : Frame.RelativeTransforms)
             {
                 const FTransform& ComponentT = Pair.Value;
                 const FVector Loc = ComponentT.GetLocation();
@@ -176,10 +176,10 @@ void SerializeSaveData(FArchive& RawAr, FRecordSaveData& SaveData, ETransformQua
             RawAr << Frame.TimeStamp;
             RawAr << Frame.FrameIndex;
 
-            // Component's World Transforms
-            int32 NumComps = Frame.ComponentTransforms.Num();
+            // Component's Local Transforms
+            int32 NumComps = Frame.RelativeTransforms.Num();
             RawAr << NumComps;
-            for (auto& Pair : Frame.ComponentTransforms)
+            for (auto& Pair : Frame.RelativeTransforms)
             {
                 RawAr << Pair.Key;
 
@@ -243,7 +243,7 @@ void DeserializeSaveData(FArchive& DataAr, FRecordSaveData& OutData, const ETran
             DataAr << Frame.TimeStamp;
             DataAr << Frame.FrameIndex; 
 
-            // Component's Transforms
+            // Component's Local Transforms
             int32 NumComps = 0;
             DataAr << NumComps;
             for (int32 c = 0; c < NumComps; ++c)
@@ -253,7 +253,7 @@ void DeserializeSaveData(FArchive& DataAr, FRecordSaveData& OutData, const ETran
                 const FLocRange* Range = &ActorData.ComponentRanges;
                 const FScaleRange* ScaleRange = &ActorData.ComponentScaleRanges;
                 FTransform T = DeserializeQuantizedTransform(DataAr, QuantOpts, Range, ScaleRange);
-                Frame.ComponentTransforms.Add(Key, T);
+                Frame.RelativeTransforms.Add(Key, T);
             }
 
             // Skeletal Mesh Component's Bone Transforms

@@ -39,10 +39,10 @@ public:
 	
 public:
 	/* Called when a new component attached to the owner */
-	void OnComponentAttached(UMeshComponent* NewComponent);
+	void OnComponentAttached(USceneComponent* NewComponent);
 
 	/* Called when a component detached from the owner */
-	void OnComponentDetached(UMeshComponent* DetachedComponent);
+	void OnComponentDetached(USceneComponent* DetachedComponent);
 
 	/** Recording group name */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Record")
@@ -58,12 +58,12 @@ public:
 	FInstancedStruct GetRecordActorUserData();
 	
 private:
-	/** Collect mesh components from the current actor and sub-actor */
-	void CollectOwnedMeshComponents();
+	/** Collect Scene components from the current actor and sub-actor */
+	void CollectOwnedSceneComponents();
 
-	/** Create FComponentRecord Data from mesh component */
-	bool CreateRecordFromMeshComponent(UMeshComponent* InMeshComponent, FComponentRecord& OutRecord);
-
+	/** Create FComponentRecord Data from Scene component */
+	bool CreateRecordFromSceneComponent(USceneComponent* InSceneComponent, FComponentRecord& OutRecord);
+	
 	/**
 	 * Create FComponentRecord From UMeshComponent
 	 * @param InMeshComponent Target Mesh Component
@@ -78,11 +78,11 @@ private:
 	/** Checks for newly attached or detached mesh components since the last frame and updates the recording state accordingly. */
 	void HandleMeshComponentChangesByBit();
 
-	/** Adds the given mesh component to the list of components to be recorded. */
-	bool AddComponentToRecordList(UMeshComponent* MeshComp);
+	/** Adds the given scene component to the list of components to be recorded. */
+	bool AddComponentToRecordList(USceneComponent* SceneComp);
 
-	/** Check if given mesh component should be recorded */
-	bool IsComponentSupported(UMeshComponent* MeshComp) const;
+	/** Checks if the component is eligible for recording based on tag-based filtering. */
+	bool IsComponentSupported(const USceneComponent* SceneComp) const;
 
 	static FString CreateUniqueComponentName(const UActorComponent* Component);
 	
@@ -103,7 +103,7 @@ protected:
 
 	/** Component currently owned */
 	UPROPERTY()
-	TArray<TObjectPtr<UMeshComponent>> OwnedComponentsForRecord;
+	TArray<TObjectPtr<USceneComponent>> OwnedComponentsForRecord;
 	
 	/** Component Intervals for each component, used to track when components were attached/detached */
 	UPROPERTY()

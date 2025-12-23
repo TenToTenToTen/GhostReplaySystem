@@ -134,7 +134,7 @@ bool BloodStainFileUtils::SaveToFile(
         int32 BoneCount = 0;
         if (NumFrames > 0)
         {
-            BoneCount = RecordActorData.RecordedFrames[0].ComponentTransforms.Num();
+            BoneCount = RecordActorData.RecordedFrames[0].RelativeTransforms.Num();
         }
 
         UE_LOG(LogBloodStain, Log, TEXT("[BloodStain] Saved recording to %s"), *Path);

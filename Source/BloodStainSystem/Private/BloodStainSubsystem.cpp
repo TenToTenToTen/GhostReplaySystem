@@ -179,8 +179,8 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 				continue;
 			}
 
-			FRecordActorSaveData RecordSaveData = RecordComponent->CookQueuedFrames(FrameBaseStartTime);
-			if (RecordSaveData.RecordedFrames.Num() == 0)
+			FRecordActorSaveData RecordActorSaveData = RecordComponent->CookQueuedFrames(FrameBaseStartTime);
+			if (RecordActorSaveData.RecordedFrames.Num() == 0)
 			{
 				UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StopRecording Warning: Frame is 0: %s"), *Actor->GetName());
 				continue;
@@ -189,7 +189,7 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 			FInstancedStruct RecordActorUserData = RecordComponent->GetRecordActorUserData();
 			ActorHeaderDataArray.Add(RecordActorUserData);
 			
-			RecordActorSaveDataArray.Add(RecordSaveData);
+			RecordActorSaveDataArray.Add(RecordActorSaveData);
 			int32 RecordDataIndex = RecordActorSaveDataArray.Num() - 1;
 			ActorNameToRecordDataIndexMap.Add(Actor->GetFName(), RecordDataIndex);
 		}
@@ -215,12 +215,12 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 			const int32 Index = ActorNameToRecordDataIndexMap[BloodStainRecordGroup.RecordingMainActor->GetFName()];
 			const FRecordActorSaveData& SaveData = RecordActorSaveDataArray[Index];
 			
-			BloodStainRecordGroup.SpawnPointTransform = SaveData.RecordedFrames[0].ComponentTransforms[SaveData.PrimaryComponentName.ToString()];
+			BloodStainRecordGroup.SpawnPointTransform = SaveData.RecordedFrames[0].RelativeTransforms[SaveData.PrimaryComponentName.ToString()];
 		}
 		else
 		{
 			const FRecordActorSaveData& SaveData = RecordActorSaveDataArray[0];
-			BloodStainRecordGroup.SpawnPointTransform = SaveData.RecordedFrames[0].ComponentTransforms[SaveData.PrimaryComponentName.ToString()];
+			BloodStainRecordGroup.SpawnPointTransform = SaveData.RecordedFrames[0].RelativeTransforms[SaveData.PrimaryComponentName.ToString()];
 		}
 	
 		if (BloodStainRecordGroup.RecordOptions.FileName == NAME_None)
@@ -803,8 +803,7 @@ bool UBloodStainSubsystem::StartReplay_Standalone(const FRecordSaveData& RecordS
 	for (const FRecordActorSaveData& ActorData : ActorDataArray)
 	{
 		// TODO : to separate all SpawnPoint data per Actors
-		FTransform StartTransform = Header.SpawnPointTransform;
-		AReplayActor* GhostActor = GetWorld()->SpawnActor<AReplayActor>(AReplayActor::StaticClass(), StartTransform);
+		AReplayActor* GhostActor = GetWorld()->SpawnActor<AReplayActor>(AReplayActor::StaticClass());
 		UPlayComponent* Replayer = GhostActor->GetPlayComponent();
 
 		if (GhostActor)
@@ -842,7 +841,7 @@ bool UBloodStainSubsystem::StartReplay_Networked(APlayerController* RequestingCo
 	SpawnParams.Owner = RequestingController; 
 
 	// Indicates AReplayActor's ownership to the controller
-	AReplayActor* GhostActor = GetWorld()->SpawnActor<AReplayActor>(AReplayActor::StaticClass(), RecordHeader.SpawnPointTransform, SpawnParams);
+	AReplayActor* GhostActor = GetWorld()->SpawnActor<AReplayActor>(AReplayActor::StaticClass(), SpawnParams);
 
 	if (!GhostActor)
 	{

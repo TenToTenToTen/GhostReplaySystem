@@ -365,8 +365,8 @@ void UPlayComponent::ApplyComponentTransforms(const FRecordFrame& Prev, const FR
 {
 	SCOPE_CYCLE_COUNTER(STAT_PlayComponent_ApplyComponentTransforms);
 
-	// Interpolate transforms for all components in the current frame in world space.
-	for (const auto& Pair : Next.ComponentTransforms)
+	// Interpolate transforms for all components in the current frame in local space.
+	for (const auto& Pair : Next.RelativeTransforms)
 	{
 		const FString& ComponentName = Pair.Key;
 		const FTransform& NextT = Pair.Value;
@@ -374,18 +374,18 @@ void UPlayComponent::ApplyComponentTransforms(const FRecordFrame& Prev, const FR
 		
 		if (USceneComponent* TargetComponent = ReconstructedComponents.FindRef(ComponentName))
 		{
-			if (const FTransform* PrevT = Prev.ComponentTransforms.Find(ComponentName))
+			if (const FTransform* PrevT = Prev.RelativeTransforms.Find(ComponentName))
 			{
 				FVector Loc = FMath::Lerp(PrevT->GetLocation(), NextT.GetLocation(), Alpha);
 				FQuat Rot = FQuat::Slerp(PrevT->GetRotation(), NextT.GetRotation(), Alpha);
 				FVector Scale = FMath::Lerp(PrevT->GetScale3D(), NextT.GetScale3D(), Alpha);
 
 				FTransform InterpT(Rot, Loc, Scale);
-				TargetComponent->SetWorldTransform(InterpT);
+				TargetComponent->SetRelativeTransform(InterpT);
 			}
 			else
 			{
-				TargetComponent->SetWorldTransform(NextT);
+				TargetComponent->SetRelativeTransform(NextT);
 			}
 		}
 	}
@@ -456,19 +456,13 @@ USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecor
 
 	// Load the component class from the FComponentRecord.
 	UClass* ComponentClass = FindObject<UClass>(nullptr, *Record.ComponentClassPath);
-	if (!ComponentClass ||
-		!(ComponentClass->IsChildOf(UStaticMeshComponent::StaticClass()) || ComponentClass->IsChildOf(USkeletalMeshComponent::StaticClass())||ComponentClass->IsChildOf(UGroomComponent::StaticClass())))
-	{
-		UE_LOG(LogBloodStain, Warning, TEXT("Failed to load or invalid component class: %s"), *Record.ComponentClassPath);
-		return nullptr;
-	}
 
 	// Create a new component on the Owner actor.
 	USceneComponent* NewComponent = nullptr;
 	
 	if (ComponentClass->IsChildOf(USkeletalMeshComponent::StaticClass()))
 	{
-		USkeletalMeshComponent* SkeletalComp = NewObject<USkeletalMeshComponent>(Owner, USkeletalMeshComponent::StaticClass(), FName(*Record.ComponentName));
+		USkeletalMeshComponent* SkeletalComp = NewObject<USkeletalMeshComponent>(Owner, ComponentClass, FName(*Record.ComponentName));
 		SkeletalComp->SetAnimationMode(EAnimationMode::AnimationCustomMode);
 		SkeletalComp->SetAnimInstanceClass(UGhostAnimInstance::StaticClass());
 		SkeletalComp->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
@@ -484,33 +478,27 @@ USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecor
 		StaticMeshComponent->SetSimulatePhysics(false);
 		NewComponent = StaticMeshComponent;
 	}
-	
 	else if (ComponentClass->IsChildOf(UGroomComponent::StaticClass()))
 	{
-		UGroomComponent* GroomComp = NewObject<UGroomComponent>(Owner, UGroomComponent::StaticClass(), FName(*Record.ComponentName));
+		UGroomComponent* GroomComp = NewObject<UGroomComponent>(Owner, ComponentClass, FName(*Record.ComponentName));
 		if (const TObjectPtr<UObject>* FoundAsset = AssetCache.Find(Record.AssetPath))
 		{
 			GroomComp->SetGroomAsset(Cast<UGroomAsset>(*FoundAsset));
 			// TODO Check
 			//GroomComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		}
-		GroomComp->SetWorldTransform(ReplayData.RecordedFrames[0].ComponentTransforms[Record.ComponentName]);
+		
+		GroomComp->SetRelativeTransform(ReplayData.RecordedFrames[0].RelativeTransforms[Record.ComponentName]);
 		NewComponent = GroomComp;
 	}
-
 	else
 	{
-		return nullptr;
-	}
-	if (!NewComponent) return nullptr;
-
-	UMeshComponent* NewMeshComponent = Cast<UMeshComponent>(NewComponent);
-	if (!NewMeshComponent)
-	{
-		NewComponent->DestroyComponent();
-		return nullptr;
+		USceneComponent* SceneComponent = NewObject<USceneComponent>(Owner, ComponentClass, FName(*Record.ComponentName));
+		NewComponent = SceneComponent;
 	}
 	
+	if (!NewComponent) return nullptr;
+
     if (!Record.AssetPath.IsEmpty())
     {
     	// Get the asset directly from the cache instead of using AssetRef.TryLoad().
@@ -546,62 +534,84 @@ USceneComponent* UPlayComponent::CreateComponentFromRecord(const FComponentRecor
 		TargetMaterial = PlaybackOptions.GroupGhostMaterial;
 	}
 	
-	// Apply materials in order.
-	for (int32 MatIndex = 0; MatIndex < Record.MaterialPaths.Num(); ++MatIndex)
+	if (UMeshComponent* NewMeshComponent = Cast<UMeshComponent>(NewComponent))
 	{
-		// Force the ghost material if the option is enabled
-		if ((PlaybackOptions.bUseGhostMaterial || Record.MaterialPaths[MatIndex].IsEmpty()) && TargetMaterial)
+		// Apply materials in order.
+		for (int32 MatIndex = 0; MatIndex < Record.MaterialPaths.Num(); ++MatIndex)
 		{
-			NewMeshComponent->SetMaterial(MatIndex, TargetMaterial);
-			continue; // Move to the next material slot.
-		}
-
-		// If the original material path is not empty and bUseGhostMaterial is false.
-		if (!Record.MaterialPaths[MatIndex].IsEmpty())
-		{
-			// Get the material directly from the cache instead of using StaticLoadObject.
-			UMaterialInterface* OriginalMaterial = nullptr;
-			if (const TObjectPtr<UObject>* FoundMaterial = AssetCache.Find(Record.MaterialPaths[MatIndex]))
+			// Force the ghost material if the option is enabled
+			if ((PlaybackOptions.bUseGhostMaterial || Record.MaterialPaths[MatIndex].IsEmpty()) && TargetMaterial)
 			{
-				OriginalMaterial = Cast<UMaterialInterface>(*FoundMaterial);
+				NewMeshComponent->SetMaterial(MatIndex, TargetMaterial);
+				continue; // Move to the next material slot.
 			}
 
-			if (!OriginalMaterial)
+			// If the original material path is not empty and bUseGhostMaterial is false.
+			if (!Record.MaterialPaths[MatIndex].IsEmpty())
 			{
-				UE_LOG(LogBloodStain, Warning, TEXT("Failed to find pre-loaded material: %s"), *Record.MaterialPaths[MatIndex]);
-				continue;
-			}
-			
-			// Check if there are saved dynamic parameters for the current material index.
-			if (Record.MaterialParameters.Contains(MatIndex))
-			{
-				UMaterialInstanceDynamic* DynMaterial = NewMeshComponent->CreateAndSetMaterialInstanceDynamicFromMaterial(MatIndex, OriginalMaterial);
-
-				if (DynMaterial)
+				// Get the material directly from the cache instead of using StaticLoadObject.
+				UMaterialInterface* OriginalMaterial = nullptr;
+				if (const TObjectPtr<UObject>* FoundMaterial = AssetCache.Find(Record.MaterialPaths[MatIndex]))
 				{
-					const FMaterialParameters& SavedParams = Record.MaterialParameters[MatIndex];
-					
-					for (const auto& Pair : SavedParams.VectorParams)
-					{
-						DynMaterial->SetVectorParameterValue(Pair.Key, Pair.Value);
-					}
-					for (const auto& Pair : SavedParams.ScalarParams)
-					{
-						DynMaterial->SetScalarParameterValue(Pair.Key, Pair.Value);
-					}
-					UE_LOG(LogBloodStain, Log, TEXT("Restored dynamic material for component %s at index %d"), *Record.ComponentName, MatIndex);
+					OriginalMaterial = Cast<UMaterialInterface>(*FoundMaterial);
 				}
-			}
-			else
-			{
-				// If no parameters are saved, apply the original material directly.
-				NewMeshComponent->SetMaterial(MatIndex, OriginalMaterial);
+
+				if (!OriginalMaterial)
+				{
+					UE_LOG(LogBloodStain, Warning, TEXT("Failed to find pre-loaded material: %s"), *Record.MaterialPaths[MatIndex]);
+					continue;
+				}
+			
+				// Check if there are saved dynamic parameters for the current material index.
+				if (Record.MaterialParameters.Contains(MatIndex))
+				{
+					UMaterialInstanceDynamic* DynMaterial = NewMeshComponent->CreateAndSetMaterialInstanceDynamicFromMaterial(MatIndex, OriginalMaterial);
+
+					if (DynMaterial)
+					{
+						const FMaterialParameters& SavedParams = Record.MaterialParameters[MatIndex];
+					
+						for (const auto& Pair : SavedParams.VectorParams)
+						{
+							DynMaterial->SetVectorParameterValue(Pair.Key, Pair.Value);
+						}
+						for (const auto& Pair : SavedParams.ScalarParams)
+						{
+							DynMaterial->SetScalarParameterValue(Pair.Key, Pair.Value);
+						}
+						UE_LOG(LogBloodStain, Log, TEXT("Restored dynamic material for component %s at index %d"), *Record.ComponentName, MatIndex);
+					}
+				}
+				else
+				{
+					// If no parameters are saved, apply the original material directly.
+					NewMeshComponent->SetMaterial(MatIndex, OriginalMaterial);
+				}
 			}
 		}
 	}
 
+	NewComponent->CreationMethod = EComponentCreationMethod::Instance;
+	if (Record.AttachParentComponentName.IsEmpty())
+	{
+		USceneComponent* OldRoot = Owner->GetRootComponent();
+		Owner->SetRootComponent(NewComponent);
+		OldRoot->DestroyComponent();
+	}
+	else
+	{
+		if (USceneComponent* ParentComponent = ReconstructedComponents.FindRef(Record.AttachParentComponentName))
+		{
+			NewComponent->AttachToComponent(ParentComponent, FAttachmentTransformRules::KeepRelativeTransform, FName(Record.AttachSocketName));
+		}
+		else
+		{
+			NewComponent->AttachToComponent(Owner->GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
+			UE_LOG(LogBloodStain, Warning, TEXT("[%s] Failed to find AttachParent [%s] for Component [%s]. Attaching to Actor Root instead."), 
+			*Owner->GetName(), *Record.AttachParentComponentName, *Record.ComponentName);
+		}
+	}
 	NewComponent->RegisterComponent();
-	NewComponent->AttachToComponent(Owner->GetRootComponent(), FAttachmentTransformRules::KeepWorldTransform);
 
 	// UE_LOG(LogBloodStain, Log, TEXT("Replay: Component Created - %s"), *Record.PrimaryComponentName);
 	
@@ -620,10 +630,10 @@ void UPlayComponent::SeekFrame(int32 FrameIndex)
 	TArray<FComponentActiveInterval*> AliveComps;
 	QueryIntervalTree(IntervalRoot.Get(), FrameIndex, AliveComps);
 
-	TSet<FString> AliveComponentNames;
+	TMap<FString, bool> AliveComponentMap;
 	for (const FComponentActiveInterval* Interval : AliveComps)
 	{
-		AliveComponentNames.Add(Interval->Meta.ComponentName);
+		AliveComponentMap.Add(Interval->Meta.ComponentName, Interval->Meta.bVisible);
 	}
 
 	// Iterate through all pre-created components and update their state.
@@ -633,11 +643,11 @@ void UPlayComponent::SeekFrame(int32 FrameIndex)
 		USceneComponent* Component = Pair.Value;
 
 		if (!Component) continue;
-
+		
 		// Check if the component should be active at the current frame.
-		const bool bShouldBeActive = AliveComponentNames.Contains(ComponentName);
+		const bool bShouldBeActive = AliveComponentMap.Contains(ComponentName) ? AliveComponentMap[ComponentName] : false;
 		const bool bIsCurrentlyActive = Component->IsVisible();
-
+		
 		// Only call functions if the state needs to change.
 		if (bShouldBeActive != bIsCurrentlyActive)
 		{

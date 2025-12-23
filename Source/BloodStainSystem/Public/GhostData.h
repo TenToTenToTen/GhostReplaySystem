@@ -49,6 +49,15 @@ struct FComponentRecord
 	UPROPERTY(BlueprintReadWrite, Category = "BloodStain")
 	FString ComponentName;
 
+	/** Name of the component this component is attached to (Parent Component Name). */
+	UPROPERTY(BlueprintReadWrite, Category = "BloodStain")
+	FString AttachParentComponentName;
+
+	/** Name of the socket on the parent component this component is attached to. 
+	 * Empty if attached directly to the component origin. */
+	UPROPERTY(BlueprintReadWrite, Category = "BloodStain")
+	FString AttachSocketName;
+
 	/** Component class path, e.g., "/Script/Engine.StaticMeshComponent" */
 	UPROPERTY(BlueprintReadWrite, Category = "BloodStain")
 	FString ComponentClassPath;
@@ -69,14 +78,23 @@ struct FComponentRecord
 	UPROPERTY(BlueprintReadWrite, Category = "BloodStain")
 	FString LeaderPoseComponentName;
 	
+	/** * Initial visibility state of the component.
+	 * Used to restore whether the component was hidden or visible at the time of recording.
+	 */
+	UPROPERTY(BlueprintReadWrite, Category = "BloodStain")
+	bool bVisible;
+	
 	friend FArchive& operator<<(FArchive& Ar, FComponentRecord& ComponentRecord)
 	{
 		Ar << ComponentRecord.ComponentName;
+		Ar << ComponentRecord.AttachParentComponentName;
+		Ar << ComponentRecord.AttachSocketName;
 		Ar << ComponentRecord.ComponentClassPath;
 		Ar << ComponentRecord.AssetPath;
 		Ar << ComponentRecord.MaterialPaths;
 		Ar << ComponentRecord.MaterialParameters;
 		Ar << ComponentRecord.LeaderPoseComponentName;
+		Ar << ComponentRecord.bVisible;
 		return Ar;
 	}
 };
@@ -168,7 +186,7 @@ struct FRecordFrame
 
 	/** Map of components' name to their transforms at this frame */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "BloodStain")
-	TMap<FString, FTransform> ComponentTransforms;
+	TMap<FString, FTransform> RelativeTransforms;
 
 	/** Map of skeletal mesh components' names to their bone transforms */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "BloodStain")
@@ -187,7 +205,7 @@ struct FRecordFrame
 	friend FArchive& operator<<(FArchive& Ar, FRecordFrame& Frame)
 	{
 		Ar << Frame.TimeStamp;
-		Ar << Frame.ComponentTransforms;
+		Ar << Frame.RelativeTransforms;
 		Ar << Frame.SkeletalMeshBoneTransforms;
 		Ar << Frame.FrameIndex;
 		return Ar;
