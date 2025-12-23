@@ -119,6 +119,4 @@ protected:
 	float PlaybackStartTime = 0.f;
 
 	int32 CurrentFrame = 0;
-
-	mutable bool bIsPoseInitialized = false;
 };

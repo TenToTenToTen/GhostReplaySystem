@@ -75,8 +75,8 @@ private:
 	/** Checks for newly attached or detached actors since the last frame and updates the recording state accordingly. */
 	void HandleAttachedActorChangesByBit();
 
-	/** Checks for newly attached or detached mesh components since the last frame and updates the recording state accordingly. */
-	void HandleMeshComponentChangesByBit();
+	/** Checks for newly attached or detached Scene components since the last frame and updates the recording state accordingly. */
+	void HandleSceneComponentChangesByBit();
 
 	/** Adds the given scene component to the list of components to be recorded. */
 	bool AddComponentToRecordList(USceneComponent* SceneComp);
@@ -126,8 +126,8 @@ private:
 	TBitArray<> PrevAttachedBits;
 	TBitArray<> CurAttachedBits;
 
-	TMap<TObjectPtr<UMeshComponent>, int32> AttachedComponentIndexMap;
-	TArray<TObjectPtr<UMeshComponent>> IndexToAttachedComponent;
+	TMap<TObjectPtr<USceneComponent>, int32> AttachedComponentIndexMap;
+	TArray<TObjectPtr<USceneComponent>> IndexToAttachedComponent;
 	TBitArray<> PrevComponentBits;
 	TBitArray<> CurComponentBits;
 	

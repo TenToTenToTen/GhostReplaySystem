@@ -22,7 +22,7 @@
 
 DECLARE_CYCLE_STAT(TEXT("RecordComp TickComponent"), STAT_RecordComponent_TickComponent, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("RecordComp Initialize"), STAT_RecordComponent_Initialize, STATGROUP_BloodStain);
-DECLARE_CYCLE_STAT(TEXT("RecordComp CollectMeshComponents"), STAT_RecordComponent_CollectMeshComponents, STATGROUP_BloodStain);
+DECLARE_CYCLE_STAT(TEXT("RecordComp CollectSceneComponents"), STAT_RecordComponent_CollectSceneComponents, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("RecordComp SaveQueuedFrames"), STAT_RecordComponent_CookQueuedFrames, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("RecordComp OnComponentAttached"), STAT_RecordComponent_OnComponentAttached, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("RecordComp OnComponentDetached"), STAT_RecordComponent_OnComponentDetached, STATGROUP_BloodStain);
@@ -30,7 +30,7 @@ DECLARE_CYCLE_STAT(TEXT("RecordComp FillMaterialData"), STAT_RecordComponent_Fil
 DECLARE_CYCLE_STAT(TEXT("RecordComp CreateRecordFromMesh"), STAT_RecordComponent_CreateRecordFromScene, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("RecordComp HandleAttachedChanges"), STAT_RecordComponent_HandleAttachedChanges, STATGROUP_BloodStain);
 DECLARE_CYCLE_STAT(TEXT("RecordComp HandleAttachedChangesByBit"), STAT_RecordComponent_HandleAttachedChangesByBit, STATGROUP_BloodStain);
-DECLARE_CYCLE_STAT(TEXT("RecordComp HandleMeshComponentChangesByBit"), STAT_RecordComponent_HandleMeshComponentChangesByBit, STATGROUP_BloodStain);
+DECLARE_CYCLE_STAT(TEXT("RecordComp HandleSceneComponentChangesByBit"), STAT_RecordComponent_HandleSceneComponentChangesByBit, STATGROUP_BloodStain);
 
 URecordComponent::URecordComponent()
 	: StartTime(0), MaxRecordFrames(0), CurrentFrameIndex(0), TimeSinceLastRecord(0)
@@ -48,7 +48,7 @@ void URecordComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 	{
 		if (RecordOptions.bTrackAttachmentChanges)
 		{
-			HandleMeshComponentChangesByBit();
+			HandleSceneComponentChangesByBit();
 		}
 		
 		TimeSinceLastRecord -= RecordOptions.SamplingInterval;
@@ -295,7 +295,7 @@ FInstancedStruct URecordComponent::GetRecordActorUserData()
 
 void URecordComponent::CollectOwnedSceneComponents()
 {
-	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_CollectMeshComponents);
+	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_CollectSceneComponents);
 	
 	AActor* Owner = GetOwner();
 	if (!Owner)
@@ -465,22 +465,22 @@ void URecordComponent::HandleAttachedActorChangesByBit()
 	for (int32 Bit = Removed.FindFrom(true, 0); Bit != INDEX_NONE; Bit = Removed.FindFrom(true, Bit + 1))
 	{
 		const AActor* GoneActor = AttachedIndexToActor[Bit];
-		TArray<UMeshComponent*> MeshComps;
-		GoneActor->GetComponents<UMeshComponent>(MeshComps);
-		for (UMeshComponent* MeshComp : MeshComps)
+		TArray<USceneComponent*> SceneComps;
+		GoneActor->GetComponents<USceneComponent>(SceneComps);
+		for (USceneComponent* SceneComp : SceneComps)
 		{
-			OnComponentDetached(MeshComp);
+			OnComponentDetached(SceneComp);
 		}
 	}
 	
 	PrevAttachedBits = CurAttachedBits;
 }
 
-void URecordComponent::HandleMeshComponentChangesByBit()
+void URecordComponent::HandleSceneComponentChangesByBit()
 {
 	SCOPE_CYCLE_COUNTER(STAT_RecordComponent_HandleAttachedChangesByBit);
 
-	TArray<UMeshComponent*> CurMeshComponents;
+	TArray<USceneComponent*> CurSceneComponents;
     if (AActor* Owner = GetOwner())
     {
         TArray<AActor*> ActorsToProcess;
@@ -489,22 +489,28 @@ void URecordComponent::HandleMeshComponentChangesByBit()
 
         for (AActor* Actor : ActorsToProcess)
         {
-            TArray<UMeshComponent*> MeshComps;
-            Actor->GetComponents<UMeshComponent>(MeshComps);
-            for (UMeshComponent* MeshComp : MeshComps)
+        	TArray<USceneComponent*> OrderedComponents;
+        	USceneComponent* Root = Actor->GetRootComponent();
+
+        	if (Root)
+        	{
+        		OrderedComponents.Add(Root);
+        		TArray<USceneComponent*> Descendants;
+        		Root->GetChildrenComponents(true, Descendants);
+        		OrderedComponents.Append(Descendants);
+        	}
+        	
+        	for (USceneComponent* SceneComp : OrderedComponents)
             {
-                if (MeshComp->IsVisible())
+                if (IsComponentSupported(SceneComp))
                 {
-                    if (IsComponentSupported(MeshComp))
-                    {
-                        CurMeshComponents.Add(MeshComp);
-                    }
+                    CurSceneComponents.Add(SceneComp);
                 }
             }
         }
     }
 
-    auto EnsureMapping = [&](UMeshComponent* Component) {
+    auto EnsureMapping = [&](USceneComponent* Component) {
         if (!AttachedComponentIndexMap.Contains(Component))
         {
             const int32 NewIndex = IndexToAttachedComponent.Add(Component);
@@ -514,13 +520,13 @@ void URecordComponent::HandleMeshComponentChangesByBit()
         }
     };
 
-    for (UMeshComponent* Component : CurMeshComponents)
+    for (USceneComponent* Component : CurSceneComponents)
     {
         EnsureMapping(Component);
     }
     
     CurComponentBits.Init(false, IndexToAttachedComponent.Num());
-    for (UMeshComponent* Component : CurMeshComponents)
+    for (USceneComponent* Component : CurSceneComponents)
     {
         if (const int32* IndexPtr = AttachedComponentIndexMap.Find(Component))
         {
@@ -538,7 +544,7 @@ void URecordComponent::HandleMeshComponentChangesByBit()
         {
             if (IndexToAttachedComponent.IsValidIndex(It.GetIndex()))
             {
-                if (UMeshComponent* NewComponent = IndexToAttachedComponent[It.GetIndex()])
+                if (USceneComponent* NewComponent = IndexToAttachedComponent[It.GetIndex()])
                 {
                     OnComponentAttached(NewComponent);
                 }
@@ -552,7 +558,7 @@ void URecordComponent::HandleMeshComponentChangesByBit()
         {
             if (IndexToAttachedComponent.IsValidIndex(It.GetIndex()))
             {
-                if (UMeshComponent* GoneComponent = IndexToAttachedComponent[It.GetIndex()])
+                if (USceneComponent* GoneComponent = IndexToAttachedComponent[It.GetIndex()])
                 {
                     OnComponentDetached(GoneComponent);
                 }
