@@ -252,24 +252,24 @@ public:
 	bool GetPlaybackGroup(const FGuid& InGuid, FBloodStainPlaybackGroup& OutBloodStainPlaybackGroup);
 	
 	/**
-	 *  @brief Notifies the recording system that a mesh component has been attached to a recorded actor.
+	 *  @brief Notifies the recording system that a scene component has been attached to a recorded actor.
 	 *  This must be called from game logic to ensure components like weapons or equipment are correctly recorded.
 	 *  
 	 *  @param TargetActor    The actor that is being recorded.
-	 *  @param NewComponent   The UMeshComponent that was just attached.
+	 *  @param NewComponent   The USceneComponent that was just attached.
 	 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Record")
-	void NotifyComponentAttached(AActor* TargetActor, UMeshComponent* NewComponent);
+	void NotifyComponentAttached(AActor* TargetActor, USceneComponent* NewComponent);
 
 	/**
-	 *  @brief Notifies the recording system that a mesh component has been detached from a recorded actor.
+	 *  @brief Notifies the recording system that a scene component has been detached from a recorded actor.
 	 *  This must be called from game logic to ensure the component's removal is correctly recorded.
 	 *  
 	 *  @param TargetActor       The actor that is being recorded.
-	 *  @param DetachedComponent The UMeshComponent that was just detached.
+	 *  @param DetachedComponent The USceneComponent that was just detached.
 	 */
 	UFUNCTION(BlueprintCallable, Category="BloodStain|Record")
-	void NotifyComponentDetached(AActor* TargetActor, UMeshComponent* DetachedComponent);
+	void NotifyComponentDetached(AActor* TargetActor, USceneComponent* DetachedComponent);
 
 	/** Set Main Actor for specify the SpawnPointTransform position
 	 *  If null, it is set to the middle position of the Actors. */

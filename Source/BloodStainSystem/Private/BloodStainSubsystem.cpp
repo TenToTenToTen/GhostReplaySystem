@@ -451,7 +451,7 @@ bool UBloodStainSubsystem::GetPlaybackGroup(const FGuid& InGuid, FBloodStainPlay
 	return false;
 }
 
-void UBloodStainSubsystem::NotifyComponentAttached(AActor* TargetActor, UMeshComponent* NewComponent)
+void UBloodStainSubsystem::NotifyComponentAttached(AActor* TargetActor, USceneComponent* NewComponent)
 {
 	if (!TargetActor || !NewComponent)
 	{
@@ -465,7 +465,7 @@ void UBloodStainSubsystem::NotifyComponentAttached(AActor* TargetActor, UMeshCom
 	}
 }
 
-void UBloodStainSubsystem::NotifyComponentDetached(AActor* TargetActor, UMeshComponent* DetachedComponent)
+void UBloodStainSubsystem::NotifyComponentDetached(AActor* TargetActor, USceneComponent* DetachedComponent)
 {
 	if (!TargetActor || !DetachedComponent)
 	{
