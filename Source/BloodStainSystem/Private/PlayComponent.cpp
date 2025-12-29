@@ -46,7 +46,6 @@ void UPlayComponent::Initialize(FGuid InPlaybackKey, const FRecordHeaderData& In
     PlaybackOptions = InPlaybackOptions;
 
     PlaybackStartTime = GetWorld()->GetTimeSeconds();
-    CurrentFrame      = PlaybackOptions.PlaybackRate > 0 ? -1 : ReplayData.RecordedFrames.Num() - 2;
 
 	TSet<FString> UniqueAssetPaths;
 	for (const FComponentActiveInterval& Interval : ReplayData.ComponentIntervals)
@@ -212,12 +211,7 @@ void UPlayComponent::UpdatePlaybackToTime(float ElapsedTime)
 							 ElapsedTime < ReplayData.RecordedFrames[0].TimeStamp || 
 							 ElapsedTime > ReplayData.RecordedFrames.Last().TimeStamp + RecordHeaderData.SamplingInterval;
 
-	ReplayActor->SetActorHiddenInGame(bIsOutOfBounds);
-	if (bIsOutOfBounds)
-	{
-		return;
-	}
-	
+	ReplayActor->SetActorHiddenInGame(bIsOutOfBounds);	
 	const int32 PreviousFrame = CurrentFrame;
 
 	// Find the correct frame index for the current time using a binary search.
@@ -425,7 +419,6 @@ void UPlayComponent::ApplySkeletalBoneTransforms(const FRecordFrame& Prev, const
 		if (auto* GhostAnim = Cast<UGhostAnimInstance>(Info.Component->GetAnimInstance()))
 		{
 			GhostAnim->SetTargetPose(OutPose);
-			Info.Component->RefreshBoneTransforms();
 		}
 	}
 }

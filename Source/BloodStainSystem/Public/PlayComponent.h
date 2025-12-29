@@ -118,5 +118,5 @@ protected:
 	
 	float PlaybackStartTime = 0.f;
 
-	int32 CurrentFrame = 0;
+	int32 CurrentFrame = -1;
 };
