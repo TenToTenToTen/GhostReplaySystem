@@ -82,7 +82,7 @@ struct FComponentRecord
 	 * Used to restore whether the component was hidden or visible at the time of recording.
 	 */
 	UPROPERTY(BlueprintReadWrite, Category = "BloodStain")
-	bool bVisible;
+	bool bVisible = true;
 	
 	friend FArchive& operator<<(FArchive& Ar, FComponentRecord& ComponentRecord)
 	{
