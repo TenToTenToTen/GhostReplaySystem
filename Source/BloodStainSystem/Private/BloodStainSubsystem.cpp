@@ -237,11 +237,9 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 		RecordSaveData.Header.RecordGroupUserData = GetReplayUserHeaderData(GroupName);
 		RecordSaveData.Header.RecordActorUserData = ActorHeaderDataArray;
 		
+		const FString FinalFilePath = BloodStainFileUtils::GetFullFilePath(BloodStainRecordGroup.RecordOptions.FileName.ToString(), MapName);
 
-		const FString FinalFileName = FString::Printf(TEXT("BloodStainReplay-%s"), *UniqueTimestamp); 
-		const FString FinalFilePath = BloodStainFileUtils::GetFullFilePath(FinalFileName, MapName);
-
-		RecordSaveData.Header.FileName = FName(FinalFileName);
+		RecordSaveData.Header.FileName = BloodStainRecordGroup.RecordOptions.FileName;
 		RecordSaveData.Header.LevelName = FName(MapName);
 		
 		auto OnSaveCompleted = [this, FinalFilePath, Header = RecordSaveData.Header]()
@@ -345,7 +343,7 @@ bool UBloodStainSubsystem::StartReplayFromFile(APlayerController* RequestingCont
 		NetMode = World->GetNetMode();
 	}
 
-	if (NetMode == ENetMode::NM_Standalone)
+	if (NetMode == NM_Standalone)
 	{
 		FRecordSaveData Data;
 		if (!FindOrLoadRecordBodyData(FileName, LevelName, Data))
@@ -356,21 +354,35 @@ bool UBloodStainSubsystem::StartReplayFromFile(APlayerController* RequestingCont
 
 		return StartReplay_Standalone(Data, PlaybackOptions, OutGuid);
 	}
-	else // NM_ListenServer or NM_DedicatedServer
+
+	if (NetMode == NM_Client)
 	{
-		FBloodStainFileHeader FileHeader;
-		FRecordHeaderData RecordHeader;
-		TArray<uint8> CompressedPayload;
-	
-		if (!BloodStainFileUtils::LoadRawPayloadFromFile(FileName, LevelName, FileHeader, RecordHeader, CompressedPayload))
+		if (AGhostPlayerController* GhostPC = Cast<AGhostPlayerController>(RequestingController))
 		{
-			UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] File: Cannot Load Raw Payload [%s] for Networked"), *FileName);
-			return false;
+			if (GhostPC->IsLocalController())
+			{
+				GhostPC->Server_StartReplayFromFile(FileName, LevelName, PlaybackOptions);
+				OutGuid.Invalidate();
+				return true;
+			}
 		}
-	
-		return StartReplay_Networked(RequestingController, FileName, LevelName, FileHeader, RecordHeader, CompressedPayload, PlaybackOptions, OutGuid);
+
+		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] StartReplayFromFile called on client but RequestingController is invalid or not local GhostPC."));
+		return false;
 	}
 	
+	// NM_ListenServer or NM_DedicatedServer
+	FBloodStainFileHeader FileHeader;
+	FRecordHeaderData RecordHeader;
+	TArray<uint8> CompressedPayload;
+
+	if (!BloodStainFileUtils::LoadRawPayloadFromFile(FileName, LevelName, FileHeader, RecordHeader, CompressedPayload))
+	{
+		UE_LOG(LogBloodStain, Warning, TEXT("[BloodStain] File: Cannot Load Raw Payload [%s] for Networked"), *FileName);
+		return false;
+	}
+
+	return StartReplay_Networked(RequestingController, FileName, LevelName, FileHeader, RecordHeader, CompressedPayload, PlaybackOptions, OutGuid);
 }
 
 void UBloodStainSubsystem::StopReplay(FGuid PlaybackKey)

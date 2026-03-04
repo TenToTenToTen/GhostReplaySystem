@@ -31,6 +31,9 @@ public:
 	UFUNCTION(Server, Reliable)
 	void Server_SpawnBloodStain(const FString& FileName, const FString& LevelName, const FBloodStainPlaybackOptions& PlaybackOptions);
 
+	UFUNCTION(Server, Reliable)
+	void Server_StartReplayFromFile(const FString& FileName, const FString& LevelName, const FBloodStainPlaybackOptions& PlaybackOptions);
+	
 	/** [Client-side] Start sending local replay file to the server, called on Tick() */
 	void StartFileUpload(const FString& FilePath, const FRecordHeaderData& Header);
 	

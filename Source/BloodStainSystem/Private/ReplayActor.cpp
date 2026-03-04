@@ -41,6 +41,20 @@ void AReplayActor::BeginPlay()
 	Super::BeginPlay();
 }
 
+void AReplayActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	Super::EndPlay(EndPlayReason);
+	
+	for (const TObjectPtr<AReplayActor>& VisualActor : Client_SpawnedVisualActors)
+	{
+		if (IsValid(VisualActor))
+		{
+			VisualActor->Destroy();
+		}
+	}
+	Client_SpawnedVisualActors.Empty();
+}
+
 
 void AReplayActor::Tick(float DeltaTime)
 {
@@ -311,7 +325,6 @@ void AReplayActor::Client_FinalizeAndSpawnVisuals()
 
 	if (IsNetMode(NM_DedicatedServer))
 	{
-		PlayComponent->SetComponentTickEnabled(true);
 		PlayComponent->RecordHeaderData = Client_RecordHeader;
 		PlayComponent->PlaybackOptions = Client_PlaybackOptions;
 		PlayComponent->SetPlaybackStartTime(GetWorld()->GetTimeSeconds());
@@ -359,7 +372,7 @@ void AReplayActor::OnRep_PlaybackTime()
 	
 	for (TObjectPtr<AReplayActor> VisualActor : Client_SpawnedVisualActors)
 	{
-		if (VisualActor && VisualActor->PlayComponent && VisualActor->PlayComponent->IsComponentTickEnabled())
+		if (VisualActor && VisualActor->PlayComponent)
 		{
 			VisualActor->SetActorTickEnabled(false);
 			VisualActor->PlayComponent->UpdatePlaybackToTime(ReplicatedPlaybackTime);
@@ -599,7 +612,7 @@ void AReplayActor::Server_TickPlayback(float DeltaSeconds)
 		TimeSourceComponent = this->PlayComponent;
 	}
 
-	if (TimeSourceComponent && TimeSourceComponent->IsComponentTickEnabled())
+	if (TimeSourceComponent)
 	{
 		float ElapsedTime = 0.f;
 		if (TimeSourceComponent->CalculatePlaybackTime(ElapsedTime))
@@ -619,7 +632,7 @@ void AReplayActor::Server_TickPlayback(float DeltaSeconds)
 		}
 		else
 		{
-			SetActorTickEnabled(false);
+			Destroy();
 		}
 	}
 }
