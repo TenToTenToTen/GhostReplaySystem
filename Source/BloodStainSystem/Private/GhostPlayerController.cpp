@@ -147,6 +147,22 @@ void AGhostPlayerController::Tick(float DeltaSeconds)
     }
 }
 
+void AGhostPlayerController::Server_StartReplayFromFile_Implementation(const FString& FileName,
+	const FString& LevelName, const FBloodStainPlaybackOptions& PlaybackOptions)
+{
+	if (UWorld* World = GetWorld())
+	{
+		if (const UGameInstance* GameInstance = World->GetGameInstance())
+		{
+			if (UBloodStainSubsystem* BloodStainSubsystem = GameInstance->GetSubsystem<UBloodStainSubsystem>())
+			{
+				FGuid Guid;
+				BloodStainSubsystem->StartReplayFromFile(this, FileName, LevelName, Guid, PlaybackOptions);
+			}
+		}
+	}
+}
+
 void AGhostPlayerController::StartFileUpload(const FString& FilePath, const FRecordHeaderData& Header)
 {
 	if (GetLocalRole() != ENetRole::ROLE_AutonomousProxy)
