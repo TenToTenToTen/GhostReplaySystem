@@ -41,6 +41,20 @@ void AReplayActor::BeginPlay()
 	Super::BeginPlay();
 }
 
+void AReplayActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	Super::EndPlay(EndPlayReason);
+	
+	for (const TObjectPtr<AReplayActor>& VisualActor : Client_SpawnedVisualActors)
+	{
+		if (IsValid(VisualActor))
+		{
+			VisualActor->Destroy();
+		}
+	}
+	Client_SpawnedVisualActors.Empty();
+}
+
 
 void AReplayActor::Tick(float DeltaTime)
 {
@@ -618,7 +632,7 @@ void AReplayActor::Server_TickPlayback(float DeltaSeconds)
 		}
 		else
 		{
-			SetActorTickEnabled(false);
+			Destroy();
 		}
 	}
 }
