@@ -237,11 +237,9 @@ void UBloodStainSubsystem::StopRecording(FName GroupName, bool bSaveRecordingDat
 		RecordSaveData.Header.RecordGroupUserData = GetReplayUserHeaderData(GroupName);
 		RecordSaveData.Header.RecordActorUserData = ActorHeaderDataArray;
 		
+		const FString FinalFilePath = BloodStainFileUtils::GetFullFilePath(BloodStainRecordGroup.RecordOptions.FileName.ToString(), MapName);
 
-		const FString FinalFileName = FString::Printf(TEXT("BloodStainReplay-%s"), *UniqueTimestamp); 
-		const FString FinalFilePath = BloodStainFileUtils::GetFullFilePath(FinalFileName, MapName);
-
-		RecordSaveData.Header.FileName = FName(FinalFileName);
+		RecordSaveData.Header.FileName = BloodStainRecordGroup.RecordOptions.FileName;
 		RecordSaveData.Header.LevelName = FName(MapName);
 		
 		auto OnSaveCompleted = [this, FinalFilePath, Header = RecordSaveData.Header]()
